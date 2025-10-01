@@ -2271,6 +2271,224 @@ const getRestaurantProfile = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza la información del restaurante del dueño autenticado
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const updateRestaurantProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, description, logoUrl, coverPhotoUrl } = req.body;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        lastname: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true,
+                displayName: true
+              }
+            },
+            restaurantId: true,
+            branchId: true
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de owner',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este owner',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Verificar que el restaurante existe
+    const existingRestaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        logoUrl: true,
+        coverPhotoUrl: true,
+        status: true
+      }
+    });
+
+    if (!existingRestaurant) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Restaurante no encontrado',
+        code: 'RESTAURANT_NOT_FOUND'
+      });
+    }
+
+    // 5. Preparar los datos de actualización (solo campos enviados)
+    const updateData = {};
+    
+    if (name !== undefined) {
+      updateData.name = name.trim();
+    }
+    
+    if (description !== undefined) {
+      updateData.description = description.trim();
+    }
+    
+    if (logoUrl !== undefined) {
+      updateData.logoUrl = logoUrl.trim();
+    }
+    
+    if (coverPhotoUrl !== undefined) {
+      updateData.coverPhotoUrl = coverPhotoUrl.trim();
+    }
+
+    // Si no hay campos para actualizar
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No se proporcionaron campos para actualizar',
+        code: 'NO_FIELDS_TO_UPDATE'
+      });
+    }
+
+    // 6. Actualizar el restaurante
+    const updatedRestaurant = await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        ...updateData,
+        updatedAt: new Date()
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            email: true,
+            phone: true
+          }
+        },
+        branches: {
+          where: {
+            status: 'active'
+          },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: {
+            name: 'asc'
+          }
+        },
+        _count: {
+          select: {
+            branches: true,
+            subcategories: true,
+            products: true
+          }
+        }
+      }
+    });
+
+    // 7. Formatear respuesta
+    const formattedRestaurant = {
+      id: updatedRestaurant.id,
+      name: updatedRestaurant.name,
+      description: updatedRestaurant.description,
+      logoUrl: updatedRestaurant.logoUrl,
+      coverPhotoUrl: updatedRestaurant.coverPhotoUrl,
+      status: updatedRestaurant.status,
+      owner: {
+        id: updatedRestaurant.owner.id,
+        name: updatedRestaurant.owner.name,
+        lastname: updatedRestaurant.owner.lastname,
+        email: updatedRestaurant.owner.email,
+        phone: updatedRestaurant.owner.phone
+      },
+      branches: updatedRestaurant.branches.map(branch => ({
+        id: branch.id,
+        name: branch.name,
+        address: branch.address,
+        phone: branch.phone,
+        status: branch.status,
+        createdAt: branch.createdAt,
+        updatedAt: branch.updatedAt
+      })),
+      statistics: {
+        totalBranches: updatedRestaurant._count.branches,
+        totalSubcategories: updatedRestaurant._count.subcategories,
+        totalProducts: updatedRestaurant._count.products
+      },
+      createdAt: updatedRestaurant.createdAt,
+      updatedAt: updatedRestaurant.updatedAt
+    };
+
+    // 8. Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Información del restaurante actualizada exitosamente',
+      data: {
+        restaurant: formattedRestaurant,
+        updatedFields: Object.keys(updateData),
+        updatedBy: {
+          userId: userId,
+          userName: `${userWithRoles.name} ${userWithRoles.lastname}`
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error actualizando información del restaurante:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    });
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -2282,6 +2500,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
-  getRestaurantProfile
+  getRestaurantProfile,
+  updateRestaurantProfile
 };
 

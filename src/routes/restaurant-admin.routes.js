@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
@@ -21,10 +21,68 @@ router.use(authenticateToken);
  * @desc    Obtener el perfil completo del restaurante del dueño autenticado
  * @access  Private (Owner Only)
  */
+/**
+ * @route   GET /api/restaurant/profile
+ * @desc    Obtener el perfil completo del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ */
 router.get(
   '/profile',
   requireRole(['owner']),
   getRestaurantProfile
+);
+
+/**
+ * @route   PATCH /api/restaurant/profile
+ * @desc    Actualizar la información del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @body    name (opcional) - Nombre del restaurante
+ * @body    description (opcional) - Descripción del restaurante
+ * @body    logoUrl (opcional) - URL del logo del restaurante
+ * @body    coverPhotoUrl (opcional) - URL de la foto de portada del restaurante
+ */
+router.patch(
+  '/profile',
+  requireRole(['owner']),
+  [
+    body('name')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 150 })
+      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
+    body('description')
+      .optional()
+      .trim()
+      .isLength({ max: 1000 })
+      .withMessage('La descripción no puede exceder 1000 caracteres'),
+    body('logoUrl')
+      .optional()
+      .trim()
+      .isLength({ max: 255 })
+      .withMessage('La URL del logo no puede exceder 255 caracteres')
+      .isURL()
+      .withMessage('La URL del logo debe ser una URL válida'),
+    body('coverPhotoUrl')
+      .optional()
+      .trim()
+      .isLength({ max: 255 })
+      .withMessage('La URL de la foto de portada no puede exceder 255 caracteres')
+      .isURL()
+      .withMessage('La URL de la foto de portada debe ser una URL válida')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  updateRestaurantProfile
 );
 
 /**
