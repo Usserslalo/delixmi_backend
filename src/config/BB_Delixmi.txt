@@ -1,0 +1,346 @@
+CREATE DATABASE delixmi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE delixmi;
+
+CREATE TABLE `roles` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(50) NOT NULL UNIQUE COMMENT 'Nombre interno del rol (slug)',
+  `display_name` VARCHAR(100) NOT NULL COMMENT 'Nombre para mostrar en la UI',
+  `description` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT='Catálogo de roles en el sistema';
+
+INSERT INTO `roles` (`name`, `display_name`, `description`) VALUES
+('super_admin', 'Super Administrador', 'Control total sobre la plataforma.'),
+('platform_manager', 'Gestor de Plataforma', 'Gestiona las operaciones diarias de la plataforma.'),
+('support_agent', 'Agente de Soporte', 'Primera línea de atención para resolver dudas e incidentes.'),
+('owner', 'Dueño de Restaurante', 'Control total sobre uno o más negocios en la app.'),
+('branch_manager', 'Gerente de Sucursal', 'Gestiona las operaciones diarias de una sucursal específica.'),
+('order_manager', 'Gestor de Pedidos', 'Acepta y gestiona los pedidos entrantes en una sucursal.'),
+('kitchen_staff', 'Personal de Cocina', 'Prepara los platillos para la entrega.'),
+('driver_platform', 'Repartidor de Plataforma', 'Repartidor independiente que trabaja para la plataforma.'),
+('driver_restaurant', 'Repartidor de Restaurante', 'Empleado de un restaurante que solo entrega pedidos de ese negocio.'),
+('customer', 'Cliente', 'Usuario final que realiza pedidos.');
+
+CREATE TABLE `permissions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) NOT NULL UNIQUE COMMENT 'Nombre interno del permiso (ej: products.create)',
+  `display_name` VARCHAR(150) NOT NULL COMMENT 'Nombre para mostrar en la UI',
+  `module` VARCHAR(50) NOT NULL COMMENT 'Módulo al que pertenece (ej: products, orders, users)',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT='Catálogo de acciones atómicas en el sistema';
+
+INSERT INTO `permissions` (`name`, `display_name`, `module`) VALUES
+-- Permisos para Productos
+('products.create', 'Crear Productos', 'products'),
+('products.edit.all', 'Editar Cualquier Producto', 'products'),
+('products.edit.own', 'Editar Productos Propios', 'products'),
+('products.delete.own', 'Eliminar Productos Propios', 'products'),
+('products.update.stock', 'Actualizar Stock de Producto', 'products'),
+
+-- Permisos para Pedidos
+('orders.view.all', 'Ver Todos los Pedidos', 'orders'),
+('orders.view.own_branch', 'Ver Pedidos de mi Sucursal', 'orders'),
+('orders.accept', 'Aceptar Pedidos', 'orders'),
+('orders.reject', 'Rechazar Pedidos', 'orders'),
+('orders.update.status', 'Actualizar Estado de Pedido', 'orders'),
+
+-- Permisos para Restaurantes
+('restaurants.create', 'Crear Restaurantes', 'restaurants'),
+('restaurants.edit.all', 'Editar Cualquier Restaurante', 'restaurants'),
+('restaurants.edit.own', 'Editar mi Restaurante', 'restaurants'),
+('restaurants.assign.users', 'Asignar Usuarios a mi Restaurante', 'restaurants'),
+
+-- Permisos para Usuarios
+('users.create', 'Crear Usuarios', 'users'),
+('users.edit.all', 'Editar Cualquier Usuario', 'users'),
+('users.view.all', 'Ver Todos los Usuarios', 'users'),
+
+-- Permisos para Reembolsos
+('refunds.issue.low_value', 'Emitir Reembolsos de Bajo Valor', 'refunds'),
+('refunds.issue.high_value', 'Emitir Reembolsos de Alto Valor', 'refunds');
+
+CREATE TABLE `role_has_permissions` (
+  `role_id` INT NOT NULL,
+  `permission_id` INT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`role_id`, `permission_id`),
+  FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`permission_id`) REFERENCES `permissions`(`id`) ON DELETE CASCADE
+) COMMENT='Define qué permisos están asignados a cada rol';
+
+-- Asignamos permisos al Super Administrador (rol id=1)
+-- Le damos permiso para crear restaurantes (permiso id=11)
+INSERT INTO `role_has_permissions` (`role_id`, `permission_id`) VALUES
+(1, 11);
+
+-- Asignamos permisos al Gestor de Pedidos (rol id=6)
+-- Le damos permiso para ver pedidos de su sucursal (permiso id=7)
+-- y para aceptarlos (permiso id=8)
+INSERT INTO `role_has_permissions` (`role_id`, `permission_id`) VALUES
+(6, 7),
+(6, 8);
+
+-- Asignamos permisos al Personal de Cocina (rol id=7)
+-- Solo le damos permiso para actualizar el estado del pedido (permiso id=10)
+INSERT INTO `role_has_permissions` (`role_id`, `permission_id`) VALUES
+(7, 10);
+
+CREATE TABLE `user_role_assignments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `role_id` INT NOT NULL,
+  `restaurant_id` INT NULL COMMENT 'Aplica si el rol es a nivel de restaurante (ej: Dueño)',
+  `branch_id` INT NULL COMMENT 'Aplica si el rol es a nivel de sucursal (ej: Gerente)',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  -- Llaves foráneas que conectarán todo
+  -- FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE CASCADE
+  -- FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE,
+  -- FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`) ON DELETE CASCADE
+) COMMENT='Asigna roles a usuarios con un ámbito específico (global, restaurante o sucursal)';
+
+CREATE TABLE `users` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) NOT NULL,
+  `lastname` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(150) NOT NULL UNIQUE,
+  `phone` VARCHAR(20) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL COMMENT 'Debe guardarse siempre encriptada (hashed)',
+  `email_verified_at` TIMESTAMP NULL DEFAULT NULL,
+  `phone_verified_at` TIMESTAMP NULL DEFAULT NULL,
+  `image_url` VARCHAR(255) NULL COMMENT 'URL de la foto de perfil',
+  `notification_token` VARCHAR(255) NULL COMMENT 'Token para notificaciones push',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT='Almacena a todos los usuarios del sistema (clientes, repartidores, admins, etc)';
+
+INSERT INTO `users` 
+  (`name`, `lastname`, `email`, `phone`, `password`, `email_verified_at`, `phone_verified_at`, `status`) 
+VALUES
+('Admin', 'Delixmi', 'admin@delixmi.com', '1111111111', 'supersecret', NOW(), NOW(), 'active'),
+('Ana', 'García', 'ana.garcia@pizzeria.com', '2222222222', 'supersecret', NOW(), NOW(), 'active'),
+('Carlos', 'Rodriguez', 'carlos.rodriguez@pizzeria.com', '3333333333', 'supersecret', NOW(), NOW(), 'active'),
+('Sofía', 'López', 'sofia.lopez@email.com', '4444444444', 'supersecret', NULL, NULL, 'pending');
+
+CREATE TABLE `restaurants` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `owner_id` INT NOT NULL COMMENT 'FK a la tabla users. El dueño del negocio.',
+  `name` VARCHAR(150) NOT NULL,
+  `description` TEXT NULL,
+  `logo_url` VARCHAR(255) NULL,
+  `cover_photo_url` VARCHAR(255) NULL,
+  `commission_rate` DECIMAL(5, 2) NOT NULL DEFAULT 10.00 COMMENT 'Tasa de comisión en porcentaje (ej: 15.50)',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending_approval' COMMENT 'pending_approval, active, rejected, suspended',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`)
+) COMMENT='Almacena los negocios o marcas que se afilian a la plataforma';
+
+INSERT INTO `restaurants` 
+  (`owner_id`, `name`, `description`, `commission_rate`, `status`) 
+VALUES
+(2, 'Pizzería de Ana', 'Las mejores pizzas artesanales de la región, con ingredientes frescos y locales.', 12.50, 'active');
+
+CREATE TABLE `branches` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `restaurant_id` INT NOT NULL,
+  `name` VARCHAR(150) NOT NULL COMMENT 'Nombre de la sucursal (ej: Centro, Plaza Mayor)',
+  `address` TEXT NOT NULL,
+  `latitude` DECIMAL(10, 8) NOT NULL,
+  `longitude` DECIMAL(11, 8) NOT NULL,
+  `phone` VARCHAR(20) NULL,
+  `opening_time` TIME NULL,
+  `closing_time` TIME NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT 'active, inactive, temporarily_closed',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE
+) COMMENT='Almacena las sucursales o ubicaciones físicas de un restaurante';
+
+INSERT INTO `branches` 
+  (`restaurant_id`, `name`, `address`, `latitude`, `longitude`, `phone`, `opening_time`, `closing_time`) 
+VALUES
+(1, 'Sucursal Centro', 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.', 20.484123, -99.216345, '7711234567', '09:00:00', '22:00:00'),
+(1, 'Sucursal Río', 'Paseo del Roble 205, Barrio del Río, Ixmiquilpan, Hgo.', 20.475890, -99.225678, '7717654321', '10:00:00', '23:00:00');
+
+ALTER TABLE `user_role_assignments`
+ADD CONSTRAINT `fk_user_id` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_restaurant_id` FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_branch_id` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`) ON DELETE CASCADE;
+
+CREATE TABLE `categories` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) NOT NULL UNIQUE,
+  `image_url` VARCHAR(255) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT='Catálogo maestro de categorías globales gestionado por el Super Admin';
+
+INSERT INTO `categories` (`name`) VALUES 
+('Pizzas'), 
+('Bebidas'),
+('Entradas'),
+('Postres');
+
+CREATE TABLE `subcategories` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `restaurant_id` INT NOT NULL,
+  `category_id` INT NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `display_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE
+) COMMENT='Subcategorías específicas que cada restaurante crea dentro de una categoría global';
+
+INSERT INTO `subcategories` (`restaurant_id`, `category_id`, `name`, `display_order`) VALUES
+(1, 1, 'Pizzas Tradicionales', 1),
+(1, 1, 'Pizzas Gourmet', 2),
+(1, 2, 'Refrescos', 3),
+(1, 2, 'Aguas Frescas', 4);
+
+CREATE TABLE `products` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `restaurant_id` INT NOT NULL,
+  `subcategory_id` INT NOT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `description` TEXT NULL,
+  `image_url` VARCHAR(255) NULL,
+  `price` DECIMAL(10, 2) NOT NULL,
+  `is_available` BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Disponible (true) o no disponible (false)',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`subcategory_id`) REFERENCES `subcategories`(`id`) ON DELETE CASCADE
+) COMMENT='Catálogo de productos (platillos, bebidas, etc.) de cada restaurante';
+
+-- Asumiendo que 'Pizzas Tradicionales' es subcategory_id=1 y 'Refrescos' es subcategory_id=3
+INSERT INTO `products` 
+  (`restaurant_id`, `subcategory_id`, `name`, `description`, `price`, `is_available`) 
+VALUES
+(1, 1, 'Pizza Hawaiana', 'La clásica pizza con jamón y piña fresca.', 150.00, TRUE),
+(1, 1, 'Pizza de Pepperoni', 'Generosa porción de pepperoni sobre nuestra salsa especial de la casa.', 145.50, TRUE),
+(1, 3, 'Coca-Cola 600ml', 'Refresco de cola bien frío.', 25.00, TRUE);
+
+CREATE TABLE `address` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `alias` VARCHAR(50) NOT NULL COMMENT 'Nombre corto para la dirección (ej: Casa, Oficina)',
+  `street` VARCHAR(255) NOT NULL,
+  `exterior_number` VARCHAR(50) NOT NULL,
+  `interior_number` VARCHAR(50) NULL,
+  `neighborhood` VARCHAR(150) NOT NULL COMMENT 'Colonia',
+  `city` VARCHAR(100) NOT NULL,
+  `state` VARCHAR(100) NOT NULL,
+  `zip_code` VARCHAR(10) NOT NULL,
+  `references` TEXT NULL COMMENT 'Referencias adicionales (ej: portón azul, frente al parque)',
+  `latitude` DECIMAL(10, 8) NOT NULL,
+  `longitude` DECIMAL(11, 8) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) COMMENT='Almacena las direcciones de entrega de los usuarios';
+
+INSERT INTO `address` 
+  (`user_id`, `alias`, `street`, `exterior_number`, `neighborhood`, `city`, `state`, `zip_code`, `references`, `latitude`, `longitude`) 
+VALUES
+(4, 'Casa', 'Av. Felipe Ángeles', '21', 'San Nicolás', 'Ixmiquilpan', 'Hidalgo', '42300', 'Casa de dos pisos con portón de madera.', 20.488765, -99.234567);
+
+CREATE TABLE `orders` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `customer_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
+  `address_id` INT NOT NULL,
+  `delivery_driver_id` INT NULL COMMENT 'El repartidor asignado. NULL al inicio.',
+  `status` VARCHAR(50) NOT NULL DEFAULT 'pending' COMMENT 'pending, accepted, in_preparation, ready_for_pickup, in_transit, delivered, cancelled',
+  `subtotal` DECIMAL(10, 2) NOT NULL COMMENT 'Suma de los precios de los productos',
+  `delivery_fee` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `total` DECIMAL(10, 2) NOT NULL COMMENT 'Suma de subtotal + delivery_fee',
+  `payment_method` VARCHAR(50) NOT NULL,
+  `payment_status` VARCHAR(50) NOT NULL DEFAULT 'pending' COMMENT 'pending, paid, failed, refunded',
+  `order_placed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `order_delivered_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`),
+  FOREIGN KEY (`branch_id`) REFERENCES `branches`(`id`),
+  FOREIGN KEY (`address_id`) REFERENCES `address`(`id`),
+  FOREIGN KEY (`delivery_driver_id`) REFERENCES `users`(`id`)
+) COMMENT='Información general de cada pedido';
+
+CREATE TABLE `order_items` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` BIGINT NOT NULL,
+  `product_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `price_per_unit` DECIMAL(10, 2) NOT NULL COMMENT 'Precio del producto al momento de la compra',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`product_id`) REFERENCES `products`(`id`)
+) COMMENT='Detalle de los productos dentro de cada pedido';
+
+INSERT INTO `orders` 
+  (`customer_id`, `branch_id`, `address_id`, `subtotal`, `delivery_fee`, `total`, `payment_method`)
+VALUES
+  (4, 1, 1, 175.50, 20.00, 195.50, 'card');
+  
+INSERT INTO `order_items` (`order_id`, `product_id`, `quantity`, `price_per_unit`) VALUES
+(1, 1, 1, 150.00), -- 1 Pizza Hawaiana (product_id=1) a $150.00
+(1, 3, 1, 25.50);  -- 1 Coca-Cola (product_id=3) a $25.50 (imaginemos que subió de precio)
+
+-- TABLA PARA PAGOS
+CREATE TABLE `payments` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` BIGINT NOT NULL,
+  `amount` DECIMAL(10, 2) NOT NULL,
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'MXN',
+  `provider` VARCHAR(50) NOT NULL COMMENT 'ej: stripe, paypal, cash',
+  `provider_payment_id` VARCHAR(255) UNIQUE COMMENT 'ID del pago en la plataforma externa (ej: pi_xxx de Stripe)',
+  `status` VARCHAR(50) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`)
+) COMMENT='Registra cada transacción de pago asociada a una orden';
+
+-- TABLA PARA PERFIL DEL REPARTIDOR
+CREATE TABLE `driver_profiles` (
+  `user_id` INT PRIMARY KEY,
+  `vehicle_type` VARCHAR(50) COMMENT 'motocicleta, bicicleta, automovil',
+  `license_plate` VARCHAR(20) NULL,
+  `status` VARCHAR(50) NOT NULL DEFAULT 'offline' COMMENT 'offline, online, busy',
+  `current_latitude` DECIMAL(10, 8) NULL,
+  `current_longitude` DECIMAL(11, 8) NULL,
+  `last_seen_at` TIMESTAMP NULL,
+  `kyc_status` VARCHAR(50) DEFAULT 'pending' COMMENT 'Verificación de identidad: pending, approved, rejected',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) COMMENT='Información adicional y estado de los usuarios que son repartidores';
+
+ALTER TABLE `orders`
+ADD COLUMN `commission_rate_snapshot` DECIMAL(5, 2) NOT NULL AFTER `total`,
+ADD COLUMN `platform_fee` DECIMAL(10, 2) NOT NULL AFTER `commission_rate_snapshot`,
+ADD COLUMN `restaurant_payout` DECIMAL(10, 2) NOT NULL AFTER `platform_fee`,
+ADD COLUMN `payment_id` BIGINT NULL UNIQUE AFTER `restaurant_payout`,
+ADD CONSTRAINT `fk_payment_id` FOREIGN KEY (`payment_id`) REFERENCES `payments`(`id`);
+
+-- Índice para que los paneles de cocina/restaurante carguen rápido
+CREATE INDEX `idx_orders_branch_status` ON `orders` (`branch_id`, `status`, `order_placed_at`);
+
+-- Índice para que el menú de un restaurante cargue rápido
+CREATE INDEX `idx_products_restaurant_availability` ON `products` (`restaurant_id`, `is_available`);

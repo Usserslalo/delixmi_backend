@@ -1,0 +1,358 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums para estados
+enum UserStatus {
+  pending
+  active
+  inactive
+  suspended
+  deleted
+}
+
+enum RestaurantStatus {
+  pending_approval
+  active
+  inactive
+  suspended
+  rejected
+}
+
+enum BranchStatus {
+  active
+  inactive
+  suspended
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+  refunded
+}
+
+enum DriverStatus {
+  offline
+  online
+  busy
+  unavailable
+}
+
+enum KycStatus {
+  pending
+  approved
+  rejected
+  under_review
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)
+  displayName String   @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  roleHasPermissions RoleHasPermission[]
+  userRoleAssignments UserRoleAssignment[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  displayName String   @map("display_name") @db.VarChar(150)
+  module      String   @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  roleHasPermissions RoleHasPermission[]
+
+  @@map("permissions")
+}
+
+model RoleHasPermission {
+  roleId       Int      @map("role_id")
+  permissionId Int      @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relaciones
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_has_permissions")
+}
+
+model User {
+  id                Int       @id @default(autoincrement())
+  name              String    @db.VarChar(100)
+  lastname          String    @db.VarChar(100)
+  email             String    @unique @db.VarChar(150)
+  phone             String    @unique @db.VarChar(20)
+  password          String    @db.VarChar(255)
+  emailVerifiedAt   DateTime? @map("email_verified_at") @db.Timestamp(6)
+  phoneVerifiedAt   DateTime? @map("phone_verified_at") @db.Timestamp(6)
+  phoneOtp          String?   @map("phone_otp") @db.VarChar(6)
+  phoneOtpExpiresAt DateTime? @map("phone_otp_expires_at") @db.Timestamp(6)
+  imageUrl          String?   @map("image_url") @db.VarChar(255)
+  notificationToken String?   @map("notification_token") @db.VarChar(255)
+  status            UserStatus @default(pending)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  restaurants        Restaurant[]
+  userRoleAssignments UserRoleAssignment[]
+  addresses          Address[]
+  ordersAsCustomer   Order[] @relation("CustomerOrders")
+  ordersAsDriver     Order[] @relation("DriverOrders")
+  driverProfile      DriverProfile?
+
+  @@map("users")
+}
+
+model UserRoleAssignment {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  roleId       Int      @map("role_id")
+  restaurantId Int?     @map("restaurant_id")
+  branchId     Int?     @map("branch_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("user_role_assignments")
+}
+
+model Restaurant {
+  id             Int      @id @default(autoincrement())
+  ownerId        Int      @map("owner_id")
+  name           String   @db.VarChar(150)
+  description    String?  @db.Text
+  logoUrl        String?  @map("logo_url") @db.VarChar(255)
+  coverPhotoUrl  String?  @map("cover_photo_url") @db.VarChar(255)
+  commissionRate Decimal  @default(10.00) @map("commission_rate") @db.Decimal(5, 2)
+  status         RestaurantStatus @default(pending_approval)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  owner         User          @relation(fields: [ownerId], references: [id])
+  branches      Branch[]
+  subcategories Subcategory[]
+  products      Product[]
+  userRoleAssignments UserRoleAssignment[]
+
+  @@map("restaurants")
+}
+
+model Branch {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int      @map("restaurant_id")
+  name         String   @db.VarChar(150)
+  address      String   @db.Text
+  latitude     Decimal  @db.Decimal(10, 8)
+  longitude    Decimal  @db.Decimal(11, 8)
+  phone        String?  @db.VarChar(20)
+  openingTime  DateTime? @map("opening_time") @db.Time(3)
+  closingTime  DateTime? @map("closing_time") @db.Time(3)
+  status       BranchStatus @default(active)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders     Order[]
+  userRoleAssignments UserRoleAssignment[]
+
+  @@map("branches")
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  imageUrl  String?  @map("image_url") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  subcategories Subcategory[]
+
+  @@map("categories")
+}
+
+model Subcategory {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int      @map("restaurant_id")
+  categoryId   Int      @map("category_id")
+  name         String   @db.VarChar(100)
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@unique([restaurantId, categoryId, name])
+  @@map("subcategories")
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  restaurantId  Int      @map("restaurant_id")
+  subcategoryId Int      @map("subcategory_id")
+  name          String   @db.VarChar(150)
+  description   String?  @db.Text
+  imageUrl      String?  @map("image_url") @db.VarChar(255)
+  price         Decimal  @db.Decimal(10, 2)
+  isAvailable   Boolean  @default(true) @map("is_available")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  subcategory Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model Address {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  alias           String   @db.VarChar(50)
+  street          String   @db.VarChar(255)
+  exteriorNumber  String   @map("exterior_number") @db.VarChar(50)
+  interiorNumber  String?  @map("interior_number") @db.VarChar(50)
+  neighborhood    String   @db.VarChar(150)
+  city            String   @db.VarChar(100)
+  state           String   @db.VarChar(100)
+  zipCode         String   @map("zip_code") @db.VarChar(10)
+  references      String?  @db.Text
+  latitude        Decimal  @db.Decimal(10, 8)
+  longitude       Decimal  @db.Decimal(11, 8)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("address")
+}
+
+model Order {
+  id                      BigInt   @id @default(autoincrement())
+  customerId              Int      @map("customer_id")
+  branchId                Int      @map("branch_id")
+  addressId               Int      @map("address_id")
+  deliveryDriverId        Int?     @map("delivery_driver_id")
+  status                  OrderStatus @default(pending)
+  subtotal                Decimal  @db.Decimal(10, 2)
+  deliveryFee             Decimal  @default(0.00) @map("delivery_fee") @db.Decimal(10, 2)
+  total                   Decimal  @db.Decimal(10, 2)
+  commissionRateSnapshot  Decimal  @map("commission_rate_snapshot") @db.Decimal(5, 2)
+  platformFee             Decimal  @map("platform_fee") @db.Decimal(10, 2)
+  restaurantPayout        Decimal  @map("restaurant_payout") @db.Decimal(10, 2)
+  paymentId               BigInt?  @unique @map("payment_id")
+  paymentMethod           String   @map("payment_method") @db.VarChar(50)
+  paymentStatus           PaymentStatus @default(pending) @map("payment_status")
+  orderPlacedAt           DateTime @default(now()) @map("order_placed_at") @db.Timestamp(6)
+  orderDeliveredAt        DateTime? @map("order_delivered_at") @db.Timestamp(6)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  customer      User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  branch        Branch      @relation(fields: [branchId], references: [id])
+  address       Address     @relation(fields: [addressId], references: [id])
+  deliveryDriver User?      @relation("DriverOrders", fields: [deliveryDriverId], references: [id])
+  payment       Payment?
+  orderItems    OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id           BigInt  @id @default(autoincrement())
+  orderId      BigInt  @map("order_id")
+  productId    Int     @map("product_id")
+  quantity     Int     @default(1)
+  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id                  BigInt   @id @default(autoincrement())
+  orderId             BigInt   @unique @map("order_id")
+  amount              Decimal  @db.Decimal(10, 2)
+  currency            String   @default("MXN") @db.VarChar(10)
+  provider            String   @db.VarChar(50)
+  providerPaymentId   String?  @unique @map("provider_payment_id") @db.VarChar(255)
+  status              PaymentStatus
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+model DriverProfile {
+  userId            Int      @id @map("user_id")
+  vehicleType       String?  @map("vehicle_type") @db.VarChar(50)
+  licensePlate      String?  @map("license_plate") @db.VarChar(20)
+  status            DriverStatus @default(offline)
+  currentLatitude   Decimal? @map("current_latitude") @db.Decimal(10, 8)
+  currentLongitude  Decimal? @map("current_longitude") @db.Decimal(11, 8)
+  lastSeenAt        DateTime? @map("last_seen_at") @db.Timestamp(6)
+  kycStatus         KycStatus @default(pending) @map("kyc_status")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
