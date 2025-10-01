@@ -99,6 +99,11 @@ app.get('/', (req, res) => {
         availableOrders: 'GET /api/driver/orders/available'
       },
       customer: {
+        orders: 'GET /api/customer/orders',
+        addresses: 'GET /api/customer/addresses',
+        createAddress: 'POST /api/customer/addresses',
+        updateAddress: 'PATCH /api/customer/addresses/:addressId',
+        deleteAddress: 'DELETE /api/customer/addresses/:addressId',
         driverLocation: 'GET /api/customer/orders/:orderId/location'
       }
     }
