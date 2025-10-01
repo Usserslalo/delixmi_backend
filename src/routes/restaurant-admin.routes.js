@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
@@ -83,6 +83,227 @@ router.patch(
     next();
   },
   updateRestaurantProfile
+);
+
+/**
+ * @route   GET /api/restaurant/branches
+ * @desc    Obtener todas las sucursales del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @query   status (opcional) - Estado de la sucursal (active, inactive)
+ * @query   page (opcional) - Número de página (default: 1)
+ * @query   pageSize (opcional) - Tamaño de página (default: 20, max: 100)
+ */
+router.get(
+  '/branches',
+  requireRole(['owner']),
+  [
+    query('status')
+      .optional()
+      .isIn(['active', 'inactive'])
+      .withMessage('El estado debe ser "active" o "inactive"'),
+    query('page')
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage('El número de página debe ser un entero mayor a 0'),
+    query('pageSize')
+      .optional()
+      .isInt({ min: 1, max: 100 })
+      .withMessage('El tamaño de página debe ser un entero entre 1 y 100')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  getRestaurantBranches
+);
+
+/**
+ * @route   PATCH /api/restaurant/branches/:branchId
+ * @desc    Actualizar una sucursal existente del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @params  branchId - ID de la sucursal a actualizar
+ * @body    name - Nombre de la sucursal (opcional)
+ * @body    address - Dirección de la sucursal (opcional)
+ * @body    latitude - Latitud de la ubicación (opcional)
+ * @body    longitude - Longitud de la ubicación (opcional)
+ * @body    phone - Teléfono de la sucursal (opcional)
+ * @body    openingTime - Hora de apertura en formato HH:MM:SS (opcional)
+ * @body    closingTime - Hora de cierre en formato HH:MM:SS (opcional)
+ * @body    usesPlatformDrivers - Si usa repartidores de la plataforma (opcional)
+ */
+router.patch(
+  '/branches/:branchId',
+  requireRole(['owner']),
+  [
+    param('branchId')
+      .notEmpty()
+      .withMessage('El ID de la sucursal es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la sucursal debe ser un número entero válido'),
+    body('name')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 150 })
+      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
+    body('address')
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 500 })
+      .withMessage('La dirección debe tener entre 10 y 500 caracteres'),
+    body('latitude')
+      .optional()
+      .isFloat({ min: -90, max: 90 })
+      .withMessage('La latitud debe ser un número entre -90 y 90'),
+    body('longitude')
+      .optional()
+      .isFloat({ min: -180, max: 180 })
+      .withMessage('La longitud debe ser un número entre -180 y 180'),
+    body('phone')
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 20 })
+      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
+      .matches(/^[\+]?[\d\s\-\(\)]+$/)
+      .withMessage('El formato del teléfono no es válido'),
+    body('openingTime')
+      .optional()
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('La hora de apertura debe estar en formato HH:MM:SS'),
+    body('closingTime')
+      .optional()
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('La hora de cierre debe estar en formato HH:MM:SS'),
+    body('usesPlatformDrivers')
+      .optional()
+      .isBoolean()
+      .withMessage('usesPlatformDrivers debe ser un valor booleano (true/false)')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  updateBranch
+);
+
+/**
+ * @route   DELETE /api/restaurant/branches/:branchId
+ * @desc    Eliminar una sucursal existente del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @params  branchId - ID de la sucursal a eliminar
+ */
+router.delete(
+  '/branches/:branchId',
+  requireRole(['owner']),
+  [
+    param('branchId')
+      .notEmpty()
+      .withMessage('El ID de la sucursal es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la sucursal debe ser un número entero válido')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  deleteBranch
+);
+
+/**
+ * @route   POST /api/restaurant/branches
+ * @desc    Crear una nueva sucursal para el restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @body    name - Nombre de la sucursal (requerido)
+ * @body    address - Dirección de la sucursal (requerido)
+ * @body    latitude - Latitud de la ubicación (requerido)
+ * @body    longitude - Longitud de la ubicación (requerido)
+ * @body    phone - Teléfono de la sucursal (opcional)
+ * @body    openingTime - Hora de apertura en formato HH:MM:SS (opcional)
+ * @body    closingTime - Hora de cierre en formato HH:MM:SS (opcional)
+ * @body    usesPlatformDrivers - Si usa repartidores de la plataforma (opcional, default: true)
+ */
+router.post(
+  '/branches',
+  requireRole(['owner']),
+  [
+    body('name')
+      .notEmpty()
+      .withMessage('El nombre de la sucursal es requerido')
+      .trim()
+      .isLength({ min: 1, max: 150 })
+      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
+    body('address')
+      .notEmpty()
+      .withMessage('La dirección de la sucursal es requerida')
+      .trim()
+      .isLength({ min: 10, max: 500 })
+      .withMessage('La dirección debe tener entre 10 y 500 caracteres'),
+    body('latitude')
+      .notEmpty()
+      .withMessage('La latitud es requerida')
+      .isFloat({ min: -90, max: 90 })
+      .withMessage('La latitud debe ser un número entre -90 y 90'),
+    body('longitude')
+      .notEmpty()
+      .withMessage('La longitud es requerida')
+      .isFloat({ min: -180, max: 180 })
+      .withMessage('La longitud debe ser un número entre -180 y 180'),
+    body('phone')
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 20 })
+      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
+      .matches(/^[\+]?[\d\s\-\(\)]+$/)
+      .withMessage('El formato del teléfono no es válido'),
+    body('openingTime')
+      .optional()
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('La hora de apertura debe estar en formato HH:MM:SS'),
+    body('closingTime')
+      .optional()
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('La hora de cierre debe estar en formato HH:MM:SS'),
+    body('usesPlatformDrivers')
+      .optional()
+      .isBoolean()
+      .withMessage('usesPlatformDrivers debe ser un valor booleano (true/false)')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  createBranch
 );
 
 /**
