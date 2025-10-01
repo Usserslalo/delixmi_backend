@@ -46,6 +46,7 @@ const restaurantRoutes = require('./routes/restaurant.routes');
 const restaurantAdminRoutes = require('./routes/restaurant-admin.routes');
 const checkoutRoutes = require('./routes/checkout.routes');
 const webhookRoutes = require('./routes/webhook.routes');
+const driverRoutes = require('./routes/driver.routes');
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -53,6 +54,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/restaurant', restaurantAdminRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/driver', driverRoutes);
 
 // Ruta de prueba básica
 app.get('/', (req, res) => {
@@ -90,6 +92,9 @@ app.get('/', (req, res) => {
       },
       webhooks: {
         mercadoPago: 'POST /api/webhooks/mercadopago'
+      },
+      driver: {
+        availableOrders: 'GET /api/driver/orders/available'
       }
     }
   });

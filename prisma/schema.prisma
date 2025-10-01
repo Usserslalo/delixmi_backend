@@ -178,18 +178,19 @@ model Restaurant {
 }
 
 model Branch {
-  id           Int      @id @default(autoincrement())
-  restaurantId Int      @map("restaurant_id")
-  name         String   @db.VarChar(150)
-  address      String   @db.Text
-  latitude     Decimal  @db.Decimal(10, 8)
-  longitude    Decimal  @db.Decimal(11, 8)
-  phone        String?  @db.VarChar(20)
-  openingTime  DateTime? @map("opening_time") @db.Time(3)
-  closingTime  DateTime? @map("closing_time") @db.Time(3)
-  status       BranchStatus @default(active)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                   Int      @id @default(autoincrement())
+  restaurantId         Int      @map("restaurant_id")
+  name                 String   @db.VarChar(150)
+  address              String   @db.Text
+  latitude             Decimal  @db.Decimal(10, 8)
+  longitude            Decimal  @db.Decimal(11, 8)
+  phone                String?  @db.VarChar(20)
+  openingTime          DateTime? @map("opening_time") @db.Time(3)
+  closingTime          DateTime? @map("closing_time") @db.Time(3)
+  usesPlatformDrivers  Boolean  @default(true) @map("uses_platform_drivers")
+  status               BranchStatus @default(active)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relaciones
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

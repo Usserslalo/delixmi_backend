@@ -2099,6 +2099,178 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene el perfil completo del restaurante del dueño autenticado
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getRestaurantProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        lastname: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true,
+                displayName: true
+              }
+            },
+            restaurantId: true,
+            branchId: true
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de owner',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este owner',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Buscar el restaurante completo en la base de datos
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            email: true,
+            phone: true
+          }
+        },
+        branches: {
+          where: {
+            status: 'active'
+          },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: {
+            name: 'asc'
+          }
+        },
+        _count: {
+          select: {
+            branches: true,
+            subcategories: true,
+            products: true
+          }
+        }
+      }
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Restaurante no encontrado',
+        code: 'RESTAURANT_NOT_FOUND'
+      });
+    }
+
+    // 5. Formatear respuesta
+    const formattedRestaurant = {
+      id: restaurant.id,
+      name: restaurant.name,
+      description: restaurant.description,
+      logoUrl: restaurant.logoUrl,
+      coverImageUrl: restaurant.coverImageUrl,
+      phone: restaurant.phone,
+      email: restaurant.email,
+      address: restaurant.address,
+      status: restaurant.status,
+      owner: {
+        id: restaurant.owner.id,
+        name: restaurant.owner.name,
+        lastname: restaurant.owner.lastname,
+        email: restaurant.owner.email,
+        phone: restaurant.owner.phone
+      },
+      branches: restaurant.branches.map(branch => ({
+        id: branch.id,
+        name: branch.name,
+        address: branch.address,
+        phone: branch.phone,
+        email: branch.email,
+        status: branch.status,
+        createdAt: branch.createdAt,
+        updatedAt: branch.updatedAt
+      })),
+      statistics: {
+        totalBranches: restaurant._count.branches,
+        totalSubcategories: restaurant._count.subcategories,
+        totalProducts: restaurant._count.products
+      },
+      createdAt: restaurant.createdAt,
+      updatedAt: restaurant.updatedAt
+    };
+
+    // 6. Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Perfil del restaurante obtenido exitosamente',
+      data: {
+        restaurant: formattedRestaurant
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo perfil del restaurante:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    });
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -2109,6 +2281,7 @@ module.exports = {
   getRestaurantProducts,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  getRestaurantProfile
 };
 

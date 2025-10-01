@@ -1,12 +1,31 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
 // Aplicar autenticación a todas las rutas de administración de restaurante
 router.use(authenticateToken);
+
+/**
+ * @route   GET /api/restaurant/orders
+ * @desc    Obtener lista de pedidos para el panel de administración del restaurante
+ * @access  Private (Restaurant Staff Only)
+ * @query   status (opcional) - Estado del pedido (default: 'confirmed')
+ * @query   page (opcional) - Número de página (default: 1)
+ * @query   pageSize (opcional) - Tamaño de página (default: 10, max: 50)
+ */
+/**
+ * @route   GET /api/restaurant/profile
+ * @desc    Obtener el perfil completo del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ */
+router.get(
+  '/profile',
+  requireRole(['owner']),
+  getRestaurantProfile
+);
 
 /**
  * @route   GET /api/restaurant/orders
