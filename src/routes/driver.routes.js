@@ -1,7 +1,7 @@
 const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory } = require('../controllers/driver.controller');
+const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
 
 const router = express.Router();
 
@@ -37,6 +37,43 @@ router.patch(
     next();
   },
   updateDriverStatus
+);
+
+/**
+ * @route   PATCH /api/driver/location
+ * @desc    Actualizar la ubicación GPS del repartidor en tiempo real
+ * @access  Private (Driver Platform, Driver Restaurant)
+ * @body    latitude - Latitud de la ubicación actual (requerido)
+ * @body    longitude - Longitud de la ubicación actual (requerido)
+ */
+router.patch(
+  '/location',
+  requireRole(['driver_platform', 'driver_restaurant']),
+  [
+    body('latitude')
+      .notEmpty()
+      .withMessage('La latitud es requerida')
+      .isFloat({ min: -90, max: 90 })
+      .withMessage('La latitud debe ser un número entre -90 y 90'),
+    body('longitude')
+      .notEmpty()
+      .withMessage('La longitud es requerida')
+      .isFloat({ min: -180, max: 180 })
+      .withMessage('La longitud debe ser un número entre -180 y 180')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de ubicación inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  updateDriverLocation
 );
 
 /**

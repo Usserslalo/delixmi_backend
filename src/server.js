@@ -47,6 +47,7 @@ const restaurantAdminRoutes = require('./routes/restaurant-admin.routes');
 const checkoutRoutes = require('./routes/checkout.routes');
 const webhookRoutes = require('./routes/webhook.routes');
 const driverRoutes = require('./routes/driver.routes');
+const customerRoutes = require('./routes/customer.routes');
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -55,6 +56,7 @@ app.use('/api/restaurant', restaurantAdminRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/driver', driverRoutes);
+app.use('/api/customer', customerRoutes);
 
 // Ruta de prueba básica
 app.get('/', (req, res) => {
@@ -95,6 +97,9 @@ app.get('/', (req, res) => {
       },
       driver: {
         availableOrders: 'GET /api/driver/orders/available'
+      },
+      customer: {
+        driverLocation: 'GET /api/customer/orders/:orderId/location'
       }
     }
   });
