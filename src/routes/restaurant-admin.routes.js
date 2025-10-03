@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
@@ -230,6 +230,115 @@ router.delete(
     next();
   },
   deleteBranch
+);
+
+/**
+ * @route   GET /api/restaurant/branches/:branchId/schedule
+ * @desc    Obtener el horario semanal de una sucursal específica
+ * @access  Private (Owner, Branch Manager Only)
+ * @params  branchId - ID de la sucursal
+ */
+router.get(
+  '/branches/:branchId/schedule',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('branchId')
+      .notEmpty()
+      .withMessage('El ID de la sucursal es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la sucursal debe ser un número entero válido')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  getBranchSchedule
+);
+
+/**
+ * @route   PATCH /api/restaurant/branches/:branchId/schedule
+ * @desc    Actualizar el horario semanal completo de una sucursal específica
+ * @access  Private (Owner, Branch Manager Only)
+ * @params  branchId - ID de la sucursal
+ * @body    Array de 7 objetos con horarios semanales (Domingo a Sábado)
+ */
+router.patch(
+  '/branches/:branchId/schedule',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('branchId')
+      .notEmpty()
+      .withMessage('El ID de la sucursal es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la sucursal debe ser un número entero válido'),
+    body()
+      .isArray({ min: 7, max: 7 })
+      .withMessage('Debe proporcionar exactamente 7 objetos de horario (uno por cada día de la semana)'),
+    body('*.dayOfWeek')
+      .isInt({ min: 0, max: 6 })
+      .withMessage('dayOfWeek debe ser un número entero entre 0 (Domingo) y 6 (Sábado)'),
+    body('*.openingTime')
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('openingTime debe estar en formato HH:MM:SS válido'),
+    body('*.closingTime')
+      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
+      .withMessage('closingTime debe estar en formato HH:MM:SS válido'),
+    body('*.isClosed')
+      .isBoolean()
+      .withMessage('isClosed debe ser un valor booleano (true/false)')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    
+    // Validación adicional: verificar que los dayOfWeek sean únicos y estén en orden
+    const dayOfWeeks = req.body.map(item => item.dayOfWeek);
+    const uniqueDayOfWeeks = [...new Set(dayOfWeeks)];
+    
+    if (uniqueDayOfWeeks.length !== 7) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Los dayOfWeek deben ser únicos y cubrir todos los días de la semana (0-6)',
+        errors: [{
+          msg: 'Cada día de la semana debe aparecer exactamente una vez',
+          param: 'dayOfWeek'
+        }]
+      });
+    }
+    
+    // Verificar que cubra todos los días de la semana
+    const expectedDays = [0, 1, 2, 3, 4, 5, 6];
+    const missingDays = expectedDays.filter(day => !dayOfWeeks.includes(day));
+    
+    if (missingDays.length > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Faltan días de la semana en el horario',
+        errors: [{
+          msg: `Días faltantes: ${missingDays.join(', ')}`,
+          param: 'dayOfWeek'
+        }]
+      });
+    }
+    
+    next();
+  },
+  updateBranchSchedule
 );
 
 /**

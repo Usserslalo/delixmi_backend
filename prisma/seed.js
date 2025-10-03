@@ -37,6 +37,9 @@ async function main() {
     await prisma.category.deleteMany({});
     console.log('✅ Categories eliminadas');
     
+    await prisma.branchSchedule.deleteMany({});
+    console.log('✅ BranchSchedules eliminados');
+    
     await prisma.branch.deleteMany({});
     console.log('✅ Branches eliminadas');
     
@@ -414,8 +417,6 @@ async function main() {
         latitude: 20.484123,
         longitude: -99.216345,
         phone: '7711234567',
-        openingTime: new Date('1970-01-01T09:00:00.000Z'),
-        closingTime: new Date('1970-01-01T22:00:00.000Z'),
         usesPlatformDrivers: true,
         status: 'active'
       }
@@ -430,8 +431,6 @@ async function main() {
         latitude: 20.475890,
         longitude: -99.225678,
         phone: '7717654321',
-        openingTime: new Date('1970-01-01T10:00:00.000Z'),
-        closingTime: new Date('1970-01-01T23:00:00.000Z'),
         usesPlatformDrivers: true,
         status: 'active'
       }
@@ -446,13 +445,56 @@ async function main() {
         latitude: 20.492345,
         longitude: -99.208765,
         phone: '7719876543',
-        openingTime: new Date('1970-01-01T08:00:00.000Z'),
-        closingTime: new Date('1970-01-01T21:00:00.000Z'),
         usesPlatformDrivers: false,
         status: 'active'
       }
     });
     console.log('✅ Sucursal El Fitzhi creada');
+
+    // 6.1. CREAR HORARIOS DE SUCURSALES
+    console.log('⏰ Creando horarios de sucursales...');
+    
+    // Horarios para Sucursal Centro (branchId: centroBranch.id)
+    await prisma.branchSchedule.createMany({
+      data: [
+        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Lunes
+        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Martes
+        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Miércoles
+        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Jueves
+        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Viernes
+        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Sábado
+        { branchId: centroBranch.id, dayOfWeek: 0, isClosed: true, openingTime: new Date('1970-01-01T00:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }  // Domingo cerrado
+      ]
+    });
+    console.log('✅ Horarios Sucursal Centro creados');
+
+    // Horarios para Sucursal Río (branchId: rioBranch.id)
+    await prisma.branchSchedule.createMany({
+      data: [
+        { branchId: rioBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Lunes
+        { branchId: rioBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Martes
+        { branchId: rioBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Miércoles
+        { branchId: rioBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Jueves
+        { branchId: rioBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Viernes
+        { branchId: rioBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T11:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }, // Sábado (hasta medianoche)
+        { branchId: rioBranch.id, dayOfWeek: 0, openingTime: new Date('1970-01-01T11:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }  // Domingo
+      ]
+    });
+    console.log('✅ Horarios Sucursal Río creados');
+
+    // Horarios para Sucursal El Fitzhi (branchId: fitzhiBranch.id)
+    await prisma.branchSchedule.createMany({
+      data: [
+        { branchId: fitzhiBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Lunes
+        { branchId: fitzhiBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Martes
+        { branchId: fitzhiBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Miércoles
+        { branchId: fitzhiBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Jueves
+        { branchId: fitzhiBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Viernes
+        { branchId: fitzhiBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Sábado
+        { branchId: fitzhiBranch.id, dayOfWeek: 0, isClosed: true, openingTime: new Date('1970-01-01T00:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }  // Domingo cerrado
+      ]
+    });
+    console.log('✅ Horarios Sucursal El Fitzhi creados');
 
     // 7. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -829,6 +871,7 @@ async function main() {
     console.log('- 5 usuarios');
     console.log('- 1 restaurante');
     console.log('- 3 sucursales');
+    console.log('- 21 horarios de sucursales (7 días × 3 sucursales)');
     console.log('- 4 categorías');
     console.log('- 9 subcategorías');
     console.log('- 10 productos');

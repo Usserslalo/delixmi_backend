@@ -15,25 +15,24 @@
         const socket = io("ws://localhost:3000");
 
         socket.on("connect", () => {
-            console.log("¡CONECTADO EXITOSAMENTE!", socket.id);
+            console.log("¡CONECTADO!", socket.id);
             document.body.style.backgroundColor = 'lightblue';
 
-            // Unirse a la sala personal del cliente "Sofía" (userId: 10)
-            const userIdToJoin = 10;
-            console.log(`Intentando unirse a la sala para el usuario ${userIdToJoin}...`);
-            socket.emit('join_user_room', { userId: userIdToJoin });
+            // Unirse a la sala del cliente "Sofía" (userId: 10)
+            socket.emit('join_user_room', { userId: 10 });
+            // Unirse a la sala del restaurante "Sucursal Centro" (branchId: 4)
+            socket.emit('join_branch_room', { branchId: 4 });
         });
 
-        // Escuchando la actualización del estado del pedido
+        socket.on('joined_branch_room', (data) => console.log('Restaurante unido a la sala:', data));
+        socket.on('joined_user_room', (data) => console.log('Cliente unido a la sala:', data));
+
+        socket.on('new_order', (order) => {
+            console.log('%c¡NUEVO PEDIDO PARA RESTAURANTE!', 'color: orange; font-weight: bold;', order);
+        });
+
         socket.on('order_status_update', (data) => {
-            console.log('--- ¡ACTUALIZACIÓN DE PEDIDO! ---');
-            console.log(data);
-            alert(`¡Tu pedido ha sido actualizado a: ${data.status}!`);
-        });
-
-        socket.on("connect_error", (err) => {
-            console.error("ERROR DE CONEXIÓN:", err.message);
-            document.body.style.backgroundColor = 'lightcoral';
+            console.log('%c¡ACTUALIZACIÓN DE ESTADO PARA CLIENTE!', 'color: green; font-weight: bold;', data);
         });
     </script>
 </body>

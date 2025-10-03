@@ -217,6 +217,53 @@ const createPreference = async (req, res) => {
       branchId = firstProduct.restaurant.branches[0].id;
     }
 
+    // 9.1. Validación de horario de la sucursal
+    const currentDate = new Date();
+    const currentDayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+    const currentTime = currentDate.toTimeString().slice(0, 8); // HH:MM:SS
+
+    console.log(`🔍 Validando horario de sucursal ${branchId} - Día: ${currentDayOfWeek}, Hora: ${currentTime}`);
+
+    // Consultar el horario de la sucursal para el día actual
+    const branchSchedule = await prisma.branchSchedule.findFirst({
+      where: {
+        branchId: branchId,
+        dayOfWeek: currentDayOfWeek
+      }
+    });
+
+    if (!branchSchedule) {
+      console.log(`❌ No se encontró horario para la sucursal ${branchId} en el día ${currentDayOfWeek}`);
+      return res.status(409).json({
+        status: 'error',
+        message: 'El restaurante está cerrado hoy'
+      });
+    }
+
+    if (branchSchedule.isClosed) {
+      console.log(`❌ Sucursal ${branchId} está cerrada hoy (isClosed: true)`);
+      return res.status(409).json({
+        status: 'error',
+        message: 'El restaurante está cerrado hoy'
+      });
+    }
+
+    // Validar que la hora actual esté dentro del horario de atención
+    const openingTime = branchSchedule.openingTime.toTimeString().slice(0, 8); // HH:MM:SS
+    const closingTime = branchSchedule.closingTime.toTimeString().slice(0, 8); // HH:MM:SS
+
+    console.log(`🕐 Horario de hoy: ${openingTime} a ${closingTime}, Hora actual: ${currentTime}`);
+
+    if (currentTime < openingTime || currentTime > closingTime) {
+      console.log(`❌ Hora actual ${currentTime} está fuera del horario de atención ${openingTime}-${closingTime}`);
+      return res.status(409).json({
+        status: 'error',
+        message: `El restaurante está cerrado en este momento. Horario de hoy: ${openingTime} a ${closingTime}`
+      });
+    }
+
+    console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
+
     // 10. Crear la Order primero con todos sus datos
     const createdOrder = await prisma.order.create({
       data: {
