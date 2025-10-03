@@ -120,6 +120,8 @@ model User {
   phoneVerifiedAt   DateTime? @map("phone_verified_at") @db.Timestamp(6)
   phoneOtp          String?   @map("phone_otp") @db.VarChar(6)
   phoneOtpExpiresAt DateTime? @map("phone_otp_expires_at") @db.Timestamp(6)
+  passwordResetToken       String?   @unique @map("password_reset_token")
+  passwordResetExpiresAt   DateTime? @map("password_reset_expires_at") @db.Timestamp(6)
   imageUrl          String?   @map("image_url") @db.VarChar(255)
   notificationToken String?   @map("notification_token") @db.VarChar(255)
   status            UserStatus @default(pending)

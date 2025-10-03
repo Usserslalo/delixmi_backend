@@ -7,7 +7,9 @@ const {
   logout, 
   verifyToken,
   verifyEmail,
-  resendVerification
+  resendVerification,
+  forgotPassword,
+  resetPassword
   // sendPhoneVerification,  // Comentado temporalmente - verificación por teléfono desactivada
   // verifyPhone             // Comentado temporalmente - verificación por teléfono desactivada
 } = require('../controllers/auth.controller');
@@ -77,6 +79,33 @@ const resendVerificationValidation = [
     .normalizeEmail()
 ];
 
+// Validaciones para forgot password
+const forgotPasswordValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Debe ser un email válido')
+    .normalizeEmail()
+];
+
+// Validaciones para reset password
+const resetPasswordValidation = [
+  body('token')
+    .notEmpty()
+    .withMessage('El token es requerido')
+    .isLength({ min: 64, max: 64 })
+    .withMessage('El token debe tener exactamente 64 caracteres')
+    .matches(/^[a-f0-9]+$/i)
+    .withMessage('El token debe contener solo caracteres hexadecimales'),
+  
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('La nueva contraseña debe tener al menos 8 caracteres')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .withMessage('La nueva contraseña debe contener al menos: 1 letra minúscula, 1 mayúscula, 1 número y 1 carácter especial')
+    .isLength({ max: 128 })
+    .withMessage('La nueva contraseña no puede exceder 128 caracteres')
+];
+
 // Validaciones para verificación de teléfono - COMENTADO TEMPORALMENTE
 // const verifyPhoneValidation = [
 //   body('otp')
@@ -136,6 +165,20 @@ router.get('/verify-email', verifyEmail);
  * @access  Public
  */
 router.post('/resend-verification', resendVerificationValidation, resendVerification);
+
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Solicitar restablecimiento de contraseña
+ * @access  Public
+ */
+router.post('/forgot-password', forgotPasswordValidation, forgotPassword);
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Restablecer contraseña con token
+ * @access  Public
+ */
+router.post('/reset-password', resetPasswordValidation, resetPassword);
 
 // ============================================================================
 // RUTAS DE VERIFICACIÓN POR TELÉFONO - COMENTADAS TEMPORALMENTE

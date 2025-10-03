@@ -1,8 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { validationResult } = require('express-validator');
-const { sendVerificationEmail, sendResendVerificationEmail } = require('../config/email');
+const { sendVerificationEmail, sendResendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
 const { sendOtpSms, isValidPhoneNumber } = require('../config/sms');
 
 const prisma = new PrismaClient();
@@ -937,6 +938,208 @@ const verifyPhone = async (req, res) => {
   }
 };
 
+/**
+ * Controlador para solicitar restablecimiento de contraseña
+ * POST /api/auth/forgot-password
+ */
+const forgotPassword = async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { email } = req.body;
+
+    // Buscar al usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true
+      }
+    });
+
+    // MEDIDA DE SEGURIDAD: Siempre devolver éxito, independientemente de si el usuario existe
+    // Esto previene que alguien pueda usar este endpoint para adivinar emails registrados
+    const successResponse = {
+      status: 'success',
+      message: 'Si tu correo está registrado, recibirás un enlace para restablecer tu contraseña.'
+    };
+
+    // Si no se encuentra el usuario, devolver respuesta genérica de éxito
+    if (!user) {
+      console.log(`🔒 Intento de reset de contraseña para email no registrado: ${email}`);
+      return res.status(200).json(successResponse);
+    }
+
+    // Verificar que el usuario esté activo
+    if (user.status !== 'active') {
+      console.log(`🔒 Intento de reset de contraseña para usuario inactivo: ${email} (status: ${user.status})`);
+      return res.status(200).json(successResponse);
+    }
+
+    // Generar token de restablecimiento seguro y único
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hashear el token para almacenarlo en la base de datos
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    
+    // Establecer fecha de expiración (15 minutos)
+    const resetExpires = new Date();
+    resetExpires.setMinutes(resetExpires.getMinutes() + 15);
+
+    // Guardar el token hasheado y la fecha de expiración en la base de datos
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: hashedToken,
+        passwordResetExpiresAt: resetExpires
+      }
+    });
+
+    // Enviar email con el token sin hashear
+    try {
+      const emailResult = await sendPasswordResetEmail(
+        user.email,
+        user.name,
+        resetToken // Enviar el token sin hashear
+      );
+      
+      console.log('📧 Email de restablecimiento enviado:', {
+        email: user.email,
+        previewUrl: emailResult.previewUrl,
+        expiresAt: resetExpires
+      });
+
+      res.status(200).json(successResponse);
+
+    } catch (emailError) {
+      console.error('❌ Error al enviar email de restablecimiento:', emailError);
+      
+      // Limpiar el token si falla el envío del email
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: null,
+          passwordResetExpiresAt: null
+        }
+      });
+
+      // Aún así, devolver respuesta genérica de éxito por seguridad
+      res.status(200).json(successResponse);
+    }
+
+  } catch (error) {
+    console.error('Error en forgot password:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
+ * Controlador para restablecer contraseña con token
+ * POST /api/auth/reset-password
+ */
+const resetPassword = async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { token, newPassword } = req.body;
+
+    // Hashear el token recibido de la misma forma que al crearlo
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Buscar usuario con el token hasheado y que no haya expirado
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: hashedToken,
+        passwordResetExpiresAt: {
+          gt: new Date() // Mayor que la fecha actual
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        status: true
+      }
+    });
+
+    // Si no se encuentra el usuario, devolver error
+    if (!user) {
+      console.log(`🔒 Intento de reset de contraseña con token inválido o expirado`);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token inválido o expirado.',
+        code: 'INVALID_OR_EXPIRED_TOKEN'
+      });
+    }
+
+    // Verificar que el usuario esté activo
+    if (user.status !== 'active') {
+      console.log(`🔒 Intento de reset de contraseña para usuario inactivo: ${user.email} (status: ${user.status})`);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token inválido o expirado.',
+        code: 'INVALID_OR_EXPIRED_TOKEN'
+      });
+    }
+
+    // Hashear la nueva contraseña
+    const saltRounds = 12;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Actualizar la contraseña y limpiar los campos de reset
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedNewPassword,
+        passwordResetToken: null, // Limpiar el token
+        passwordResetExpiresAt: null // Limpiar la fecha de expiración
+      }
+    });
+
+    console.log(`✅ Contraseña restablecida exitosamente para usuario: ${user.email} (ID: ${user.id})`);
+
+    // Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Contraseña actualizada exitosamente.',
+      data: {
+        userId: user.id,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en reset password:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -945,6 +1148,8 @@ module.exports = {
   verifyToken,
   verifyEmail,
   resendVerification,
+  forgotPassword,
+  resetPassword,
   sendPhoneVerification,
   verifyPhone
 };

@@ -356,8 +356,187 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
   }
 };
 
+// Función para enviar email de restablecimiento de contraseña
+const sendPasswordResetEmail = async (email, name, resetToken) => {
+  try {
+    const transporter = await createTransporter();
+    
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    
+    const mailOptions = {
+      from: '"Delixmi Team" <noreply@delixmi.com>',
+      to: email,
+      subject: 'Restablece tu contraseña - Delixmi',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Restablece tu contraseña - Delixmi</title>
+          <style>
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #f4f4f4;
+            }
+            .container {
+              background-color: #ffffff;
+              padding: 30px;
+              border-radius: 10px;
+              box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .logo {
+              font-size: 28px;
+              font-weight: bold;
+              color: #2c3e50;
+              margin-bottom: 10px;
+            }
+            .title {
+              color: #e74c3c;
+              font-size: 24px;
+              margin-bottom: 20px;
+            }
+            .content {
+              margin-bottom: 30px;
+            }
+            .button {
+              display: inline-block;
+              background-color: #e74c3c;
+              color: white;
+              padding: 15px 30px;
+              text-decoration: none;
+              border-radius: 5px;
+              font-weight: bold;
+              text-align: center;
+              margin: 20px 0;
+            }
+            .button:hover {
+              background-color: #c0392b;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #eee;
+              color: #666;
+              font-size: 14px;
+            }
+            .warning {
+              background-color: #fff3cd;
+              border: 1px solid #ffeaa7;
+              color: #856404;
+              padding: 15px;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+            .security {
+              background-color: #f8d7da;
+              border: 1px solid #f5c6cb;
+              color: #721c24;
+              padding: 15px;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">🍽️ Delixmi</div>
+              <h1 class="title">Restablece tu contraseña</h1>
+            </div>
+            
+            <div class="content">
+              <p>Hola <strong>${name}</strong>,</p>
+              
+              <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en Delixmi.</p>
+              
+              <p>Si solicitaste este cambio, haz clic en el siguiente botón para crear una nueva contraseña:</p>
+              
+              <div style="text-align: center;">
+                <a href="${resetUrl}" class="button">Restablecer contraseña</a>
+              </div>
+              
+              <div class="warning">
+                <strong>⚠️ Importante:</strong> Este enlace expirará en 15 minutos por seguridad. Si no puedes restablecer tu contraseña ahora, puedes solicitar un nuevo enlace.
+              </div>
+              
+              <div class="security">
+                <strong>🔒 Seguridad:</strong> Si no solicitaste este cambio de contraseña, puedes ignorar este correo. Tu cuenta permanecerá segura.
+              </div>
+              
+              <p>Si el botón no funciona, puedes copiar y pegar este enlace en tu navegador:</p>
+              <p style="word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace;">
+                ${resetUrl}
+              </p>
+              
+              <p>Una vez que restablezcas tu contraseña, podrás:</p>
+              <ul>
+                <li>Iniciar sesión con tu nueva contraseña</li>
+                <li>Acceder a todas las funcionalidades de tu cuenta</li>
+                <li>Continuar disfrutando de Delixmi</li>
+              </ul>
+            </div>
+            
+            <div class="footer">
+              <p>Si no solicitaste este cambio, puedes ignorar este correo de forma segura.</p>
+              <p>© 2024 Delixmi. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Restablece tu contraseña - Delixmi
+        
+        Hola ${name},
+        
+        Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en Delixmi.
+        
+        Si solicitaste este cambio, visita el siguiente enlace para crear una nueva contraseña:
+        
+        ${resetUrl}
+        
+        Este enlace expirará en 15 minutos por seguridad.
+        
+        Si no solicitaste este cambio de contraseña, puedes ignorar este correo. Tu cuenta permanecerá segura.
+        
+        © 2024 Delixmi. Todos los derechos reservados.
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('📧 Email de restablecimiento de contraseña enviado:', {
+      messageId: info.messageId,
+      previewUrl: nodemailer.getTestMessageUrl(info),
+      to: email
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+      previewUrl: nodemailer.getTestMessageUrl(info)
+    };
+
+  } catch (error) {
+    console.error('❌ Error al enviar email de restablecimiento:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendResendVerificationEmail,
+  sendPasswordResetEmail,
   createTransporter
 };
