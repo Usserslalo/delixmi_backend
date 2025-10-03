@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
+const { getIo } = require('../config/socket');
+const { formatOrderForSocket } = require('./restaurant-admin.controller');
 
 const prisma = new PrismaClient();
 
@@ -575,7 +577,28 @@ const acceptOrder = async (req, res) => {
         }))
       };
 
-      // 6. Respuesta exitosa
+      // 6. Emitir notificación en tiempo real al cliente
+      try {
+        const io = getIo();
+        const customerId = updatedOrder.customer.id;
+        const formattedOrder = formatOrderForSocket(updatedOrder);
+        
+        io.to(`user_${customerId}`).emit('order_status_update', {
+          order: formattedOrder,
+          orderId: formattedOrder.id,
+          status: formattedOrder.status,
+          previousStatus: 'ready_for_pickup',
+          updatedAt: formattedOrder.updatedAt,
+          driver: formattedOrder.driver,
+          message: `¡Tu pedido #${formattedOrder.id} está en camino! Repartidor: ${formattedOrder.driver.name}`
+        });
+        console.log(`📢 Notificación enviada al cliente ${customerId} sobre aceptación del pedido ${formattedOrder.id} por repartidor`);
+      } catch (socketError) {
+        console.error('Error enviando notificación Socket.io:', socketError);
+        // No fallar la respuesta por error de socket
+      }
+
+      // 7. Respuesta exitosa
       res.status(200).json({
         status: 'success',
         message: 'Pedido aceptado exitosamente',
@@ -925,7 +948,34 @@ const completeOrder = async (req, res) => {
       }))
     };
 
-    // 7. Respuesta exitosa
+    // 7. Emitir notificación en tiempo real al cliente
+    try {
+      const io = getIo();
+      const customerId = completedOrder.customer.id;
+      const formattedOrder = formatOrderForSocket(completedOrder);
+      const deliveryTime = completedOrder.orderDeliveredAt - completedOrder.orderPlacedAt;
+      
+      io.to(`user_${customerId}`).emit('order_status_update', {
+        order: formattedOrder,
+        orderId: formattedOrder.id,
+        status: formattedOrder.status,
+        previousStatus: 'out_for_delivery',
+        updatedAt: formattedOrder.updatedAt,
+        orderDeliveredAt: formattedOrder.orderDeliveredAt,
+        driver: formattedOrder.driver,
+        deliveryStats: {
+          deliveryTime: deliveryTime,
+          deliveryTimeFormatted: formatDeliveryTime(deliveryTime)
+        },
+        message: `¡Tu pedido #${formattedOrder.id} ha sido entregado exitosamente! Tiempo de entrega: ${formatDeliveryTime(deliveryTime)}`
+      });
+      console.log(`📢 Notificación enviada al cliente ${customerId} sobre entrega completada del pedido ${formattedOrder.id}`);
+    } catch (socketError) {
+      console.error('Error enviando notificación Socket.io:', socketError);
+      // No fallar la respuesta por error de socket
+    }
+
+    // 8. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Pedido completado exitosamente',

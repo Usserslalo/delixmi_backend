@@ -1,6 +1,68 @@
 const { PrismaClient } = require('@prisma/client');
+const { getIo } = require('../config/socket');
 
 const prisma = new PrismaClient();
+
+/**
+ * Función auxiliar para formatear un objeto order para Socket.io
+ * Convierte todos los BigInt a String para evitar errores de serialización
+ * @param {Object} order - Objeto del pedido con BigInt
+ * @returns {Object} Objeto formateado para Socket.io
+ */
+const formatOrderForSocket = (order) => {
+  return {
+    id: order.id.toString(),
+    status: order.status,
+    subtotal: Number(order.subtotal),
+    deliveryFee: Number(order.deliveryFee),
+    total: Number(order.total),
+    orderPlacedAt: order.orderPlacedAt,
+    orderDeliveredAt: order.orderDeliveredAt,
+    updatedAt: order.updatedAt,
+    customer: {
+      id: order.customer.id,
+      name: order.customer.name,
+      lastname: order.customer.lastname,
+      email: order.customer.email,
+      phone: order.customer.phone
+    },
+    address: {
+      id: order.address.id,
+      alias: order.address.alias,
+      fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`,
+      references: order.address.references
+    },
+    branch: {
+      id: order.branch.id,
+      name: order.branch.name,
+      restaurant: {
+        id: order.branch.restaurant.id,
+        name: order.branch.restaurant.name
+      }
+    },
+    items: order.orderItems ? order.orderItems.map(item => ({
+      id: item.id.toString(),
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        description: item.product.description,
+        price: Number(item.product.price),
+        imageUrl: item.product.imageUrl,
+        category: item.product.subcategory.name
+      },
+      quantity: item.quantity,
+      pricePerUnit: Number(item.pricePerUnit),
+      total: Number(item.pricePerUnit) * item.quantity
+    })) : [],
+    ...(order.deliveryDriver && {
+      driver: {
+        id: order.deliveryDriver.id,
+        name: `${order.deliveryDriver.name} ${order.deliveryDriver.lastname}`,
+        phone: order.deliveryDriver.phone
+      }
+    })
+  };
+};
 
 /**
  * Obtiene los pedidos para el panel de administración del restaurante
@@ -556,7 +618,27 @@ const updateOrderStatus = async (req, res) => {
       }))
     };
 
-    // 7. Respuesta exitosa
+    // 7. Emitir notificación en tiempo real al cliente
+    try {
+      const io = getIo();
+      const customerId = updatedOrder.customer.id;
+      const formattedOrder = formatOrderForSocket(updatedOrder);
+      
+      io.to(`user_${customerId}`).emit('order_status_update', {
+        order: formattedOrder,
+        orderId: formattedOrder.id,
+        status: formattedOrder.status,
+        previousStatus: existingOrder.status,
+        updatedAt: formattedOrder.updatedAt,
+        message: `Tu pedido #${formattedOrder.id} ha cambiado de estado a: ${status}`
+      });
+      console.log(`📢 Notificación enviada al cliente ${customerId} sobre actualización del pedido ${formattedOrder.id}`);
+    } catch (socketError) {
+      console.error('Error enviando notificación Socket.io:', socketError);
+      // No fallar la respuesta por error de socket
+    }
+
+    // 8. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Estado del pedido actualizado exitosamente',
@@ -3464,6 +3546,7 @@ module.exports = {
   createBranch,
   getRestaurantBranches,
   updateBranch,
-  deleteBranch
+  deleteBranch,
+  formatOrderForSocket
 };
 

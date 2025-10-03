@@ -25,6 +25,16 @@ function initializeSocket(httpServer) {
       }
     });
 
+    socket.on('join_user_room', (data) => {
+      const { userId } = data;
+      if (userId) {
+        const roomName = `user_${userId}`;
+        socket.join(roomName);
+        console.log(`👤 Cliente ${socket.id} se unió a la sala de usuario: ${roomName}`);
+        socket.emit('joined_user_room', { room: roomName });
+      }
+    });
+
     socket.on('disconnect', (reason) => {
       console.log(`🔌 Cliente desconectado: ${socket.id}, razón: ${reason}`);
     });

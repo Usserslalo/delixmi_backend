@@ -16,23 +16,19 @@
 
         socket.on("connect", () => {
             console.log("¡CONECTADO EXITOSAMENTE!", socket.id);
-            document.body.style.backgroundColor = 'lightgreen';
+            document.body.style.backgroundColor = 'lightblue';
 
-            // Unirse a la sala de la Sucursal Centro (branchId: 1)
-            const branchIdToJoin = 1;
-            console.log(`Intentando unirse a la sala para la sucursal ${branchIdToJoin}...`);
-            socket.emit('join_branch_room', { branchId: branchIdToJoin });
+            // Unirse a la sala personal del cliente "Sofía" (userId: 10)
+            const userIdToJoin = 10;
+            console.log(`Intentando unirse a la sala para el usuario ${userIdToJoin}...`);
+            socket.emit('join_user_room', { userId: userIdToJoin });
         });
 
-        socket.on('joined_branch_room', (data) => {
-            console.log('Unido exitosamente a la sala:', data);
-        });
-
-        // ¡Aquí está la magia! Escuchando nuevos pedidos
-        socket.on('new_order', (orderData) => {
-            console.log('--- ¡NUEVO PEDIDO RECIBIDO! ---');
-            console.log(orderData);
-            alert('¡Llegó un nuevo pedido!');
+        // Escuchando la actualización del estado del pedido
+        socket.on('order_status_update', (data) => {
+            console.log('--- ¡ACTUALIZACIÓN DE PEDIDO! ---');
+            console.log(data);
+            alert(`¡Tu pedido ha sido actualizado a: ${data.status}!`);
         });
 
         socket.on("connect_error", (err) => {
