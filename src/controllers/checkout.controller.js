@@ -209,7 +209,61 @@ const createPreference = async (req, res) => {
     // 8. Crear preferencia en Mercado Pago
     const mpResponse = await preference.create({ body: preferenceData });
 
-    // 9. Guardar información del intento de pago en la base de datos
+    // 9. Obtener el branchId del primer producto (todos los productos deben ser del mismo restaurante)
+    const firstProduct = products[0];
+    let branchId = 1; // Valor por defecto
+    
+    if (firstProduct.restaurant.branches && firstProduct.restaurant.branches.length > 0) {
+      branchId = firstProduct.restaurant.branches[0].id;
+    }
+
+    // 10. Crear la Order primero con todos sus datos
+    const createdOrder = await prisma.order.create({
+      data: {
+        customerId: userId,
+        branchId: branchId,
+        addressId: addressId,
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        total: total,
+        commissionRateSnapshot: firstProduct.restaurant.commissionRate || 10.00,
+        platformFee: serviceFee,
+        restaurantPayout: subtotal - (subtotal * (firstProduct.restaurant.commissionRate || 10.00) / 100),
+        paymentMethod: 'mercadopago',
+        paymentStatus: 'pending',
+        status: 'pending',
+        orderItems: {
+          create: items.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            return {
+              productId: item.productId,
+              quantity: item.quantity,
+              pricePerUnit: Number(product.price)
+            };
+          })
+        }
+      },
+      include: {
+        orderItems: {
+          include: {
+            product: {
+              include: {
+                restaurant: true
+              }
+            }
+          }
+        },
+        customer: true,
+        address: true,
+        branch: {
+          include: {
+            restaurant: true
+          }
+        }
+      }
+    });
+
+    // 11. Crear el Payment usando el ID de la Order recién creada
     await prisma.payment.create({
       data: {
         amount: total,
@@ -217,35 +271,11 @@ const createPreference = async (req, res) => {
         provider: 'mercadopago',
         providerPaymentId: externalReference,
         status: 'pending',
-        order: {
-          create: {
-            customerId: userId,
-            branchId: 1, // Por ahora hardcodeado, debería venir del request
-            addressId: addressId,
-            subtotal: subtotal,
-            deliveryFee: deliveryFee,
-            total: total,
-            commissionRateSnapshot: 10.00, // Valor por defecto
-            platformFee: serviceFee,
-            restaurantPayout: subtotal - (subtotal * 0.10), // Resta la comisión
-            paymentMethod: 'mercadopago',
-            paymentStatus: 'pending',
-            orderItems: {
-              create: items.map(item => {
-                const product = products.find(p => p.id === item.productId);
-                return {
-                  productId: item.productId,
-                  quantity: item.quantity,
-                  pricePerUnit: Number(product.price)
-                };
-              })
-            }
-          }
-        }
+        orderId: createdOrder.id
       }
     });
 
-    // 10. Respuesta exitosa
+    // 12. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Preferencia de pago creada exitosamente',

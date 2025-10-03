@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Socket.IO Test Client</title>
+</head>
+
+<body>
+    <h1>Cliente de Prueba de Socket.IO</h1>
+    <p>Abre la consola del navegador (presiona F12) para ver los mensajes.</p>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        console.log("Intentando conectar a ws://localhost:3000...");
+        const socket = io("ws://localhost:3000");
+
+        socket.on("connect", () => {
+            console.log("¡CONECTADO EXITOSAMENTE!", socket.id);
+            document.body.style.backgroundColor = 'lightgreen';
+
+            // Unirse a la sala de la Sucursal Centro (branchId: 1)
+            const branchIdToJoin = 1;
+            console.log(`Intentando unirse a la sala para la sucursal ${branchIdToJoin}...`);
+            socket.emit('join_branch_room', { branchId: branchIdToJoin });
+        });
+
+        socket.on('joined_branch_room', (data) => {
+            console.log('Unido exitosamente a la sala:', data);
+        });
+
+        // ¡Aquí está la magia! Escuchando nuevos pedidos
+        socket.on('new_order', (orderData) => {
+            console.log('--- ¡NUEVO PEDIDO RECIBIDO! ---');
+            console.log(orderData);
+            alert('¡Llegó un nuevo pedido!');
+        });
+
+        socket.on("connect_error", (err) => {
+            console.error("ERROR DE CONEXIÓN:", err.message);
+            document.body.style.backgroundColor = 'lightcoral';
+        });
+    </script>
+</body>
+
+</html>

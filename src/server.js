@@ -1,8 +1,11 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const { testConnection, disconnect } = require('./config/database');
+const { initializeSocket } = require('./config/socket');
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Middleware básico
@@ -124,18 +127,22 @@ app.use((req, res) => {
   });
 });
 
+// Inicializar Socket.io
+initializeSocket(httpServer);
+
 // Iniciar servidor
-const server = app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Servidor iniciado en puerto ${PORT}`);
   console.log(`📍 URL: http://localhost:${PORT}`);
   console.log(`🔍 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 Socket.io disponible en: http://localhost:${PORT}`);
 });
 
 // Manejo de cierre graceful
 process.on('SIGINT', async () => {
   console.log('\n🛑 Cerrando servidor...');
   await disconnect();
-  server.close(() => {
+  httpServer.close(() => {
     console.log('✅ Servidor cerrado correctamente');
     process.exit(0);
   });
@@ -144,7 +151,7 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Cerrando servidor...');
   await disconnect();
-  server.close(() => {
+  httpServer.close(() => {
     console.log('✅ Servidor cerrado correctamente');
     process.exit(0);
   });
