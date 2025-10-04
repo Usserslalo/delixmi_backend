@@ -11,28 +11,28 @@
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        console.log("Intentando conectar a ws://localhost:3000...");
+        console.log("Intentando conectar como Repartidor...");
         const socket = io("ws://localhost:3000");
 
         socket.on("connect", () => {
             console.log("¡CONECTADO!", socket.id);
-            document.body.style.backgroundColor = 'lightblue';
+            document.body.style.backgroundColor = 'lightgreen';
 
-            // Unirse a la sala del cliente "Sofía" (userId: 10)
-            socket.emit('join_user_room', { userId: 10 });
-            // Unirse a la sala del restaurante "Sucursal Centro" (branchId: 4)
-            socket.emit('join_branch_room', { branchId: 4 });
+            // Unirse al canal de repartidores
+            const driverId = 9; // ID de Miguel
+            console.log(`Uniendo al repartidor ${driverId} al canal...`);
+            socket.emit('join_drivers_channel', { driverId: driverId });
         });
 
-        socket.on('joined_branch_room', (data) => console.log('Restaurante unido a la sala:', data));
-        socket.on('joined_user_room', (data) => console.log('Cliente unido a la sala:', data));
-
-        socket.on('new_order', (order) => {
-            console.log('%c¡NUEVO PEDIDO PARA RESTAURANTE!', 'color: orange; font-weight: bold;', order);
+        socket.on('joined_drivers_channel', (data) => {
+            console.log('Unido exitosamente al canal de repartidores:', data);
         });
 
-        socket.on('order_status_update', (data) => {
-            console.log('%c¡ACTUALIZACIÓN DE ESTADO PARA CLIENTE!', 'color: green; font-weight: bold;', data);
+        // ¡Escuchando nuevos pedidos disponibles!
+        socket.on('new_order_available', (data) => {
+            console.log('--- ¡NUEVO PEDIDO DISPONIBLE! ---');
+            console.log(data);
+            alert(`¡Nuevo pedido #${data.orderId} disponible para recoger!`);
         });
     </script>
 </body>

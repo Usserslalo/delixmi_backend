@@ -653,7 +653,49 @@ const updateOrderStatus = async (req, res) => {
       // No fallar la respuesta por error de socket
     }
 
-    // 8. Respuesta exitosa
+    // 8. Notificar a repartidores cuando el pedido esté listo para recogida
+    if (status === 'ready_for_pickup') {
+      try {
+        const io = getIo();
+        const formattedOrder = formatOrderForSocket(updatedOrder);
+        
+        io.to('drivers_channel').emit('new_order_available', {
+          order: formattedOrder,
+          orderId: formattedOrder.id,
+          status: formattedOrder.status,
+          restaurant: {
+            id: updatedOrder.branch.restaurant.id,
+            name: updatedOrder.branch.restaurant.name
+          },
+          branch: {
+            id: updatedOrder.branch.id,
+            name: updatedOrder.branch.name
+          },
+          customer: {
+            id: updatedOrder.customer.id,
+            name: updatedOrder.customer.name,
+            lastname: updatedOrder.customer.lastname
+          },
+          address: {
+            id: updatedOrder.address.id,
+            alias: updatedOrder.address.alias,
+            fullAddress: `${updatedOrder.address.street} ${updatedOrder.address.exteriorNumber}${updatedOrder.address.interiorNumber ? ' Int. ' + updatedOrder.address.interiorNumber : ''}, ${updatedOrder.address.neighborhood}, ${updatedOrder.address.city}, ${updatedOrder.address.state} ${updatedOrder.address.zipCode}`,
+            references: updatedOrder.address.references
+          },
+          total: Number(updatedOrder.total),
+          deliveryFee: Number(updatedOrder.deliveryFee),
+          specialInstructions: updatedOrder.specialInstructions,
+          message: `Nuevo pedido #${formattedOrder.id} listo para recogida en ${updatedOrder.branch.name}`,
+          createdAt: new Date().toISOString()
+        });
+        console.log(`🚚 Notificación enviada a todos los repartidores sobre nuevo pedido ${formattedOrder.id} listo para recogida`);
+      } catch (socketError) {
+        console.error('Error enviando notificación a repartidores:', socketError);
+        // No fallar la respuesta por error de socket
+      }
+    }
+
+    // 9. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Estado del pedido actualizado exitosamente',

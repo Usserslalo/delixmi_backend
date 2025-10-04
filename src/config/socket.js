@@ -35,6 +35,27 @@ function initializeSocket(httpServer) {
       }
     });
 
+    // Canal de repartidores para notificaciones de nuevos pedidos
+    socket.on('join_drivers_channel', (data) => {
+      const { driverId } = data;
+      if (driverId) {
+        const roomName = 'drivers_channel';
+        socket.join(roomName);
+        console.log(`🚚 Repartidor ${driverId} (${socket.id}) se unió al canal de repartidores`);
+        socket.emit('joined_drivers_channel', { room: roomName, driverId });
+      }
+    });
+
+    socket.on('leave_drivers_channel', (data) => {
+      const { driverId } = data;
+      if (driverId) {
+        const roomName = 'drivers_channel';
+        socket.leave(roomName);
+        console.log(`🚚 Repartidor ${driverId} (${socket.id}) abandonó el canal de repartidores`);
+        socket.emit('left_drivers_channel', { room: roomName, driverId });
+      }
+    });
+
     socket.on('disconnect', (reason) => {
       console.log(`🔌 Cliente desconectado: ${socket.id}, razón: ${reason}`);
     });
