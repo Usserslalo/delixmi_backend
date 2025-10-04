@@ -14,6 +14,7 @@ const {
   // verifyPhone             // Comentado temporalmente - verificación por teléfono desactivada
 } = require('../controllers/auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
+const { loginLimiter, forgotPasswordLimiter } = require('../middleware/rateLimit.middleware');
 
 const router = express.Router();
 
@@ -128,8 +129,9 @@ router.post('/register', registerValidation, register);
  * @route   POST /api/auth/login
  * @desc    Iniciar sesión
  * @access  Public
+ * @security Rate limiting: 5 intentos por IP cada 15 minutos
  */
-router.post('/login', loginValidation, login);
+router.post('/login', loginLimiter, loginValidation, login);
 
 /**
  * @route   GET /api/auth/profile
@@ -170,8 +172,9 @@ router.post('/resend-verification', resendVerificationValidation, resendVerifica
  * @route   POST /api/auth/forgot-password
  * @desc    Solicitar restablecimiento de contraseña
  * @access  Public
+ * @security Rate limiting: 3 intentos por IP cada hora
  */
-router.post('/forgot-password', forgotPasswordValidation, forgotPassword);
+router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordValidation, forgotPassword);
 
 /**
  * @route   POST /api/auth/reset-password
