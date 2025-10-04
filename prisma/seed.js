@@ -557,7 +557,8 @@ async function main() {
         description: 'La clásica pizza con jamón y piña fresca.',
         price: 150.00,
         imageUrl: 'https://example.com/products/hawaiana.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'pizza, jamon, pina'
       }
     });
     const pizzaPepperoni = await prisma.product.create({
@@ -568,7 +569,8 @@ async function main() {
         description: 'Generosa porción de pepperoni sobre nuestra salsa especial de la casa.',
         price: 145.50,
         imageUrl: 'https://example.com/products/pepperoni.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'pizza, pepperoni'
       }
     });
     const pizzaMargherita = await prisma.product.create({
@@ -579,7 +581,8 @@ async function main() {
         description: 'Pizza clásica con mozzarella fresca, tomate y albahaca.',
         price: 135.00,
         imageUrl: 'https://example.com/products/margherita.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'pizza, vegetariana, mozzarella'
       }
     });
 
@@ -592,7 +595,8 @@ async function main() {
         description: 'Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.',
         price: 180.00,
         imageUrl: 'https://example.com/products/quattro-stagioni.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'pizza, gourmet, jamon, champinones, aceitunas'
       }
     });
 
@@ -605,7 +609,8 @@ async function main() {
         description: 'Pizza con champiñones, pimientos, cebolla, aceitunas y queso de cabra.',
         price: 160.00,
         imageUrl: 'https://example.com/products/vegetariana.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'pizza, vegetariana, champinones, pimientos, cebolla, aceitunas'
       }
     });
 
@@ -618,7 +623,8 @@ async function main() {
         description: 'Refresco de cola bien frío.',
         price: 25.00,
         imageUrl: 'https://example.com/products/coca-cola.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'bebida, refresco, cola'
       }
     });
     const sprite = await prisma.product.create({
@@ -629,7 +635,8 @@ async function main() {
         description: 'Refresco de lima-limón bien frío.',
         price: 25.00,
         imageUrl: 'https://example.com/products/sprite.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'bebida, refresco, lima, limon'
       }
     });
 
@@ -642,7 +649,8 @@ async function main() {
         description: 'Agua fresca de horchata natural.',
         price: 20.00,
         imageUrl: 'https://example.com/products/horchata.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'bebida, agua, horchata, natural'
       }
     });
 
@@ -655,7 +663,8 @@ async function main() {
         description: 'Crujientes aros de cebolla empanizados.',
         price: 45.00,
         imageUrl: 'https://example.com/products/aros-cebolla.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'aperitivo, cebolla, empanizado, frito'
       }
     });
 
@@ -668,7 +677,8 @@ async function main() {
         description: 'Postre italiano con café, mascarpone y cacao.',
         price: 55.00,
         imageUrl: 'https://example.com/products/tiramisu.jpg',
-        isAvailable: true
+        isAvailable: true,
+        tags: 'postre, italiano, cafe, mascarpone, cacao'
       }
     });
     console.log('✅ 10 productos creados');

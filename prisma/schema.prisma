@@ -254,6 +254,7 @@ model Product {
   imageUrl      String?  @map("image_url") @db.VarChar(255)
   price         Decimal  @db.Decimal(10, 2)
   isAvailable   Boolean  @default(true) @map("is_available")
+  tags          String?  @db.Text
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
@@ -753,6 +753,37 @@ router.post('/products',
     next();
   },
   createProduct
+);
+
+/**
+ * @route   PATCH /api/restaurant/products/deactivate-by-tag
+ * @desc    Desactivar todos los productos que contengan una etiqueta específica
+ * @access  Private (Owner, Branch Manager Only)
+ * @body    tag - Etiqueta a buscar en los productos (requerido)
+ */
+router.patch('/products/deactivate-by-tag',
+  requireRole(['owner', 'branch_manager']),
+  [
+    body('tag')
+      .notEmpty()
+      .withMessage('La etiqueta es requerida')
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('La etiqueta debe tener entre 1 y 100 caracteres')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  deactivateProductsByTag
 );
 
 /**

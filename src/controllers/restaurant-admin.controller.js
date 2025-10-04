@@ -4351,6 +4351,128 @@ const getDayName = (dayOfWeek) => {
   return days[dayOfWeek] || 'Día inválido';
 };
 
+/**
+ * Desactivar todos los productos que contengan una etiqueta específica
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const deactivateProductsByTag = async (req, res) => {
+  try {
+    const { tag } = req.body;
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar autorización
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true
+              }
+            },
+            restaurantId: true,
+            branchId: true
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante apropiados
+    const allowedRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasAllowedRole = userRoles.some(role => allowedRoles.includes(role));
+
+    if (!hasAllowedRole) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requieren permisos de owner o branch_manager',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Determinar el restaurantId del usuario
+    let restaurantId = null;
+    
+    // Si el usuario es owner, obtener su restaurantId
+    const ownerAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => assignment.role.name === 'owner' && assignment.restaurantId
+    );
+
+    if (ownerAssignment) {
+      restaurantId = ownerAssignment.restaurantId;
+    } else {
+      // Si es branch_manager, obtener el restaurantId a través de la sucursal
+      const branchAssignment = userWithRoles.userRoleAssignments.find(
+        assignment => assignment.role.name === 'branch_manager' && assignment.branchId
+      );
+
+      if (branchAssignment) {
+        const branch = await prisma.branch.findUnique({
+          where: { id: branchAssignment.branchId },
+          select: { restaurantId: true }
+        });
+
+        if (branch) {
+          restaurantId = branch.restaurantId;
+        }
+      }
+    }
+
+    if (!restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se pudo determinar el restaurante asociado al usuario',
+        code: 'RESTAURANT_NOT_FOUND'
+      });
+    }
+
+    // 4. Actualizar productos que contengan la etiqueta
+    const result = await prisma.product.updateMany({
+      where: {
+        restaurantId: restaurantId,
+        tags: {
+          contains: tag
+        }
+      },
+      data: {
+        isAvailable: false,
+        updatedAt: new Date()
+      }
+    });
+
+    // 5. Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: `Se desactivaron ${result.count} productos que contienen la etiqueta "${tag}"`,
+      data: {
+        tag: tag,
+        productsUpdated: result.count,
+        restaurantId: restaurantId,
+        updatedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error desactivando productos por etiqueta:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    });
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -4371,6 +4493,7 @@ module.exports = {
   getBranchSchedule,
   updateBranchSchedule,
   rejectOrder,
-  formatOrderForSocket
+  formatOrderForSocket,
+  deactivateProductsByTag
 };
 
