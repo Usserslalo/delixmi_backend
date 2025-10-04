@@ -17,6 +17,7 @@ const formatOrderForSocket = (order) => {
     subtotal: Number(order.subtotal),
     deliveryFee: Number(order.deliveryFee),
     total: Number(order.total),
+    specialInstructions: order.specialInstructions,
     orderPlacedAt: order.orderPlacedAt,
     orderDeliveredAt: order.orderDeliveredAt,
     updatedAt: order.updatedAt,
@@ -190,7 +191,19 @@ const getRestaurantOrders = async (req, res) => {
           branchId: { in: branchIds },
           status: status
         },
-        include: {
+        select: {
+          id: true,
+          status: true,
+          subtotal: true,
+          deliveryFee: true,
+          total: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          specialInstructions: true,
+          orderPlacedAt: true,
+          orderDeliveredAt: true,
+          createdAt: true,
+          updatedAt: true,
           customer: {
             select: {
               id: true,
@@ -271,6 +284,7 @@ const getRestaurantOrders = async (req, res) => {
       subtotal: Number(order.subtotal),
       deliveryFee: Number(order.deliveryFee),
       total: Number(order.total),
+      specialInstructions: order.specialInstructions,
       orderPlacedAt: order.orderPlacedAt,
       orderDeliveredAt: order.orderDeliveredAt,
       customer: {

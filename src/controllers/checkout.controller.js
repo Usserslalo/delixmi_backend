@@ -31,7 +31,7 @@ const createPreference = async (req, res) => {
       });
     }
 
-    const { addressId, items } = req.body;
+    const { addressId, items, specialInstructions } = req.body;
     const userId = req.user.id;
 
     // 1. Verificar que la dirección pertenece al usuario
@@ -279,6 +279,7 @@ const createPreference = async (req, res) => {
         paymentMethod: 'mercadopago',
         paymentStatus: 'pending',
         status: 'pending',
+        specialInstructions: specialInstructions || null,
         orderItems: {
           create: items.map(item => {
             const product = products.find(p => p.id === item.productId);
@@ -420,6 +421,7 @@ const getPaymentStatus = async (req, res) => {
           subtotal: payment.order.subtotal,
           deliveryFee: payment.order.deliveryFee,
           total: payment.order.total,
+          specialInstructions: payment.order.specialInstructions,
           orderPlacedAt: payment.order.orderPlacedAt,
           items: payment.order.orderItems.map(item => ({
             productName: item.product.name,

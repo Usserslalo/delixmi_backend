@@ -305,6 +305,7 @@ model Order {
   paymentId               BigInt?  @unique @map("payment_id")
   paymentMethod           String   @map("payment_method") @db.VarChar(50)
   paymentStatus           PaymentStatus @default(pending) @map("payment_status")
+  specialInstructions     String?  @map("special_instructions") @db.Text
   orderPlacedAt           DateTime @default(now()) @map("order_placed_at") @db.Timestamp(6)
   orderDeliveredAt        DateTime? @map("order_delivered_at") @db.Timestamp(6)
   createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(6)

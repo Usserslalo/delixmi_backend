@@ -68,6 +68,7 @@ const getDriverLocationForOrder = async (req, res) => {
         id: true,
         status: true,
         deliveryDriverId: true,
+        specialInstructions: true,
         orderPlacedAt: true,
         orderDeliveredAt: true,
         updatedAt: true,
@@ -130,7 +131,8 @@ const getDriverLocationForOrder = async (req, res) => {
             id: order.id.toString(),
             status: order.status,
             stage: 'waiting_for_driver_assignment',
-            message: 'Tu pedido está siendo preparado. Te notificaremos cuando un repartidor sea asignado.'
+            message: 'Tu pedido está siendo preparado. Te notificaremos cuando un repartidor sea asignado.',
+            specialInstructions: order.specialInstructions
           },
           tracking: {
             isTrackingAvailable: false,
@@ -164,7 +166,8 @@ const getDriverLocationForOrder = async (req, res) => {
             id: order.id.toString(),
             status: order.status,
             stage: 'not_in_delivery',
-            message: `Tu pedido está en estado: ${order.status}. El tracking estará disponible cuando esté en camino.`
+            message: `Tu pedido está en estado: ${order.status}. El tracking estará disponible cuando esté en camino.`,
+            specialInstructions: order.specialInstructions
           },
           tracking: {
             isTrackingAvailable: false,
@@ -240,7 +243,8 @@ const getDriverLocationForOrder = async (req, res) => {
             id: order.id.toString(),
             status: order.status,
             stage: 'in_delivery_no_location',
-            message: 'Tu pedido está en camino, pero la ubicación del repartidor no está disponible temporalmente.'
+            message: 'Tu pedido está en camino, pero la ubicación del repartidor no está disponible temporalmente.',
+            specialInstructions: order.specialInstructions
           },
           tracking: {
             isTrackingAvailable: false,
@@ -288,7 +292,8 @@ const getDriverLocationForOrder = async (req, res) => {
           id: order.id.toString(),
           status: order.status,
           stage: 'tracking_available',
-          message: 'Tu pedido está en camino. Puedes seguir su ubicación en tiempo real.'
+          message: 'Tu pedido está en camino. Puedes seguir su ubicación en tiempo real.',
+          specialInstructions: order.specialInstructions
         },
         tracking: {
           isTrackingAvailable: true,
@@ -449,6 +454,7 @@ const getCustomerOrders = async (req, res) => {
         total: true,
         paymentMethod: true,
         paymentStatus: true,
+        specialInstructions: true,
         orderPlacedAt: true,
         orderDeliveredAt: true,
         createdAt: true,
@@ -526,6 +532,7 @@ const getCustomerOrders = async (req, res) => {
       total: Number(order.total),
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus,
+      specialInstructions: order.specialInstructions,
       orderPlacedAt: order.orderPlacedAt,
       orderDeliveredAt: order.orderDeliveredAt,
       createdAt: order.createdAt,

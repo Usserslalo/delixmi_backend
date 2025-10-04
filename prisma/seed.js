@@ -765,6 +765,7 @@ async function main() {
         restaurantPayout: 153.22,
         paymentMethod: 'card',
         paymentStatus: 'completed',
+        specialInstructions: 'Entregar en la puerta principal. No tocar el timbre, solo llamar por teléfono.',
         orderPlacedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 horas atrás
       }
     });
@@ -784,6 +785,7 @@ async function main() {
         restaurantPayout: 196.25,
         paymentMethod: 'cash',
         paymentStatus: 'completed',
+        specialInstructions: 'Por favor tocar el timbre fuerte, el timbre principal no funciona. Llamar al teléfono si no hay respuesta.',
         deliveryDriverId: miguelUser.id,
         orderPlacedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 día atrás
         orderDeliveredAt: new Date(Date.now() - 23 * 60 * 60 * 1000) // 23 horas atrás

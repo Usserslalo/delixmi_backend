@@ -1255,7 +1255,19 @@ const getCurrentOrder = async (req, res) => {
         deliveryDriverId: userId, // ✅ CRÍTICO: Solo pedidos asignados a este repartidor
         status: 'out_for_delivery' // ✅ CRÍTICO: Solo pedidos en camino
       },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        subtotal: true,
+        deliveryFee: true,
+        total: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        specialInstructions: true,
+        orderPlacedAt: true,
+        orderDeliveredAt: true,
+        createdAt: true,
+        updatedAt: true,
         customer: {
           select: {
             id: true,
@@ -1342,6 +1354,7 @@ const getCurrentOrder = async (req, res) => {
         subtotal: Number(currentOrder.subtotal),
         deliveryFee: Number(currentOrder.deliveryFee),
         total: Number(currentOrder.total),
+        specialInstructions: currentOrder.specialInstructions,
         orderPlacedAt: currentOrder.orderPlacedAt,
         orderDeliveredAt: currentOrder.orderDeliveredAt,
         updatedAt: currentOrder.updatedAt,
