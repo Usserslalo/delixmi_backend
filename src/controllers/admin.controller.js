@@ -1164,11 +1164,419 @@ const updateUser = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Obtener reporte de pagos a restaurantes en un periodo determinado
+ * @route   GET /api/admin/payouts/restaurants
+ * @access  Private (super_admin, platform_manager)
+ */
+const getRestaurantPayouts = async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    // Convertir las fechas a objetos Date y ajustar para incluir todo el día
+    const startDateTime = new Date(startDate);
+    startDateTime.setHours(0, 0, 0, 0); // Inicio del día
+    
+    const endDateTime = new Date(endDate);
+    endDateTime.setHours(23, 59, 59, 999); // Fin del día
+
+    // Consulta de agregación usando groupBy para obtener la suma de restaurantPayout por restaurantId
+    const payoutAggregation = await prisma.order.groupBy({
+      by: ['branchId'],
+      where: {
+        status: 'delivered',
+        orderDeliveredAt: {
+          gte: startDateTime,
+          lte: endDateTime
+        }
+      },
+      _sum: {
+        restaurantPayout: true
+      },
+      _count: {
+        id: true
+      }
+    });
+
+    // Si no hay datos, devolver array vacío
+    if (payoutAggregation.length === 0) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'No se encontraron pedidos entregados en el periodo especificado',
+        data: {
+          payouts: [],
+          period: {
+            startDate: startDate,
+            endDate: endDate,
+            totalDays: Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)) + 1
+          },
+          summary: {
+            totalRestaurants: 0,
+            totalPayoutAmount: 0,
+            totalOrders: 0
+          }
+        }
+      });
+    }
+
+    // Obtener los IDs de las sucursales para consultar información de restaurantes
+    const branchIds = payoutAggregation.map(item => item.branchId);
+
+    // Consulta para obtener información de restaurantes y sucursales
+    const branchesWithRestaurants = await prisma.branch.findMany({
+      where: {
+        id: {
+          in: branchIds
+        }
+      },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            status: true
+          }
+        }
+      }
+    });
+
+    // Crear un mapa para acceso rápido a la información de restaurantes
+    const branchToRestaurantMap = new Map();
+    branchesWithRestaurants.forEach(branch => {
+      branchToRestaurantMap.set(branch.id, {
+        restaurantId: branch.restaurant.id,
+        restaurantName: branch.restaurant.name,
+        restaurantStatus: branch.restaurant.status,
+        branchName: branch.name
+      });
+    });
+
+    // Combinar datos de agregación con información de restaurantes
+    const enrichedPayouts = payoutAggregation.map(item => {
+      const restaurantInfo = branchToRestaurantMap.get(item.branchId);
+      
+      if (!restaurantInfo) {
+        // Si no se encuentra información del restaurante, omitir este item
+        return null;
+      }
+
+      return {
+        restaurantId: restaurantInfo.restaurantId,
+        restaurantName: restaurantInfo.restaurantName,
+        restaurantStatus: restaurantInfo.restaurantStatus,
+        branchId: item.branchId,
+        branchName: restaurantInfo.branchName,
+        totalPayout: parseFloat(item._sum.restaurantPayout || 0),
+        totalOrders: item._count.id
+      };
+    }).filter(item => item !== null); // Filtrar items nulos
+
+    // Agrupar por restaurantId para sumar payouts de múltiples sucursales
+    const restaurantPayoutsMap = new Map();
+    
+    enrichedPayouts.forEach(payout => {
+      const restaurantId = payout.restaurantId;
+      
+      if (restaurantPayoutsMap.has(restaurantId)) {
+        const existing = restaurantPayoutsMap.get(restaurantId);
+        existing.totalPayout += payout.totalPayout;
+        existing.totalOrders += payout.totalOrders;
+        existing.branches.push({
+          branchId: payout.branchId,
+          branchName: payout.branchName
+        });
+      } else {
+        restaurantPayoutsMap.set(restaurantId, {
+          restaurantId: payout.restaurantId,
+          restaurantName: payout.restaurantName,
+          restaurantStatus: payout.restaurantStatus,
+          totalPayout: payout.totalPayout,
+          totalOrders: payout.totalOrders,
+          branches: [{
+            branchId: payout.branchId,
+            branchName: payout.branchName
+          }]
+        });
+      }
+    });
+
+    // Convertir el mapa a array y ordenar por totalPayout descendente
+    const finalPayouts = Array.from(restaurantPayoutsMap.values())
+      .sort((a, b) => b.totalPayout - a.totalPayout);
+
+    // Calcular totales
+    const totalPayoutAmount = finalPayouts.reduce((sum, payout) => sum + payout.totalPayout, 0);
+    const totalOrders = finalPayouts.reduce((sum, payout) => sum + payout.totalOrders, 0);
+
+    // Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Reporte de pagos a restaurantes obtenido exitosamente',
+      data: {
+        payouts: finalPayouts,
+        period: {
+          startDate: startDate,
+          endDate: endDate,
+          totalDays: Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)) + 1
+        },
+        summary: {
+          totalRestaurants: finalPayouts.length,
+          totalPayoutAmount: parseFloat(totalPayoutAmount.toFixed(2)),
+          totalOrders: totalOrders
+        },
+        generatedAt: new Date().toISOString(),
+        generatedBy: {
+          userId: req.user.id,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en getRestaurantPayouts:', error);
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener el reporte de pagos',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener reporte de saldos de repartidores en un periodo determinado
+ * @route   GET /api/admin/payouts/drivers
+ * @access  Private (super_admin, platform_manager)
+ */
+const getDriverPayouts = async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    // Convertir las fechas a objetos Date y ajustar para incluir todo el día
+    const startDateTime = new Date(startDate);
+    startDateTime.setHours(0, 0, 0, 0); // Inicio del día
+    
+    const endDateTime = new Date(endDate);
+    endDateTime.setHours(23, 59, 59, 999); // Fin del día
+
+    // Obtener todas las órdenes entregadas en el periodo con información del repartidor
+    const deliveredOrders = await prisma.order.findMany({
+      where: {
+        status: 'delivered',
+        orderDeliveredAt: {
+          gte: startDateTime,
+          lte: endDateTime
+        },
+        deliveryDriverId: {
+          not: null // Solo órdenes que tienen repartidor asignado
+        }
+      },
+      select: {
+        id: true,
+        deliveryDriverId: true,
+        paymentMethod: true,
+        total: true,
+        deliveryFee: true,
+        orderDeliveredAt: true,
+        deliveryDriver: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            email: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: {
+        orderDeliveredAt: 'asc'
+      }
+    });
+
+    // Si no hay órdenes entregadas, devolver array vacío
+    if (deliveredOrders.length === 0) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'No se encontraron pedidos entregados por repartidores en el periodo especificado',
+        data: {
+          payouts: [],
+          period: {
+            startDate: startDate,
+            endDate: endDate,
+            totalDays: Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)) + 1
+          },
+          summary: {
+            totalDrivers: 0,
+            totalDeliveries: 0,
+            totalPayoutBalance: 0,
+            driversWithPositiveBalance: 0,
+            driversWithNegativeBalance: 0
+          }
+        }
+      });
+    }
+
+    // Agrupar órdenes por repartidor
+    const driverOrdersMap = new Map();
+    
+    deliveredOrders.forEach(order => {
+      const driverId = Number(order.deliveryDriverId); // Convertir BigInt a Number
+      
+      if (!driverOrdersMap.has(driverId)) {
+        driverOrdersMap.set(driverId, {
+          driver: {
+            id: Number(order.deliveryDriver.id), // Convertir BigInt a Number
+            name: order.deliveryDriver.name,
+            lastname: order.deliveryDriver.lastname,
+            email: order.deliveryDriver.email,
+            phone: order.deliveryDriver.phone
+          },
+          orders: []
+        });
+      }
+      
+      driverOrdersMap.get(driverId).orders.push({
+        orderId: Number(order.id), // Convertir BigInt a Number
+        paymentMethod: order.paymentMethod,
+        total: parseFloat(order.total),
+        deliveryFee: parseFloat(order.deliveryFee),
+        orderDeliveredAt: order.orderDeliveredAt
+      });
+    });
+
+    // Calcular saldo para cada repartidor aplicando la lógica de billetera virtual
+    const driverPayouts = [];
+    
+    driverOrdersMap.forEach((driverData, driverId) => {
+      let payoutBalance = 0;
+      let cashOrdersTotal = 0;
+      let cardOrdersDeliveryFee = 0;
+      
+      // Iterar sobre cada pedido del repartidor
+      driverData.orders.forEach(order => {
+        if (order.paymentMethod === 'cash') {
+          // Pago en efectivo: el repartidor cobró el total en efectivo
+          // Debe entregar a la plataforma: total - deliveryFee
+          const amountOwedToPlatform = order.total - order.deliveryFee;
+          payoutBalance -= amountOwedToPlatform;
+          cashOrdersTotal += order.total;
+        } else {
+          // Pago con tarjeta: el repartidor gana solo la deliveryFee
+          payoutBalance += order.deliveryFee;
+          cardOrdersDeliveryFee += order.deliveryFee;
+        }
+      });
+
+      // Calcular estadísticas adicionales
+      const totalDeliveries = driverData.orders.length;
+      const cashOrdersCount = driverData.orders.filter(o => o.paymentMethod === 'cash').length;
+      const cardOrdersCount = driverData.orders.filter(o => o.paymentMethod !== 'cash').length;
+
+      driverPayouts.push({
+        driverId: Number(driverId), // Asegurar que sea Number
+        driverName: `${driverData.driver.name} ${driverData.driver.lastname}`,
+        driverEmail: driverData.driver.email,
+        driverPhone: driverData.driver.phone,
+        totalDeliveries: Number(totalDeliveries), // Asegurar que sea Number
+        payoutBalance: parseFloat(payoutBalance.toFixed(2)),
+        balanceStatus: payoutBalance >= 0 ? 'positive' : 'negative',
+        // Estadísticas detalladas
+        cashOrders: {
+          count: Number(cashOrdersCount), // Asegurar que sea Number
+          totalAmount: parseFloat(cashOrdersTotal.toFixed(2))
+        },
+        cardOrders: {
+          count: Number(cardOrdersCount), // Asegurar que sea Number
+          totalDeliveryFees: parseFloat(cardOrdersDeliveryFee.toFixed(2))
+        },
+        // Resumen de órdenes para auditoría
+        orders: driverData.orders.map(order => ({
+          orderId: Number(order.orderId), // Asegurar que sea Number
+          paymentMethod: order.paymentMethod,
+          total: order.total,
+          deliveryFee: order.deliveryFee,
+          orderDeliveredAt: order.orderDeliveredAt
+        }))
+      });
+    });
+
+    // Ordenar por saldo descendente (mayores saldos primero)
+    driverPayouts.sort((a, b) => b.payoutBalance - a.payoutBalance);
+
+    // Calcular totales y estadísticas
+    const totalDeliveries = deliveredOrders.length;
+    const totalPayoutBalance = driverPayouts.reduce((sum, driver) => sum + driver.payoutBalance, 0);
+    const driversWithPositiveBalance = driverPayouts.filter(driver => driver.payoutBalance > 0).length;
+    const driversWithNegativeBalance = driverPayouts.filter(driver => driver.payoutBalance < 0).length;
+
+    // Respuesta exitosa - asegurar que todos los valores numéricos sean convertidos
+    res.status(200).json({
+      status: 'success',
+      message: 'Reporte de saldos de repartidores obtenido exitosamente',
+      data: {
+        payouts: driverPayouts,
+        period: {
+          startDate: startDate,
+          endDate: endDate,
+          totalDays: Number(Math.ceil((endDateTime - startDateTime) / (1000 * 60 * 60 * 24)) + 1) // Convertir a Number
+        },
+        summary: {
+          totalDrivers: Number(driverPayouts.length), // Convertir a Number
+          totalDeliveries: Number(totalDeliveries), // Convertir a Number
+          totalPayoutBalance: parseFloat(totalPayoutBalance.toFixed(2)),
+          driversWithPositiveBalance: Number(driversWithPositiveBalance), // Convertir a Number
+          driversWithNegativeBalance: Number(driversWithNegativeBalance), // Convertir a Number
+          averageBalancePerDriver: driverPayouts.length > 0 ? 
+            parseFloat((totalPayoutBalance / driverPayouts.length).toFixed(2)) : 0
+        },
+        generatedAt: new Date().toISOString(),
+        generatedBy: {
+          userId: Number(req.user.id), // Convertir BigInt a Number
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en getDriverPayouts:', error);
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener el reporte de saldos de repartidores',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getRestaurants,
   updateRestaurantStatus,
   updateRestaurant,
   getUsers,
   createUser,
-  updateUser
+  updateUser,
+  getRestaurantPayouts,
+  getDriverPayouts
 };

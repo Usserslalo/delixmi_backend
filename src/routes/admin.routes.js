@@ -1,6 +1,6 @@
 const express = require('express');
 const { query, param, body } = require('express-validator');
-const { getRestaurants, updateRestaurantStatus, updateRestaurant, getUsers, createUser, updateUser } = require('../controllers/admin.controller');
+const { getRestaurants, updateRestaurantStatus, updateRestaurant, getUsers, createUser, updateUser, getRestaurantPayouts, getDriverPayouts } = require('../controllers/admin.controller');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 
 const router = express.Router();
@@ -204,6 +204,60 @@ const updateUserValidation = [
     .escape()
 ];
 
+// Validaciones para reporte de pagos a restaurantes
+const restaurantPayoutsValidation = [
+  query('startDate')
+    .notEmpty()
+    .withMessage('La fecha de inicio es requerida')
+    .isISO8601()
+    .withMessage('La fecha de inicio debe ser una fecha válida en formato ISO 8601 (YYYY-MM-DD)')
+    .toDate(),
+  
+  query('endDate')
+    .notEmpty()
+    .withMessage('La fecha de fin es requerida')
+    .isISO8601()
+    .withMessage('La fecha de fin debe ser una fecha válida en formato ISO 8601 (YYYY-MM-DD)')
+    .toDate()
+    .custom((value, { req }) => {
+      const startDate = new Date(req.query.startDate);
+      const endDate = new Date(value);
+      
+      if (endDate < startDate) {
+        throw new Error('La fecha de fin debe ser posterior o igual a la fecha de inicio');
+      }
+      
+      return true;
+    })
+];
+
+// Validaciones para reporte de pagos a repartidores
+const driverPayoutsValidation = [
+  query('startDate')
+    .notEmpty()
+    .withMessage('La fecha de inicio es requerida')
+    .isISO8601()
+    .withMessage('La fecha de inicio debe ser una fecha válida en formato ISO 8601 (YYYY-MM-DD)')
+    .toDate(),
+  
+  query('endDate')
+    .notEmpty()
+    .withMessage('La fecha de fin es requerida')
+    .isISO8601()
+    .withMessage('La fecha de fin debe ser una fecha válida en formato ISO 8601 (YYYY-MM-DD)')
+    .toDate()
+    .custom((value, { req }) => {
+      const startDate = new Date(req.query.startDate);
+      const endDate = new Date(value);
+      
+      if (endDate < startDate) {
+        throw new Error('La fecha de fin debe ser posterior o igual a la fecha de inicio');
+      }
+      
+      return true;
+    })
+];
+
 /**
  * @route   GET /api/admin/restaurants
  * @desc    Obtener lista de todos los restaurantes con filtros y paginación
@@ -289,6 +343,34 @@ router.patch('/users/:id',
   requireRole(['super_admin', 'platform_manager']),
   updateUserValidation,
   updateUser
+);
+
+/**
+ * @route   GET /api/admin/payouts/restaurants
+ * @desc    Obtener reporte de pagos a restaurantes en un periodo determinado
+ * @access  Private (super_admin, platform_manager)
+ * @query   startDate (requerido) - Fecha de inicio del periodo (YYYY-MM-DD)
+ * @query   endDate (requerido) - Fecha de fin del periodo (YYYY-MM-DD)
+ */
+router.get('/payouts/restaurants',
+  authenticateToken,
+  requireRole(['super_admin', 'platform_manager']),
+  restaurantPayoutsValidation,
+  getRestaurantPayouts
+);
+
+/**
+ * @route   GET /api/admin/payouts/drivers
+ * @desc    Obtener reporte de saldos de repartidores en un periodo determinado
+ * @access  Private (super_admin, platform_manager)
+ * @query   startDate (requerido) - Fecha de inicio del periodo (YYYY-MM-DD)
+ * @query   endDate (requerido) - Fecha de fin del periodo (YYYY-MM-DD)
+ */
+router.get('/payouts/drivers',
+  authenticateToken,
+  requireRole(['super_admin', 'platform_manager']),
+  driverPayoutsValidation,
+  getDriverPayouts
 );
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { getIo } = require('../config/socket');
+const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const prisma = new PrismaClient();
 
@@ -3941,6 +3942,350 @@ const updateBranchSchedule = async (req, res) => {
 };
 
 /**
+ * Rechaza un pedido confirmado y procesa reembolso automático
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const rejectOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+    const orderIdNum = parseInt(orderId);
+
+    console.log(`🚫 Procesando rechazo de pedido ${orderId} por usuario ${userId}`);
+
+    // 1. Obtener información del usuario y sus roles
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true
+              }
+            },
+            restaurantId: true,
+            branchId: true
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante
+    const restaurantRoles = ['owner', 'branch_manager', 'order_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requieren permisos de restaurante',
+        code: 'INSUFFICIENT_PERMISSIONS',
+        required: restaurantRoles,
+        current: userRoles
+      });
+    }
+
+    // 3. Buscar el pedido y verificar autorización
+    const order = await prisma.order.findUnique({
+      where: { id: orderIdNum },
+      include: {
+        payment: true,
+        customer: true,
+        branch: {
+          include: {
+            restaurant: true
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pedido no encontrado',
+        details: {
+          orderId: orderId,
+          suggestion: 'Verifica que el ID del pedido sea correcto'
+        }
+      });
+    }
+
+    // --- DATOS DE DEPURACIÓN DE REEMBOLSO ---
+    console.log('--- DATOS DE DEPURACIÓN DE REEMBOLSO ---');
+    console.log('ID de Pedido a Rechazar:', order.id);
+    console.log('Payment ID en la BD:', order.payment.id);
+    console.log('Provider Payment ID que se usará para el reembolso:', order.payment.providerPaymentId);
+    console.log('-----------------------------------------');
+
+    // 4. Verificar que el pedido pertenece a una sucursal del usuario
+    let hasAccess = false;
+
+    // Verificar si es owner del restaurante
+    const ownerAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => assignment.role.name === 'owner' && assignment.restaurantId === order.branch.restaurantId
+    );
+
+    if (ownerAssignment) {
+      hasAccess = true;
+    } else {
+      // Verificar si es branch_manager u order_manager con acceso a esta sucursal
+      const managerAssignment = userWithRoles.userRoleAssignments.find(
+        assignment => 
+          (assignment.role.name === 'branch_manager' || assignment.role.name === 'order_manager') &&
+          assignment.restaurantId === order.branch.restaurantId &&
+          (assignment.branchId === order.branchId || assignment.branchId === null)
+      );
+
+      if (managerAssignment) {
+        hasAccess = true;
+      }
+    }
+
+    if (!hasAccess) {
+      console.log(`❌ Usuario ${userId} no tiene permisos para rechazar el pedido ${orderId}`);
+      return res.status(403).json({
+        status: 'error',
+        message: 'No tienes permisos para rechazar este pedido',
+        details: {
+          orderId: orderId,
+          restaurantId: order.branch.restaurantId,
+          suggestion: 'Verifica que tienes permisos para esta sucursal'
+        }
+      });
+    }
+
+    // 5. Verificar que el pedido está en estado 'confirmed'
+    if (order.status !== 'confirmed') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Solo se pueden rechazar pedidos confirmados',
+        details: {
+          currentStatus: order.status,
+          validStatuses: ['confirmed']
+        }
+      });
+    }
+
+    // 6. Verificar que el pago existe y está aprobado
+    if (!order.payment || order.payment.status !== 'approved') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No se puede procesar reembolso para este pedido',
+        details: {
+          reason: 'El pago no está aprobado o no existe'
+        }
+      });
+    }
+
+    // 7. Configurar Mercado Pago para reembolso
+    const client = new MercadoPagoConfig({
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      options: { timeout: 10000 }
+    });
+    const payment = new Payment(client);
+
+    console.log(`💳 Iniciando reembolso para pago ${order.payment.providerPaymentId}`);
+
+    // 8. Procesar reembolso en Mercado Pago
+    let refundResult;
+    try {
+      // Obtener el providerPaymentId real (ID numérico del pago en Mercado Pago)
+      const mpPaymentId = order.payment.providerPaymentId;
+      
+      console.log(`🔍 Procesando reembolso para pago ID: ${mpPaymentId}`);
+      
+      // Procesar reembolso completo usando directamente el ID del pago
+      refundResult = await payment.refund({
+        id: mpPaymentId,
+        body: {
+          amount: order.total
+        }
+      });
+
+      console.log(`✅ Reembolso procesado exitosamente:`, {
+        refundId: refundResult.id,
+        status: refundResult.status,
+        amount: refundResult.amount,
+        originalPaymentId: mpPaymentId
+      });
+
+    } catch (mpError) {
+      // En producción, lanzar el error para detener el proceso
+      if (process.env.NODE_ENV === 'production') {
+        console.error('❌ Error procesando reembolso en Mercado Pago:', mpError);
+        console.error('Detalles del error:', {
+          paymentId: order.payment.providerPaymentId,
+          amount: order.total,
+          error: mpError.message
+        });
+        
+        return res.status(400).json({
+          status: 'error',
+          message: 'Error procesando reembolso',
+          details: {
+            error: mpError.message,
+            paymentId: order.payment.providerPaymentId,
+            suggestion: 'Contacta al soporte técnico si el problema persiste'
+          }
+        });
+      } else {
+        // En desarrollo, ignorar el error y continuar como si el reembolso fuera exitoso
+        console.warn('⚠️ Fallo en el reembolso de prueba de MP, continuando de todos modos...');
+        console.warn('Detalles del error (desarrollo):', {
+          paymentId: order.payment.providerPaymentId,
+          amount: order.total,
+          error: mpError.message
+        });
+        
+        // Simular un resultado de reembolso exitoso para desarrollo
+        refundResult = {
+          id: `dev_refund_${Date.now()}`,
+          status: 'approved',
+          amount: order.total
+        };
+        
+        console.log(`🔧 Simulando reembolso exitoso en desarrollo:`, {
+          refundId: refundResult.id,
+          status: refundResult.status,
+          amount: refundResult.amount,
+          note: 'Simulado para entorno de desarrollo'
+        });
+      }
+    }
+
+    // 9. Actualización transaccional en la base de datos
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      // Actualizar el pedido
+      const updatedOrder = await tx.order.update({
+        where: { id: orderIdNum },
+        data: {
+          status: 'rejected',
+          paymentStatus: 'refunded',
+          rejectionReason: reason,
+          rejectedAt: new Date()
+        },
+        include: {
+          orderItems: {
+            include: {
+              product: {
+                include: {
+                  restaurant: true
+                }
+              }
+            }
+          },
+          customer: true,
+          address: true,
+          branch: {
+            include: {
+              restaurant: true
+            }
+          },
+          payment: true
+        }
+      });
+
+      // Actualizar el pago
+      await tx.payment.update({
+        where: { id: order.payment.id },
+        data: {
+          status: 'refunded',
+          refundId: refundResult.id,
+          refundedAt: new Date()
+        }
+      });
+
+      return updatedOrder;
+    });
+
+    console.log(`✅ Pedido ${orderId} rechazado exitosamente y reembolso procesado`);
+
+    // 10. Notificar al cliente por Socket.io
+    const io = getIo();
+    const customerRoom = `customer_${order.customerId}`;
+    
+    const notificationData = {
+      orderId: updatedOrder.id,
+      status: 'rejected',
+      message: 'Tu pedido ha sido rechazado y el reembolso ha sido procesado',
+      reason: reason,
+      refundAmount: order.total,
+      refundId: refundResult.id,
+      timestamp: new Date().toISOString()
+    };
+
+    io.to(customerRoom).emit('order_status_update', notificationData);
+    console.log(`📡 Notificación de rechazo enviada a la sala '${customerRoom}'`);
+
+    // 11. Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Pedido rechazado exitosamente y reembolso procesado',
+      data: {
+        order: {
+          id: updatedOrder.id,
+          status: updatedOrder.status,
+          paymentStatus: updatedOrder.paymentStatus,
+          rejectionReason: updatedOrder.rejectionReason,
+          rejectedAt: updatedOrder.rejectedAt,
+          total: updatedOrder.total,
+          customer: {
+            id: updatedOrder.customer.id,
+            name: updatedOrder.customer.name,
+            email: updatedOrder.customer.email
+          },
+          branch: {
+            id: updatedOrder.branch.id,
+            name: updatedOrder.branch.name,
+            restaurant: {
+              id: updatedOrder.branch.restaurant.id,
+              name: updatedOrder.branch.restaurant.name
+            }
+          }
+        },
+        refund: {
+          id: refundResult.id,
+          status: refundResult.status,
+          amount: refundResult.amount
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error rechazando pedido:', error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pedido no encontrado',
+        details: {
+          orderId: req.params.orderId,
+          suggestion: 'Verifica que el ID del pedido sea correcto'
+        }
+      });
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    });
+  }
+};
+
+/**
  * Función auxiliar para obtener el nombre del día de la semana
  * @param {number} dayOfWeek - Número del día (0=Domingo, 1=Lunes, ..., 6=Sábado)
  * @returns {string} Nombre del día
@@ -3969,6 +4314,7 @@ module.exports = {
   deleteBranch,
   getBranchSchedule,
   updateBranchSchedule,
+  rejectOrder,
   formatOrderForSocket
 };
 

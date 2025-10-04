@@ -6,6 +6,27 @@ const prisma = new PrismaClient();
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const payment = new Payment(client);
 
+/**
+ * Función para mapear estados de Mercado Pago a estados internos de PaymentStatus
+ * @param {string} mpStatus - Estado de Mercado Pago
+ * @returns {string} - Estado interno correspondiente
+ */
+const mapMercadoPagoStatus = (mpStatus) => {
+  const statusMap = {
+    'pending': 'pending',
+    'in_process': 'processing',
+    'approved': 'completed',
+    'authorized': 'completed',
+    'in_mediation': 'processing',
+    'rejected': 'failed',
+    'cancelled': 'cancelled',
+    'refunded': 'refunded',
+    'charged_back': 'failed'
+  };
+
+  return statusMap[mpStatus] || 'pending';
+};
+
 const handleMercadoPagoWebhook = async (req, res) => {
   console.log('--- NUEVA NOTIFICACIÓN DE WEBHOOK RECIBIDA ---');
   console.log('HEADERS:', req.headers);
@@ -43,18 +64,40 @@ const handleMercadoPagoWebhook = async (req, res) => {
         return;
       }
 
-      const updatedOrder = await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          paymentStatus: 'completed',
-          status: 'confirmed'
-        },
-        include: {
-           customer: true,
-           address: true,
-           branch: { include: { restaurant: true } },
-           orderItems: { include: { product: true } }
-        }
+      // Transacción atómica para actualizar tanto el pago como la orden
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        // Primero, actualizar el PAGO con el ID real
+        await tx.payment.update({
+          where: { id: order.payment.id },
+          data: {
+            providerPaymentId: mpPayment.id.toString(),
+            status: mapMercadoPagoStatus(mpPayment.status)
+          }
+        });
+
+        // Segundo, actualizar la ORDEN
+        const updatedOrder = await tx.order.update({
+          where: { id: order.id },
+          data: {
+            paymentStatus: 'completed',
+            status: 'confirmed'
+          },
+          include: {
+             customer: true,
+             address: true,
+             branch: { include: { restaurant: true } },
+             orderItems: { include: { product: true } },
+             payment: true
+          }
+        });
+
+        return updatedOrder;
+      });
+
+      console.log(`💳 Payment actualizado:`, {
+        providerPaymentId: mpPayment.id,
+        mpStatus: mpPayment.status,
+        internalStatus: mapMercadoPagoStatus(mpPayment.status)
       });
       
       console.log(`🎉 Pago ${paymentId} procesado. Orden ${order.id} confirmada.`);

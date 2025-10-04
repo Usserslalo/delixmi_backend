@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder } = require('../controllers/restaurant-admin.controller');
 
 const router = express.Router();
 
@@ -454,6 +454,42 @@ router.patch('/orders/:orderId/status',
     next();
   },
   updateOrderStatus
+);
+
+/**
+ * @route   PATCH /api/restaurant/orders/:orderId/reject
+ * @desc    Rechazar un pedido confirmado y procesar reembolso automático
+ * @access  Private (Owner, Branch Manager, Order Manager Only)
+ * @params  orderId - ID del pedido a rechazar
+ * @body    reason (opcional) - Razón del rechazo
+ */
+router.patch('/orders/:orderId/reject',
+  requireRole(['owner', 'branch_manager', 'order_manager']),
+  [
+    param('orderId')
+      .notEmpty()
+      .withMessage('El ID del pedido es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID del pedido debe ser un número entero válido'),
+    body('reason')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('La razón del rechazo no puede exceder 500 caracteres')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  rejectOrder
 );
 
 /**
