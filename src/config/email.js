@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// Configuración para Ethereal Email (desarrollo)
+// Configuración para Gmail SMTP (producción)
 let transporter;
 
 const createTransporter = async () => {
@@ -9,23 +9,26 @@ const createTransporter = async () => {
   }
 
   try {
-    // Crear cuenta de prueba en Ethereal
-    const testAccount = await nodemailer.createTestAccount();
-    
+    // Validar que las variables de entorno estén configuradas
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error('Variables de entorno EMAIL_USER y EMAIL_PASS son requeridas para la configuración de Gmail');
+    }
+
+    // Crear transporter para Gmail SMTP
     transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false, // true para 465, false para otros puertos
+      service: 'gmail',
       auth: {
-        user: testAccount.user, // Usuario generado por Ethereal
-        pass: testAccount.pass, // Contraseña generada por Ethereal
-      },
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
     });
 
-    console.log('📧 Configuración de email (Ethereal) creada exitosamente');
-    console.log('🔗 Ver correos en: https://ethereal.email');
-    console.log(`👤 Usuario: ${testAccount.user}`);
-    console.log(`🔑 Contraseña: ${testAccount.pass}`);
+    // Verificar la conexión
+    await transporter.verify();
+
+    console.log('📧 Configuración de email (Gmail SMTP) creada exitosamente');
+    console.log(`👤 Usuario: ${process.env.EMAIL_USER}`);
+    console.log('🔗 Servicio: Gmail SMTP');
     
     return transporter;
   } catch (error) {
@@ -37,15 +40,39 @@ const createTransporter = async () => {
 // Función para enviar email de verificación
 const sendVerificationEmail = async (email, name, verificationToken) => {
   try {
+    console.log('🔍 DEBUG: Iniciando sendVerificationEmail');
+    console.log('🔍 DEBUG: email recibido:', email);
+    console.log('🔍 DEBUG: name recibido:', name);
+    console.log('🔍 DEBUG: verificationToken recibido:', verificationToken);
+    console.log('🔍 DEBUG: verificationToken tipo:', typeof verificationToken);
+    console.log('🔍 DEBUG: verificationToken longitud:', verificationToken ? verificationToken.length : 'undefined');
+    
     const transporter = await createTransporter();
     
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/verify-email?token=${verificationToken}`;
+    // Generar deep link para la app móvil
+    const deepLinkUrl = `delixmi://verify-email?token=${verificationToken}`;
     
-    const mailOptions = {
-      from: '"Delixmi Team" <noreply@delixmi.com>',
-      to: email,
-      subject: 'Verifica tu cuenta en Delixmi',
-      html: `
+    // Generar enlace web de respaldo
+    const webUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    
+    // Log para debugging
+    console.log('🔗 URLs generadas para verificación de email:');
+    console.log('📱 Deep Link:', deepLinkUrl);
+    console.log('🌐 Web URL:', webUrl);
+    console.log('🔍 FRONTEND_URL configurado:', process.env.FRONTEND_URL || 'NO CONFIGURADO (usando localhost:3000)');
+    
+    // Verificar que las URLs se generaron correctamente
+    if (!deepLinkUrl.includes('delixmi://')) {
+      console.error('❌ ERROR: Deep link no se generó correctamente');
+      throw new Error('Deep link no se generó correctamente');
+    }
+    
+    if (!webUrl.includes('http')) {
+      console.error('❌ ERROR: Web URL no se generó correctamente');
+      throw new Error('Web URL no se generó correctamente');
+    }
+    
+    const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -132,18 +159,41 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
               
               <p>Para completar tu registro y activar tu cuenta, por favor haz clic en el siguiente botón:</p>
               
-              <div style="text-align: center;">
-                <a href="${verificationUrl}" class="button">Verificar mi cuenta</a>
+              <div style="text-align: center; margin: 20px 0;">
+                <a href="${webUrl}" 
+                   class="button" 
+                   style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
+                  📧 Verificar mi cuenta
+                </a>
+              </div>
+              
+              <div style="background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <strong>📱 Para usuarios de la app:</strong> El botón detectará automáticamente si tienes la aplicación Delixmi instalada y la abrirá. Si no tienes la app, podrás continuar en el navegador web.
               </div>
               
               <div class="warning">
                 <strong>⚠️ Importante:</strong> Este enlace expirará en 1 hora por seguridad. Si no puedes verificar tu cuenta ahora, puedes solicitar un nuevo enlace de verificación.
               </div>
               
-              <p>Si el botón no funciona, puedes copiar y pegar este enlace en tu navegador:</p>
-              <p style="word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace;">
-                ${verificationUrl}
-              </p>
+              <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>🌐 Enlace web de respaldo:</strong></p>
+                <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                  Si el botón no funciona o no tienes la app instalada, copia y pega este enlace en tu navegador:
+                </p>
+                <p style="word-break: break-all; background-color: #ffffff; padding: 10px; border-radius: 5px; font-family: monospace; border: 1px solid #ddd;">
+                  ${webUrl}
+                </p>
+              </div>
+              
+              <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>💡 Instrucciones:</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li><strong>Con la app instalada:</strong> El botón abrirá la app automáticamente</li>
+                  <li><strong>Sin la app:</strong> Podrás continuar en el navegador web</li>
+                  <li><strong>En móvil:</strong> Se detectará automáticamente si tienes la app</li>
+                  <li><strong>En cualquier dispositivo:</strong> El botón funcionará perfectamente</li>
+                </ul>
+              </div>
               
               <p>Una vez verificado, podrás:</p>
               <ul>
@@ -161,17 +211,57 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
           </div>
         </body>
         </html>
-      `,
+      `;
+
+    // Verificar que el HTML contenga los enlaces correctos
+    console.log('🔍 DEBUG: Verificando HTML generado...');
+    console.log('🔍 DEBUG: ¿Contiene deep link?', htmlContent.includes(deepLinkUrl));
+    console.log('🔍 DEBUG: ¿Contiene web URL?', htmlContent.includes(webUrl));
+    console.log('🔍 DEBUG: ¿Contiene href delixmi?', htmlContent.includes('href="delixmi://'));
+    
+    // Mostrar una muestra del HTML generado
+    const buttonSection = htmlContent.match(/<a href="delixmi:.*?<\/a>/s);
+    if (buttonSection) {
+      console.log('🔍 DEBUG: Sección del botón encontrada:');
+      console.log(buttonSection[0]);
+    } else {
+      console.error('❌ ERROR: No se encontró la sección del botón en el HTML');
+    }
+    
+    // Verificar que no haya variables sin reemplazar
+    if (htmlContent.includes('${')) {
+      console.error('❌ ERROR: HTML contiene variables sin reemplazar:', htmlContent.match(/\$\{[^}]+\}/g));
+    }
+
+    const mailOptions = {
+      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verifica tu cuenta en Delixmi',
+      html: htmlContent,
       text: `
         ¡Bienvenido a Delixmi!
         
         Hola ${name},
         
-        Gracias por registrarte en Delixmi. Para completar tu registro y activar tu cuenta, por favor visita el siguiente enlace:
+        Gracias por registrarte en Delixmi. Para completar tu registro y activar tu cuenta, puedes usar cualquiera de estas opciones:
         
-        ${verificationUrl}
+        📱 DEEP LINK (para la app móvil):
+        ${deepLinkUrl}
         
-        Este enlace expirará en 1 hora por seguridad.
+        🌐 ENLACE WEB (para navegador):
+        ${webUrl}
+        
+        INSTRUCCIONES:
+        - Haz clic en el enlace web de arriba
+        - Si tienes la app instalada: Se abrirá automáticamente
+        - Si no tienes la app: Continuarás en el navegador web
+        - El enlace expirará en 1 hora por seguridad
+        
+        Una vez verificado, podrás:
+        - Iniciar sesión en tu cuenta
+        - Realizar pedidos de comida
+        - Gestionar tu perfil
+        - Disfrutar de todas nuestras funcionalidades
         
         Si no creaste una cuenta en Delixmi, puedes ignorar este correo.
         
@@ -179,18 +269,25 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
       `
     };
 
+    console.log('🔍 DEBUG: Enviando email...');
+    console.log('🔍 DEBUG: mailOptions.from:', mailOptions.from);
+    console.log('🔍 DEBUG: mailOptions.to:', mailOptions.to);
+    console.log('🔍 DEBUG: mailOptions.subject:', mailOptions.subject);
+    console.log('🔍 DEBUG: mailOptions.html longitud:', mailOptions.html.length);
+    
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('📧 Email de verificación enviado:', {
-      messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info),
-      to: email
-    });
+    console.log('✅ Email de verificación enviado exitosamente:');
+    console.log('📧 messageId:', info.messageId);
+    console.log('📧 to:', email);
+    console.log('📧 from:', process.env.EMAIL_USER);
+    console.log('📧 deepLinkUsed:', deepLinkUrl);
+    console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info)
+      previewUrl: null // Gmail no proporciona preview URL como Ethereal
     };
 
   } catch (error) {
@@ -207,7 +304,7 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
     const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/verify-email?token=${verificationToken}`;
     
     const mailOptions = {
-      from: '"Delixmi Team" <noreply@delixmi.com>',
+      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Nuevo enlace de verificación - Delixmi',
       html: `
@@ -340,14 +437,14 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
     
     console.log('📧 Email de reenvío de verificación enviado:', {
       messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info),
-      to: email
+      to: email,
+      from: process.env.EMAIL_USER
     });
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info)
+      previewUrl: null // Gmail no proporciona preview URL como Ethereal
     };
 
   } catch (error) {
@@ -359,15 +456,40 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
 // Función para enviar email de restablecimiento de contraseña
 const sendPasswordResetEmail = async (email, name, resetToken) => {
   try {
+    console.log('🔍 DEBUG: Iniciando sendPasswordResetEmail');
+    console.log('🔍 DEBUG: email recibido:', email);
+    console.log('🔍 DEBUG: name recibido:', name);
+    console.log('🔍 DEBUG: resetToken recibido:', resetToken);
+    console.log('🔍 DEBUG: resetToken tipo:', typeof resetToken);
+    console.log('🔍 DEBUG: resetToken longitud:', resetToken ? resetToken.length : 'undefined');
+    
     const transporter = await createTransporter();
     
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    // Generar deep link para la app móvil
+    const deepLinkUrl = `delixmi://reset-password?token=${resetToken}`;
     
-    const mailOptions = {
-      from: '"Delixmi Team" <noreply@delixmi.com>',
-      to: email,
-      subject: 'Restablece tu contraseña - Delixmi',
-      html: `
+    // Generar enlace web de respaldo
+    const webUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    
+    // Log para debugging
+    console.log('🔗 URLs generadas para reset password:');
+    console.log('📱 Deep Link:', deepLinkUrl);
+    console.log('🌐 Web URL:', webUrl);
+    console.log('🔍 FRONTEND_URL configurado:', process.env.FRONTEND_URL || 'NO CONFIGURADO (usando localhost:3000)');
+    
+    // Verificar que las URLs se generaron correctamente
+    if (!deepLinkUrl.includes('delixmi://')) {
+      console.error('❌ ERROR: Deep link no se generó correctamente');
+      throw new Error('Deep link no se generó correctamente');
+    }
+    
+    if (!webUrl.includes('http')) {
+      console.error('❌ ERROR: Web URL no se generó correctamente');
+      throw new Error('Web URL no se generó correctamente');
+    }
+    
+    // Generar el HTML del email
+    const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -462,8 +584,16 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
               
               <p>Si solicitaste este cambio, haz clic en el siguiente botón para crear una nueva contraseña:</p>
               
-              <div style="text-align: center;">
-                <a href="${resetUrl}" class="button">Restablecer contraseña</a>
+              <div style="text-align: center; margin: 20px 0;">
+                <a href="${webUrl}" 
+                   class="button" 
+                   style="background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
+                  🔐 Restablecer contraseña
+                </a>
+              </div>
+              
+              <div style="background-color: #e8f5e8; border: 1px solid #4caf50; color: #2e7d32; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <strong>📱 Para usuarios de la app:</strong> El botón detectará automáticamente si tienes la aplicación Delixmi instalada y la abrirá. Si no tienes la app, podrás continuar en el navegador web.
               </div>
               
               <div class="warning">
@@ -474,10 +604,25 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
                 <strong>🔒 Seguridad:</strong> Si no solicitaste este cambio de contraseña, puedes ignorar este correo. Tu cuenta permanecerá segura.
               </div>
               
-              <p>Si el botón no funciona, puedes copiar y pegar este enlace en tu navegador:</p>
-              <p style="word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace;">
-                ${resetUrl}
-              </p>
+              <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>🌐 Enlace web de respaldo:</strong></p>
+                <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                  Si el botón no funciona o no tienes la app instalada, copia y pega este enlace en tu navegador:
+                </p>
+                <p style="word-break: break-all; background-color: #ffffff; padding: 10px; border-radius: 5px; font-family: monospace; border: 1px solid #ddd;">
+                  ${webUrl}
+                </p>
+              </div>
+              
+              <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>💡 Instrucciones:</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li><strong>Con la app instalada:</strong> Haz clic en el botón rojo → Se abrirá la app automáticamente</li>
+                  <li><strong>Sin la app:</strong> Haz clic en el botón rojo → Continuarás en el navegador web</li>
+                  <li><strong>En móvil:</strong> El sistema detectará automáticamente si tienes la app instalada</li>
+                  <li><strong>En cualquier dispositivo:</strong> El botón funcionará perfectamente</li>
+                </ul>
+              </div>
               
               <p>Una vez que restablezcas tu contraseña, podrás:</p>
               <ul>
@@ -494,7 +639,33 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
           </div>
         </body>
         </html>
-      `,
+      `;
+
+    // Verificar que el HTML contenga los enlaces correctos
+    console.log('🔍 DEBUG: Verificando HTML generado...');
+    console.log('🔍 DEBUG: ¿Contiene deep link?', htmlContent.includes(deepLinkUrl));
+    console.log('🔍 DEBUG: ¿Contiene web URL?', htmlContent.includes(webUrl));
+    console.log('🔍 DEBUG: ¿Contiene href delixmi?', htmlContent.includes('href="delixmi://'));
+    
+    // Mostrar una muestra del HTML generado
+    const buttonSection = htmlContent.match(/<a href="delixmi:.*?<\/a>/s);
+    if (buttonSection) {
+      console.log('🔍 DEBUG: Sección del botón encontrada:');
+      console.log(buttonSection[0]);
+    } else {
+      console.error('❌ ERROR: No se encontró la sección del botón en el HTML');
+    }
+    
+    // Verificar que no haya variables sin reemplazar
+    if (htmlContent.includes('${')) {
+      console.error('❌ ERROR: HTML contiene variables sin reemplazar:', htmlContent.match(/\$\{[^}]+\}/g));
+    }
+
+    const mailOptions = {
+      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Restablece tu contraseña - Delixmi',
+      html: htmlContent,
       text: `
         Restablece tu contraseña - Delixmi
         
@@ -502,11 +673,19 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
         
         Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en Delixmi.
         
-        Si solicitaste este cambio, visita el siguiente enlace para crear una nueva contraseña:
+        Si solicitaste este cambio, puedes usar cualquiera de estas opciones:
         
-        ${resetUrl}
+        📱 DEEP LINK (para la app móvil):
+        ${deepLinkUrl}
         
-        Este enlace expirará en 15 minutos por seguridad.
+        🌐 ENLACE WEB (para navegador):
+        ${webUrl}
+        
+        INSTRUCCIONES:
+        - Haz clic en el enlace web de arriba
+        - Si tienes la app instalada: Se abrirá automáticamente
+        - Si no tienes la app: Continuarás en el navegador web
+        - El enlace expirará en 15 minutos por seguridad
         
         Si no solicitaste este cambio de contraseña, puedes ignorar este correo. Tu cuenta permanecerá segura.
         
@@ -514,18 +693,25 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
       `
     };
 
+    console.log('🔍 DEBUG: Enviando email...');
+    console.log('🔍 DEBUG: mailOptions.from:', mailOptions.from);
+    console.log('🔍 DEBUG: mailOptions.to:', mailOptions.to);
+    console.log('🔍 DEBUG: mailOptions.subject:', mailOptions.subject);
+    console.log('🔍 DEBUG: mailOptions.html longitud:', mailOptions.html.length);
+    
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('📧 Email de restablecimiento de contraseña enviado:', {
-      messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info),
-      to: email
-    });
+    console.log('✅ Email de restablecimiento de contraseña enviado exitosamente:');
+    console.log('📧 messageId:', info.messageId);
+    console.log('📧 to:', email);
+    console.log('📧 from:', process.env.EMAIL_USER);
+    console.log('📧 deepLinkUsed:', deepLinkUrl);
+    console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: nodemailer.getTestMessageUrl(info)
+      previewUrl: null // Gmail no proporciona preview URL como Ethereal
     };
 
   } catch (error) {

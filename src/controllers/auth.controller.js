@@ -1065,24 +1065,120 @@ const resetPassword = async (req, res) => {
 
     const { token, newPassword } = req.body;
 
+    // 🔍 DEBUG: Logs detallados para debugging
+    console.log('🔍 DEBUG: Iniciando reset-password');
+    console.log('🔍 DEBUG: Token recibido:', token);
+    console.log('🔍 DEBUG: Longitud del token:', token ? token.length : 'undefined');
+    console.log('🔍 DEBUG: Nueva contraseña recibida:', newPassword ? 'SÍ' : 'NO');
+    
+    // Validar formato del token
+    if (!token || typeof token !== 'string') {
+      console.log('❌ DEBUG: Token inválido - no es string o está vacío');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token inválido.',
+        code: 'INVALID_TOKEN_FORMAT'
+      });
+    }
+    
+    if (token.length !== 64) {
+      console.log('❌ DEBUG: Token inválido - longitud incorrecta:', token.length);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token inválido.',
+        code: 'INVALID_TOKEN_LENGTH'
+      });
+    }
+
     // Hashear el token recibido de la misma forma que al crearlo
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    console.log('🔍 DEBUG: Token hasheado:', hashedToken);
 
     // Buscar usuario con el token hasheado y que no haya expirado
+    console.log('🔍 DEBUG: Buscando usuario en la base de datos...');
+    const currentDate = new Date();
+    console.log('🔍 DEBUG: Fecha actual para comparación:', currentDate);
+    console.log('🔍 DEBUG: Fecha actual ISO:', currentDate.toISOString());
+    
     const user = await prisma.user.findFirst({
       where: {
         passwordResetToken: hashedToken,
         passwordResetExpiresAt: {
-          gt: new Date() // Mayor que la fecha actual
+          gt: currentDate // Mayor que la fecha actual
         }
       },
       select: {
         id: true,
         name: true,
         email: true,
-        status: true
+        status: true,
+        passwordResetToken: true,
+        passwordResetExpiresAt: true
       }
     });
+
+    console.log('🔍 DEBUG: Usuario encontrado:', user ? 'SÍ' : 'NO');
+    
+    if (user) {
+      console.log('🔍 DEBUG: Usuario ID:', user.id);
+      console.log('🔍 DEBUG: Usuario email:', user.email);
+      console.log('🔍 DEBUG: Usuario status:', user.status);
+      console.log('🔍 DEBUG: Token en BD:', user.passwordResetToken);
+      console.log('🔍 DEBUG: Expira en BD:', user.passwordResetExpiresAt);
+      console.log('🔍 DEBUG: Fecha actual:', new Date());
+      console.log('🔍 DEBUG: ¿Token expirado?', user.passwordResetExpiresAt < new Date() ? 'SÍ' : 'NO');
+    } else {
+      console.log('❌ DEBUG: No se encontró usuario con ese token o el token expiró');
+      
+      // Buscar si existe el token pero está expirado
+      const expiredUser = await prisma.user.findFirst({
+        where: {
+          passwordResetToken: hashedToken
+        },
+        select: {
+          id: true,
+          email: true,
+          passwordResetExpiresAt: true
+        }
+      });
+      
+      if (expiredUser) {
+        console.log('🔍 DEBUG: Token encontrado pero expirado para usuario:', expiredUser.email);
+        console.log('🔍 DEBUG: Token expiraba en:', expiredUser.passwordResetExpiresAt);
+        console.log('🔍 DEBUG: Token expiraba en ISO:', expiredUser.passwordResetExpiresAt.toISOString());
+        console.log('🔍 DEBUG: Fecha actual:', new Date());
+        console.log('🔍 DEBUG: Fecha actual ISO:', new Date().toISOString());
+        console.log('🔍 DEBUG: Diferencia en milisegundos:', new Date() - expiredUser.passwordResetExpiresAt);
+        console.log('🔍 DEBUG: Diferencia en minutos:', (new Date() - expiredUser.passwordResetExpiresAt) / (1000 * 60));
+      } else {
+        console.log('🔍 DEBUG: Token no encontrado en la base de datos');
+        
+        // Buscar todos los tokens de reset activos para debugging
+        const allResetTokens = await prisma.user.findMany({
+          where: {
+            passwordResetToken: {
+              not: null
+            }
+          },
+          select: {
+            id: true,
+            email: true,
+            passwordResetToken: true,
+            passwordResetExpiresAt: true
+          }
+        });
+        
+        console.log('🔍 DEBUG: Total de tokens de reset en la BD:', allResetTokens.length);
+        allResetTokens.forEach((tokenData, index) => {
+          console.log(`🔍 DEBUG: Token ${index + 1}:`, {
+            email: tokenData.email,
+            tokenHash: tokenData.passwordResetToken,
+            expiresAt: tokenData.passwordResetExpiresAt,
+            isExpired: tokenData.passwordResetExpiresAt < new Date()
+          });
+        });
+      }
+    }
 
     // Si no se encuentra el usuario, devolver error
     if (!user) {
@@ -1103,6 +1199,8 @@ const resetPassword = async (req, res) => {
         code: 'INVALID_OR_EXPIRED_TOKEN'
       });
     }
+
+    console.log('🔍 DEBUG: Validaciones pasadas, procediendo a actualizar contraseña...');
 
     // Hashear la nueva contraseña
     const saltRounds = 12;
@@ -1131,7 +1229,7 @@ const resetPassword = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en reset password:', error);
+    console.error('❌ Error en reset password:', error);
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',

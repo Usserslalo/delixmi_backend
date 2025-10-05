@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const path = require('path');
 const { testConnection, disconnect } = require('./config/database');
 const { initializeSocket } = require('./config/socket');
 
@@ -12,6 +13,19 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Servir archivos estáticos desde la carpeta public
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Ruta específica para la página de reset password
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/reset-password.html'));
+});
+
+// Ruta específica para la página de verificación de email
+app.get('/verify-email', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/verify-email.html'));
+});
 
 // Ruta de prueba de conexión
 app.get('/health', async (req, res) => {
@@ -70,6 +84,8 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      resetPassword: '/reset-password',
+      verifyEmail: '/verify-email',
       auth: {
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',

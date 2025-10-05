@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Email - Delixmi</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .title {
+            color: #28a745;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        .button {
+            background-color: #28a745;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #218838;
+        }
+        .button.secondary {
+            background-color: #007bff;
+        }
+        .button.secondary:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            color: #666;
+            margin: 20px 0;
+            font-size: 16px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #28a745;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .info-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .error-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .success-box {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🍽️ Delixmi</div>
+        <h1 class="title">📧 Verificar Email</h1>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p><strong>🔄 Verificando tu email...</strong></p>
+            <p>Si tienes la app instalada, se abrirá automáticamente.</p>
+            <p>Si no tienes la app, podrás continuar en el navegador.</p>
+        </div>
+        
+        <div id="buttons" style="display: none;">
+            <div class="info-box">
+                <strong>📱 ¿Tienes la app instalada?</strong><br>
+                Haz clic en "Abrir en la App" para verificar tu email en la aplicación móvil.
+            </div>
+            
+            <a href="#" id="appButton" class="button">
+                📱 Abrir en la App
+            </a>
+            
+            <div class="info-box">
+                <strong>🌐 ¿Prefieres usar el navegador?</strong><br>
+                Haz clic en "Continuar en el Navegador" para verificar tu email en la web.
+            </div>
+            
+            <a href="#" id="webButton" class="button secondary">
+                🌐 Continuar en el Navegador
+            </a>
+        </div>
+        
+        <div id="success" style="display: none;" class="success-box">
+            <h3>✅ ¡Email verificado exitosamente!</h3>
+            <p>Tu cuenta ha sido activada correctamente y ya puedes:</p>
+            <ul>
+                <li>Iniciar sesión en la aplicación</li>
+                <li>Realizar pedidos de comida</li>
+                <li>Gestionar tu perfil</li>
+                <li>Disfrutar de todas las funcionalidades</li>
+            </ul>
+        </div>
+        
+        <div id="error" style="display: none;" class="error-box">
+            <h3>❌ Error: Token de verificación no válido</h3>
+            <p>El enlace de verificación no es válido o ha expirado.</p>
+            <p><strong>Posibles causas:</strong></p>
+            <ul>
+                <li>El enlace ha expirado (válido por 1 hora)</li>
+                <li>El enlace ya fue utilizado</li>
+                <li>El enlace está malformado</li>
+            </ul>
+            <p><strong>Solución:</strong> Solicita un nuevo enlace de verificación desde la aplicación.</p>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 Delixmi. Todos los derechos reservados.</p>
+            <p>Si no creaste una cuenta en Delixmi, puedes ignorar esta página.</p>
+        </div>
+    </div>
+
+    <script>
+        // Obtener token de la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        console.log('🔍 Token de verificación recibido:', token);
+        
+        if (!token) {
+            console.error('❌ No se encontró token en la URL');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+        } else {
+            // Deep link para la app
+            const deepLink = `delixmi://verify-email?token=${token}`;
+            
+            // URL para el navegador web (aquí podrías crear una página web de verificación)
+            const webUrl = `#`; // Por ahora, solo mostramos un placeholder
+            
+            // Configurar botones
+            document.getElementById('appButton').href = deepLink;
+            document.getElementById('webButton').href = webUrl;
+            
+            console.log('📱 Deep link configurado:', deepLink);
+            
+            // Verificar email automáticamente en el backend
+            verifyEmailWithBackend(token);
+            
+            // Intentar abrir la app automáticamente
+            setTimeout(() => {
+                console.log('🚀 Intentando abrir la app...');
+                window.location.href = deepLink;
+                
+                // Si no se abre la app en 3 segundos, mostrar botones
+                setTimeout(() => {
+                    console.log('⏰ Tiempo agotado, mostrando botones manuales');
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('buttons').style.display = 'block';
+                }, 3000);
+            }, 1000);
+        }
+        
+        // Función para verificar email con el backend
+        async function verifyEmailWithBackend(token) {
+            try {
+                console.log('🔍 Verificando email con backend...');
+                
+                // Construir la URL del endpoint de verificación
+                const verifyUrl = `/api/auth/verify-email?token=${token}`;
+                
+                const response = await fetch(verifyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                console.log('📡 Respuesta del backend:', response.status);
+                
+                if (response.ok) {
+                    console.log('✅ Email verificado exitosamente');
+                    // Mostrar mensaje de éxito después de un breve delay
+                    setTimeout(() => {
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('success').style.display = 'block';
+                    }, 2000);
+                } else {
+                    throw new Error(`Error del servidor: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('❌ Error verificando email:', error);
+                // Mostrar error después de un breve delay
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                }, 2000);
+            }
+        }
+        
+        // Función para manejar clics en los botones
+        document.getElementById('appButton').addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('📱 Usuario hizo clic en "Abrir en la App"');
+            window.location.href = deepLink;
+        });
+        
+        document.getElementById('webButton').addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('🌐 Usuario hizo clic en "Continuar en el Navegador"');
+            // Aquí podrías redirigir a una página web de verificación o mostrar un formulario
+            alert('Función de verificación en navegador web - Por implementar');
+        });
+    </script>
+</body>
+</html>
