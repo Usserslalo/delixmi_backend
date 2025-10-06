@@ -66,12 +66,13 @@ const handleMercadoPagoWebhook = async (req, res) => {
 
       // Transacción atómica para actualizar tanto el pago como la orden
       const updatedOrder = await prisma.$transaction(async (tx) => {
-        // Primero, actualizar el PAGO con el ID real
+        // Primero, actualizar el PAGO con el status
+        // Mantener el external_reference original para búsquedas
         await tx.payment.update({
           where: { id: order.payment.id },
           data: {
-            providerPaymentId: mpPayment.id.toString(),
             status: mapMercadoPagoStatus(mpPayment.status)
+            // NO sobrescribir providerPaymentId - mantener external_reference original
           }
         });
 
@@ -95,10 +96,26 @@ const handleMercadoPagoWebhook = async (req, res) => {
       });
 
       console.log(`💳 Payment actualizado:`, {
-        providerPaymentId: mpPayment.id,
+        externalReference: mpPayment.external_reference,
+        mpPaymentId: mpPayment.id,
         mpStatus: mpPayment.status,
-        internalStatus: mapMercadoPagoStatus(mpPayment.status)
+        internalStatus: mapMercadoPagoStatus(mpPayment.status),
+        providerPaymentId: order.payment.providerPaymentId
       });
+      
+      // Limpiar carrito del restaurante cuando el pago sea exitoso
+      try {
+        const cartDeleted = await prisma.cart.deleteMany({
+          where: {
+            userId: updatedOrder.customerId,
+            restaurantId: updatedOrder.branch.restaurantId
+          }
+        });
+        console.log(`🛒 Carrito del restaurante ${updatedOrder.branch.restaurantId} limpiado exitosamente (${cartDeleted.count} carritos eliminados)`);
+      } catch (cartError) {
+        console.error(`⚠️ Error limpiando carrito:`, cartError.message);
+        // No fallar el proceso por error en limpieza del carrito
+      }
       
       console.log(`🎉 Pago ${paymentId} procesado. Orden ${order.id} confirmada.`);
 

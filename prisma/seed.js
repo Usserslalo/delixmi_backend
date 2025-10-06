@@ -391,8 +391,22 @@ async function main() {
     });
     console.log('✅ Sofía usuario creado');
 
-    // 5. CREAR RESTAURANTE
-    console.log('🏪 Creando restaurante...');
+    const kenjiUser = await prisma.user.create({
+      data: {
+        name: 'Kenji',
+        lastname: 'Tanaka',
+        email: 'kenji.tanaka@sushi.com',
+        phone: '6666666666',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ Kenji usuario creado');
+
+    // 5. CREAR RESTAURANTES
+    console.log('🏪 Creando restaurantes...');
     const restaurant = await prisma.restaurant.create({
       data: {
         ownerId: anaUser.id, // Ana García
@@ -404,9 +418,22 @@ async function main() {
         status: 'active'
       }
     });
-    console.log('✅ Restaurante creado');
+    console.log('✅ Restaurante Pizzería creado');
 
-    // 6. CREAR SUCURSALES (3 sucursales)
+    const sushiRestaurant = await prisma.restaurant.create({
+      data: {
+        ownerId: kenjiUser.id, // Kenji Tanaka
+        name: 'Sushi Master Kenji',
+        description: 'Auténtico sushi japonés preparado por maestros sushiman con ingredientes frescos importados de Japón.',
+        logoUrl: 'https://example.com/logos/sushi-kenji.jpg',
+        coverPhotoUrl: 'https://example.com/covers/sushi-kenji-cover.jpg',
+        commissionRate: 15.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurante Sushi creado');
+
+    // 6. CREAR SUCURSALES (4 sucursales: 3 pizza + 1 sushi)
     console.log('🏢 Creando sucursales...');
     
     const centroBranch = await prisma.branch.create({
@@ -451,50 +478,78 @@ async function main() {
     });
     console.log('✅ Sucursal El Fitzhi creada');
 
+    const sushiBranch = await prisma.branch.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        name: 'Sucursal Principal Sushi',
+        address: 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.486789,
+        longitude: -99.212345,
+        phone: '7714567890',
+        usesPlatformDrivers: true,
+        status: 'active'
+      }
+    });
+    console.log('✅ Sucursal Sushi creada');
+
     // 6.1. CREAR HORARIOS DE SUCURSALES
     console.log('⏰ Creando horarios de sucursales...');
     
-    // Horarios para Sucursal Centro (branchId: centroBranch.id)
+    // Horarios para Sucursal Centro (branchId: centroBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Lunes
-        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Martes
-        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Miércoles
-        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Jueves
-        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Viernes
-        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Sábado
-        { branchId: centroBranch.id, dayOfWeek: 0, isClosed: true, openingTime: new Date('1970-01-01T00:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }  // Domingo cerrado
+        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
+        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
+        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
+        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
+        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
+        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
+        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
       ]
     });
-    console.log('✅ Horarios Sucursal Centro creados');
+    console.log('✅ Horarios Sucursal Centro creados (24 horas)');
 
-    // Horarios para Sucursal Río (branchId: rioBranch.id)
+    // Horarios para Sucursal Río (branchId: rioBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: rioBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Lunes
-        { branchId: rioBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Martes
-        { branchId: rioBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Miércoles
-        { branchId: rioBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Jueves
-        { branchId: rioBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T10:00:00Z'), closingTime: new Date('1970-01-01T23:00:00Z') }, // Viernes
-        { branchId: rioBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T11:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }, // Sábado (hasta medianoche)
-        { branchId: rioBranch.id, dayOfWeek: 0, openingTime: new Date('1970-01-01T11:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }  // Domingo
+        { branchId: rioBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
+        { branchId: rioBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
+        { branchId: rioBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
+        { branchId: rioBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
+        { branchId: rioBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
+        { branchId: rioBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
+        { branchId: rioBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
       ]
     });
-    console.log('✅ Horarios Sucursal Río creados');
+    console.log('✅ Horarios Sucursal Río creados (24 horas)');
 
-    // Horarios para Sucursal El Fitzhi (branchId: fitzhiBranch.id)
+    // Horarios para Sucursal El Fitzhi (branchId: fitzhiBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: fitzhiBranch.id, dayOfWeek: 1, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Lunes
-        { branchId: fitzhiBranch.id, dayOfWeek: 2, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Martes
-        { branchId: fitzhiBranch.id, dayOfWeek: 3, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Miércoles
-        { branchId: fitzhiBranch.id, dayOfWeek: 4, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Jueves
-        { branchId: fitzhiBranch.id, dayOfWeek: 5, openingTime: new Date('1970-01-01T08:00:00Z'), closingTime: new Date('1970-01-01T21:00:00Z') }, // Viernes
-        { branchId: fitzhiBranch.id, dayOfWeek: 6, openingTime: new Date('1970-01-01T09:00:00Z'), closingTime: new Date('1970-01-01T22:00:00Z') }, // Sábado
-        { branchId: fitzhiBranch.id, dayOfWeek: 0, isClosed: true, openingTime: new Date('1970-01-01T00:00:00Z'), closingTime: new Date('1970-01-01T00:00:00Z') }  // Domingo cerrado
+        { branchId: fitzhiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
+        { branchId: fitzhiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
+        { branchId: fitzhiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
+        { branchId: fitzhiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
+        { branchId: fitzhiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
+        { branchId: fitzhiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
+        { branchId: fitzhiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
       ]
     });
-    console.log('✅ Horarios Sucursal El Fitzhi creados');
+    console.log('✅ Horarios Sucursal El Fitzhi creados (24 horas)');
+
+    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - 24 horas
+    await prisma.branchSchedule.createMany({
+      data: [
+        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
+        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
+        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
+        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
+        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
+        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
+        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
+      ]
+    });
+    console.log('✅ Horarios Sucursal Sushi creados (24 horas)');
 
     // 7. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -511,7 +566,13 @@ async function main() {
     const postresCategory = await prisma.category.create({
       data: { name: 'Postres' }
     });
-    console.log('✅ 4 categorías creadas');
+    const sushiCategory = await prisma.category.create({
+      data: { name: 'Sushi' }
+    });
+    const bebidasJaponesasCategory = await prisma.category.create({
+      data: { name: 'Bebidas Japonesas' }
+    });
+    console.log('✅ 6 categorías creadas');
 
     // 8. CREAR SUBCATEGORÍAS
     console.log('📁 Creando subcategorías...');
@@ -543,7 +604,24 @@ async function main() {
     const pastelesSub = await prisma.subcategory.create({
       data: { restaurantId: restaurant.id, categoryId: postresCategory.id, name: 'Pasteles', displayOrder: 9 }
     });
-    console.log('✅ 9 subcategorías creadas');
+
+    // Subcategorías para Sushi
+    const nigiriSub = await prisma.subcategory.create({
+      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Nigiri', displayOrder: 10 }
+    });
+    const rollsSub = await prisma.subcategory.create({
+      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Rolls', displayOrder: 11 }
+    });
+    const sashimiSub = await prisma.subcategory.create({
+      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Sashimi', displayOrder: 12 }
+    });
+    const tempuraSub = await prisma.subcategory.create({
+      data: { restaurantId: sushiRestaurant.id, categoryId: entradasCategory.id, name: 'Tempura', displayOrder: 13 }
+    });
+    const sakeSub = await prisma.subcategory.create({
+      data: { restaurantId: sushiRestaurant.id, categoryId: bebidasJaponesasCategory.id, name: 'Sake', displayOrder: 14 }
+    });
+    console.log('✅ 14 subcategorías creadas');
 
     // 9. CREAR PRODUCTOS
     console.log('🍕 Creando productos...');
@@ -681,7 +759,100 @@ async function main() {
         tags: 'postre, italiano, cafe, mascarpone, cacao'
       }
     });
-    console.log('✅ 10 productos creados');
+
+    // Productos de Sushi
+    const salmonNigiri = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: nigiriSub.id,
+        name: 'Nigiri de Salmón',
+        description: 'Fresco salmón sobre arroz sazonado con vinagre de arroz.',
+        price: 85.00,
+        imageUrl: 'https://example.com/products/salmon-nigiri.jpg',
+        isAvailable: true,
+        tags: 'sushi, salmon, nigiri, fresco'
+      }
+    });
+
+    const tunaNigiri = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: nigiriSub.id,
+        name: 'Nigiri de Atún',
+        description: 'Atún fresco de primera calidad sobre arroz sazonado.',
+        price: 95.00,
+        imageUrl: 'https://example.com/products/tuna-nigiri.jpg',
+        isAvailable: true,
+        tags: 'sushi, atun, nigiri, premium'
+      }
+    });
+
+    const californiaRoll = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: rollsSub.id,
+        name: 'California Roll',
+        description: 'Roll clásico con cangrejo, aguacate y pepino, cubierto con hueva de pez volador.',
+        price: 120.00,
+        imageUrl: 'https://example.com/products/california-roll.jpg',
+        isAvailable: true,
+        tags: 'sushi, roll, cangrejo, aguacate, pepino'
+      }
+    });
+
+    const dragonRoll = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: rollsSub.id,
+        name: 'Dragon Roll',
+        description: 'Roll con langostinos tempura y aguacate, cubierto con anguila y salsa teriyaki.',
+        price: 150.00,
+        imageUrl: 'https://example.com/products/dragon-roll.jpg',
+        isAvailable: true,
+        tags: 'sushi, roll, langostino, tempura, aguacate, anguila'
+      }
+    });
+
+    const salmonSashimi = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: sashimiSub.id,
+        name: 'Sashimi de Salmón',
+        description: '5 piezas de salmón fresco cortado en láminas finas.',
+        price: 110.00,
+        imageUrl: 'https://example.com/products/salmon-sashimi.jpg',
+        isAvailable: true,
+        tags: 'sushi, sashimi, salmon, fresco, 5 piezas'
+      }
+    });
+
+    const tempuraShrimp = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: tempuraSub.id,
+        name: 'Tempura de Camarones',
+        description: '6 camarones grandes empanizados con masa tempura crujiente.',
+        price: 80.00,
+        imageUrl: 'https://example.com/products/shrimp-tempura.jpg',
+        isAvailable: true,
+        tags: 'tempura, camarones, frito, crujiente, 6 piezas'
+      }
+    });
+
+    const sakePremium = await prisma.product.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        subcategoryId: sakeSub.id,
+        name: 'Sake Premium 180ml',
+        description: 'Sake japonés premium de alta calidad, perfecto para acompañar el sushi.',
+        price: 180.00,
+        imageUrl: 'https://example.com/products/sake-premium.jpg',
+        isAvailable: true,
+        tags: 'sake, alcohol, japones, premium, 180ml'
+      }
+    });
+
+    console.log('✅ 17 productos creados (10 pizza + 7 sushi)');
 
     // 10. CREAR DIRECCIONES
     console.log('📍 Creando direcciones...');
@@ -739,7 +910,10 @@ async function main() {
     await prisma.userRoleAssignment.create({
       data: { userId: sofiaUser.id, roleId: customerRole.id }
     });
-    console.log('✅ 5 asignaciones de roles creadas');
+    await prisma.userRoleAssignment.create({
+      data: { userId: kenjiUser.id, roleId: ownerRole.id, restaurantId: sushiRestaurant.id }
+    });
+    console.log('✅ 6 asignaciones de roles creadas');
 
     // 12. CREAR PERFILES DE REPARTIDOR
     console.log('🚗 Creando perfiles de repartidor...');
@@ -880,15 +1054,15 @@ async function main() {
     console.log('\n📊 Resumen de datos creados:');
     console.log('- 10 roles');
     console.log('- 19 permisos');
-    console.log('- 5 usuarios');
-    console.log('- 1 restaurante');
-    console.log('- 3 sucursales');
-    console.log('- 21 horarios de sucursales (7 días × 3 sucursales)');
-    console.log('- 4 categorías');
-    console.log('- 9 subcategorías');
-    console.log('- 10 productos');
+    console.log('- 6 usuarios');
+    console.log('- 2 restaurantes (Pizzería + Sushi)');
+    console.log('- 4 sucursales');
+    console.log('- 28 horarios de sucursales (7 días × 4 sucursales - 24 horas)');
+    console.log('- 6 categorías');
+    console.log('- 14 subcategorías');
+    console.log('- 17 productos (10 pizza + 7 sushi)');
     console.log('- 2 direcciones');
-    console.log('- 5 asignaciones de roles');
+    console.log('- 6 asignaciones de roles');
     console.log('- 1 perfil de repartidor');
     console.log('- 2 pedidos');
     console.log('- 5 items de pedido');
@@ -896,8 +1070,9 @@ async function main() {
 
     console.log('\n👥 Usuarios de prueba creados:');
     console.log('- Admin (admin@delixmi.com) - Super Administrador');
-    console.log('- Ana (ana.garcia@pizzeria.com) - Owner del restaurante');
+    console.log('- Ana (ana.garcia@pizzeria.com) - Owner Pizzería de Ana');
     console.log('- Carlos (carlos.rodriguez@pizzeria.com) - Gerente de sucursal');
+    console.log('- Kenji (kenji.tanaka@sushi.com) - Owner Sushi Master Kenji');
     console.log('- Miguel (miguel.hernandez@repartidor.com) - Repartidor de plataforma');
     console.log('- Sofía (sofia.lopez@email.com) - Cliente');
     console.log('\n🔑 Contraseña para todos los usuarios: supersecret');

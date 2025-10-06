@@ -135,6 +135,7 @@ model User {
   ordersAsCustomer   Order[] @relation("CustomerOrders")
   ordersAsDriver     Order[] @relation("DriverOrders")
   driverProfile      DriverProfile?
+  carts              Cart[]
 
   @@map("users")
 }
@@ -175,6 +176,7 @@ model Restaurant {
   subcategories Subcategory[]
   products      Product[]
   userRoleAssignments UserRoleAssignment[]
+  carts         Cart[]
 
   @@map("restaurants")
 }
@@ -205,8 +207,8 @@ model BranchSchedule {
   id          Int      @id @default(autoincrement())
   branchId    Int      @map("branch_id")
   dayOfWeek   Int      // 0=Domingo, 1=Lunes, ..., 6=Sábado
-  openingTime DateTime @map("opening_time") @db.Time()
-  closingTime DateTime @map("closing_time") @db.Time()
+  openingTime String   @map("opening_time") @db.VarChar(8)
+  closingTime String   @map("closing_time") @db.VarChar(8)
   isClosed    Boolean  @default(false) @map("is_closed")
 
   branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -262,6 +264,7 @@ model Product {
   restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   subcategory Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
+  cartItems   CartItem[]
 
   @@map("products")
 }
@@ -372,4 +375,37 @@ model DriverProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("driver_profiles")
+}
+
+model Cart {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  restaurantId Int     @map("restaurant_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+
+  @@unique([userId, restaurantId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  cartId    Int      @map("cart_id")
+  productId Int      @map("product_id")
+  quantity  Int      @default(1)
+  priceAtAdd Decimal @map("price_at_add") @db.Decimal(10, 2) // Precio al momento de agregar
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relaciones
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
 }

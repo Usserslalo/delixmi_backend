@@ -1305,9 +1305,291 @@ const deleteCustomerAddress = async (req, res) => {
   }
 };
 
+/**
+ * Obtener detalles de un pedido específico del cliente autenticado
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getCustomerOrderDetails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const orderId = parseInt(req.params.orderId);
+
+    // 1. Verificar que el usuario tenga rol de customer
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        lastname: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true,
+                displayName: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // Verificar que el usuario tenga rol de customer
+    const customerRoles = ['customer'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasCustomerRole = userRoles.some(role => customerRoles.includes(role));
+
+    if (!hasCustomerRole) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de cliente',
+        code: 'INSUFFICIENT_PERMISSIONS',
+        required: customerRoles,
+        current: userRoles
+      });
+    }
+
+    // 2. Determinar si es ID numérico o external_reference
+    const isNumeric = /^\d+$/.test(req.params.orderId);
+    const isExternalRef = /^delixmi_[a-f0-9-]+$/.test(req.params.orderId);
+    
+    let whereClause;
+    if (isNumeric) {
+      // Buscar por ID numérico
+      whereClause = {
+        id: orderId,
+        customerId: userId
+      };
+    } else if (isExternalRef) {
+      // Buscar por external_reference a través del payment
+      whereClause = {
+        payment: {
+          providerPaymentId: req.params.orderId
+        },
+        customerId: userId
+      };
+    } else {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Formato de ID de pedido inválido',
+        code: 'INVALID_ORDER_ID_FORMAT',
+        details: {
+          providedId: req.params.orderId,
+          expectedFormats: [
+            'ID numérico (ej: 123)',
+            'External reference (ej: delixmi_uuid)'
+          ]
+        }
+      });
+    }
+
+    // 3. Buscar el pedido específico del cliente
+    console.log('🔍 Buscando orden con criterios:', {
+      orderId: req.params.orderId,
+      userId: userId,
+      isNumeric: isNumeric,
+      isExternalRef: isExternalRef,
+      whereClause: whereClause
+    });
+
+    const order = await prisma.order.findFirst({
+      where: whereClause,
+      select: {
+        id: true,
+        status: true,
+        subtotal: true,
+        deliveryFee: true,
+        total: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        specialInstructions: true,
+        orderPlacedAt: true,
+        orderDeliveredAt: true,
+        createdAt: true,
+        updatedAt: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            restaurant: {
+              select: {
+                id: true,
+                name: true,
+                logoUrl: true
+              }
+            }
+          }
+        },
+        address: {
+          select: {
+            id: true,
+            alias: true,
+            street: true,
+            exteriorNumber: true,
+            interiorNumber: true,
+            neighborhood: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            references: true,
+            latitude: true,
+            longitude: true
+          }
+        },
+        deliveryDriver: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            phone: true
+          }
+        },
+        orderItems: {
+          select: {
+            id: true,
+            quantity: true,
+            pricePerUnit: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+                description: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 4. Verificar si el pedido existe y pertenece al cliente
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pedido no encontrado o no tienes permisos para verlo',
+        code: 'ORDER_NOT_FOUND_OR_NO_PERMISSION',
+        details: {
+          orderId: req.params.orderId,
+          customerId: userId,
+          searchType: isNumeric ? 'numeric_id' : 'external_reference',
+          possibleReasons: [
+            'El pedido no existe',
+            'El pedido no pertenece a este cliente',
+            'No tienes permisos para ver este pedido',
+            'El external_reference no coincide con ningún pago'
+          ]
+        }
+      });
+    }
+
+    // 5. Calcular tiempo estimado de entrega (simplificado)
+    const estimatedDeliveryTime = {
+      timeRange: "30-45 min", // Se puede calcular dinámicamente
+      estimatedDeliveryAt: new Date(order.orderPlacedAt.getTime() + 45 * 60 * 1000).toISOString()
+    };
+
+    // 6. Formatear la respuesta
+    const formattedOrder = {
+      id: order.id.toString(),
+      orderNumber: `DEL-${order.id.toString().padStart(6, '0')}`, // Generar número de pedido
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      subtotal: Number(order.subtotal),
+      deliveryFee: Number(order.deliveryFee),
+      serviceFee: Number(order.total - order.subtotal - order.deliveryFee),
+      total: Number(order.total),
+      specialInstructions: order.specialInstructions,
+      orderPlacedAt: order.orderPlacedAt,
+      orderDeliveredAt: order.orderDeliveredAt,
+      estimatedDeliveryTime: estimatedDeliveryTime,
+      restaurant: {
+        id: order.branch.restaurant.id,
+        name: order.branch.restaurant.name,
+        logoUrl: order.branch.restaurant.logoUrl,
+        branch: {
+          id: order.branch.id,
+          name: order.branch.name,
+          address: order.branch.address,
+          phone: order.branch.phone
+        }
+      },
+      deliveryAddress: {
+        id: order.address.id,
+        alias: order.address.alias,
+        street: order.address.street,
+        exteriorNumber: order.address.exteriorNumber,
+        interiorNumber: order.address.interiorNumber,
+        neighborhood: order.address.neighborhood,
+        city: order.address.city,
+        state: order.address.state,
+        zipCode: order.address.zipCode,
+        references: order.address.references,
+        latitude: Number(order.address.latitude),
+        longitude: Number(order.address.longitude)
+      },
+      deliveryDriver: order.deliveryDriver ? {
+        id: order.deliveryDriver.id,
+        name: order.deliveryDriver.name,
+        lastname: order.deliveryDriver.lastname,
+        phone: order.deliveryDriver.phone
+      } : null,
+      items: order.orderItems.map(item => ({
+        id: item.id.toString(),
+        quantity: item.quantity,
+        pricePerUnit: Number(item.pricePerUnit),
+        subtotal: Number(item.pricePerUnit) * item.quantity,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          imageUrl: item.product.imageUrl,
+          description: item.product.description
+        }
+      })),
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    };
+
+    // 7. Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Detalles del pedido obtenidos exitosamente',
+      data: {
+        order: formattedOrder,
+        customer: {
+          id: userWithRoles.id,
+          name: userWithRoles.name,
+          lastname: userWithRoles.lastname
+        },
+        retrievedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo detalles del pedido:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    });
+  }
+};
+
 module.exports = {
   getDriverLocationForOrder,
   getCustomerOrders,
+  getCustomerOrderDetails,
   createCustomerAddress,
   getCustomerAddresses,
   updateCustomerAddress,

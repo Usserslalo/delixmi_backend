@@ -1,7 +1,7 @@
 const express = require('express');
 const { param, query, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { getDriverLocationForOrder, getCustomerOrders, createCustomerAddress, getCustomerAddresses, updateCustomerAddress, deleteCustomerAddress } = require('../controllers/customer.controller');
+const { getDriverLocationForOrder, getCustomerOrders, getCustomerOrderDetails, createCustomerAddress, getCustomerAddresses, updateCustomerAddress, deleteCustomerAddress } = require('../controllers/customer.controller');
 
 const router = express.Router();
 
@@ -77,6 +77,45 @@ router.get(
     next();
   },
   getCustomerOrders
+);
+
+/**
+ * @route   GET /api/customer/orders/:orderId
+ * @desc    Obtener detalles de un pedido específico del cliente autenticado
+ * @access  Private (Customer Only)
+ * @params  orderId - ID del pedido del cual se quieren obtener los detalles
+ */
+router.get(
+  '/orders/:orderId',
+  requireRole(['customer']),
+  [
+    param('orderId')
+      .notEmpty()
+      .withMessage('El ID del pedido es requerido')
+      .custom((value) => {
+        // Aceptar tanto ID numérico como external_reference
+        const isNumeric = /^\d+$/.test(value);
+        const isExternalRef = /^delixmi_[a-f0-9-]+$/.test(value);
+        
+        if (!isNumeric && !isExternalRef) {
+          throw new Error('El ID del pedido debe ser un número entero o un external_reference válido (formato: delixmi_uuid)');
+        }
+        return true;
+      })
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  getCustomerOrderDetails
 );
 
 /**

@@ -66,6 +66,8 @@ const webhookRoutes = require('./routes/webhook.routes');
 const driverRoutes = require('./routes/driver.routes');
 const customerRoutes = require('./routes/customer.routes');
 const adminRoutes = require('./routes/admin.routes');
+const cartRoutes = require('./routes/cart.routes');
+const categoryRoutes = require('./routes/category.routes');
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -76,6 +78,8 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Ruta de prueba básica
 app.get('/', (req, res) => {
@@ -96,6 +100,10 @@ app.get('/', (req, res) => {
       restaurants: {
         list: 'GET /api/restaurants',
         getById: 'GET /api/restaurants/:id'
+      },
+      categories: {
+        list: 'GET /api/categories',
+        getById: 'GET /api/categories/:id'
       },
       restaurantAdmin: {
         orders: 'GET /api/restaurant/orders',
@@ -121,11 +129,21 @@ app.get('/', (req, res) => {
       },
       customer: {
         orders: 'GET /api/customer/orders',
+        orderDetails: 'GET /api/customer/orders/:orderId',
         addresses: 'GET /api/customer/addresses',
         createAddress: 'POST /api/customer/addresses',
         updateAddress: 'PATCH /api/customer/addresses/:addressId',
         deleteAddress: 'DELETE /api/customer/addresses/:addressId',
         driverLocation: 'GET /api/customer/orders/:orderId/location'
+      },
+      cart: {
+        getCart: 'GET /api/cart',
+        getSummary: 'GET /api/cart/summary',
+        addItem: 'POST /api/cart/add',
+        updateItem: 'PUT /api/cart/update/:itemId',
+        removeItem: 'DELETE /api/cart/remove/:itemId',
+        clearCart: 'DELETE /api/cart/clear',
+        validateCart: 'POST /api/cart/validate'
       },
       admin: {
         restaurants: 'GET /api/admin/restaurants'
