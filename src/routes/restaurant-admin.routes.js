@@ -2,6 +2,9 @@ const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
+const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
+const { uploadRestaurantLogo, uploadRestaurantCover } = require('../controllers/upload.controller');
+const { upload, uploadCover, handleMulterError } = require('../config/multer');
 
 const router = express.Router();
 
@@ -60,14 +63,14 @@ router.patch(
       .trim()
       .isLength({ max: 255 })
       .withMessage('La URL del logo no puede exceder 255 caracteres')
-      .isURL()
+      .isURL({ require_tld: false })
       .withMessage('La URL del logo debe ser una URL válida'),
     body('coverPhotoUrl')
       .optional()
       .trim()
       .isLength({ max: 255 })
       .withMessage('La URL de la foto de portada no puede exceder 255 caracteres')
-      .isURL()
+      .isURL({ require_tld: false })
       .withMessage('La URL de la foto de portada debe ser una URL válida')
   ],
   (req, res, next) => {
@@ -879,6 +882,276 @@ router.delete('/products/:productId',
     next();
   },
   deleteProduct
+);
+
+// ========================================
+// RUTAS DE GRUPOS DE MODIFICADORES
+// ========================================
+
+/**
+ * @route   POST /api/restaurant/modifier-groups
+ * @desc    Crear un nuevo grupo de modificadores para el restaurante
+ * @access  Private (Owner, Branch Manager)
+ * @body    name - Nombre del grupo de modificadores
+ * @body    minSelection (opcional) - Selección mínima (default: 1)
+ * @body    maxSelection (opcional) - Selección máxima (default: 1)
+ */
+router.post(
+  '/modifier-groups',
+  requireRole(['owner', 'branch_manager']),
+  [
+    body('name')
+      .trim()
+      .notEmpty()
+      .withMessage('El nombre del grupo es requerido')
+      .isLength({ min: 1, max: 100 })
+      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
+    body('minSelection')
+      .optional()
+      .isInt({ min: 0, max: 10 })
+      .withMessage('La selección mínima debe ser un número entre 0 y 10'),
+    body('maxSelection')
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage('La selección máxima debe ser un número entre 1 y 10')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  createModifierGroup
+);
+
+/**
+ * @route   GET /api/restaurant/modifier-groups
+ * @desc    Obtener todos los grupos de modificadores del restaurante
+ * @access  Private (Owner, Branch Manager)
+ */
+router.get(
+  '/modifier-groups',
+  requireRole(['owner', 'branch_manager']),
+  getModifierGroups
+);
+
+/**
+ * @route   PATCH /api/restaurant/modifier-groups/:groupId
+ * @desc    Actualizar un grupo de modificadores existente
+ * @access  Private (Owner, Branch Manager)
+ * @param   groupId - ID del grupo de modificadores
+ * @body    name (opcional) - Nombre del grupo de modificadores
+ * @body    minSelection (opcional) - Selección mínima
+ * @body    maxSelection (opcional) - Selección máxima
+ */
+router.patch(
+  '/modifier-groups/:groupId',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('groupId')
+      .isInt({ min: 1 })
+      .withMessage('El ID del grupo debe ser un número entero positivo'),
+    body('name')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
+    body('minSelection')
+      .optional()
+      .isInt({ min: 0, max: 10 })
+      .withMessage('La selección mínima debe ser un número entre 0 y 10'),
+    body('maxSelection')
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage('La selección máxima debe ser un número entre 1 y 10')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  updateModifierGroup
+);
+
+/**
+ * @route   DELETE /api/restaurant/modifier-groups/:groupId
+ * @desc    Eliminar un grupo de modificadores
+ * @access  Private (Owner, Branch Manager)
+ * @param   groupId - ID del grupo de modificadores
+ */
+router.delete(
+  '/modifier-groups/:groupId',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('groupId')
+      .isInt({ min: 1 })
+      .withMessage('El ID del grupo debe ser un número entero positivo')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  deleteModifierGroup
+);
+
+// ========================================
+// RUTAS DE OPCIONES DE MODIFICADORES
+// ========================================
+
+/**
+ * @route   POST /api/restaurant/modifier-groups/:groupId/options
+ * @desc    Crear una nueva opción de modificador en un grupo específico
+ * @access  Private (Owner, Branch Manager)
+ * @param   groupId - ID del grupo de modificadores
+ * @body    name - Nombre de la opción de modificador
+ * @body    price - Precio de la opción (decimal)
+ */
+router.post(
+  '/modifier-groups/:groupId/options',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('groupId')
+      .isInt({ min: 1 })
+      .withMessage('El ID del grupo debe ser un número entero positivo'),
+    body('name')
+      .trim()
+      .notEmpty()
+      .withMessage('El nombre de la opción es requerido')
+      .isLength({ min: 1, max: 100 })
+      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
+    body('price')
+      .isFloat({ min: 0 })
+      .withMessage('El precio debe ser un número decimal mayor o igual a 0')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  createModifierOption
+);
+
+/**
+ * @route   PATCH /api/restaurant/modifier-options/:optionId
+ * @desc    Actualizar una opción de modificador existente
+ * @access  Private (Owner, Branch Manager)
+ * @param   optionId - ID de la opción de modificador
+ * @body    name (opcional) - Nombre de la opción de modificador
+ * @body    price (opcional) - Precio de la opción (decimal)
+ */
+router.patch(
+  '/modifier-options/:optionId',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('optionId')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la opción debe ser un número entero positivo'),
+    body('name')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
+    body('price')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('El precio debe ser un número decimal mayor o igual a 0')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  updateModifierOption
+);
+
+/**
+ * @route   DELETE /api/restaurant/modifier-options/:optionId
+ * @desc    Eliminar una opción de modificador
+ * @access  Private (Owner, Branch Manager)
+ * @param   optionId - ID de la opción de modificador
+ */
+router.delete(
+  '/modifier-options/:optionId',
+  requireRole(['owner', 'branch_manager']),
+  [
+    param('optionId')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la opción debe ser un número entero positivo')
+  ],
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  deleteModifierOption
+);
+
+// ========================================
+// RUTAS DE SUBIDA DE ARCHIVOS
+// ========================================
+
+/**
+ * @route   POST /api/restaurant/uploads/logo
+ * @desc    Subir logo del restaurante
+ * @access  Private (Owner, Branch Manager)
+ * @body    image - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ */
+router.post(
+  '/uploads/logo',
+  requireRole(['owner', 'branch_manager']),
+  upload.single('image'),
+  handleMulterError,
+  uploadRestaurantLogo
+);
+
+/**
+ * @route   POST /api/restaurant/uploads/cover
+ * @desc    Subir foto de portada del restaurante
+ * @access  Private (Owner, Branch Manager)
+ * @body    image - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ */
+router.post(
+  '/uploads/cover',
+  requireRole(['owner', 'branch_manager']),
+  uploadCover.single('image'),
+  handleMulterError,
+  uploadRestaurantCover
 );
 
 module.exports = router;

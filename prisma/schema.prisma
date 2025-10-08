@@ -166,6 +166,7 @@ model Restaurant {
   logoUrl        String?  @map("logo_url") @db.VarChar(255)
   coverPhotoUrl  String?  @map("cover_photo_url") @db.VarChar(255)
   commissionRate Decimal  @default(10.00) @map("commission_rate") @db.Decimal(5, 2)
+  rating         Float?   @default(0.0)
   status         RestaurantStatus @default(pending_approval)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -177,6 +178,7 @@ model Restaurant {
   products      Product[]
   userRoleAssignments UserRoleAssignment[]
   carts         Cart[]
+  modifierGroups ModifierGroup[]
 
   @@map("restaurants")
 }
@@ -261,10 +263,11 @@ model Product {
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relaciones
-  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  subcategory Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  orderItems  OrderItem[]
-  cartItems   CartItem[]
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  subcategory    Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  orderItems     OrderItem[]
+  cartItems      CartItem[]
+  modifierGroups ProductModifier[]
 
   @@map("products")
 }
@@ -403,9 +406,56 @@ model CartItem {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relaciones
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cart      Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifiers CartItemModifier[]  // Modificadores aplicados a este item del carrito
 
   @@unique([cartId, productId])
   @@map("cart_items")
+}
+
+model ModifierGroup {
+  id           Int      @id @default(autoincrement())
+  name         String
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  minSelection Int      @default(1)
+  maxSelection Int      @default(1)
+  
+  options      ModifierOption[]
+  products     ProductModifier[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ModifierOption {
+  id              Int      @id @default(autoincrement())
+  name            String
+  price           Decimal  @db.Decimal(10, 2)
+  modifierGroupId Int
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id])
+  cartItemModifiers CartItemModifier[] // Relación con items del carrito
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ProductModifier {
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  modifierGroupId Int
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id])
+
+  @@id([productId, modifierGroupId])
+}
+
+model CartItemModifier {
+  id               Int            @id @default(autoincrement())
+  cartItemId       Int            @map("cart_item_id")
+  cartItem         CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifierOptionId Int            @map("modifier_option_id")
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
+
+  @@map("cart_item_modifiers")
 }

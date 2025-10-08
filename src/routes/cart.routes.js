@@ -33,10 +33,11 @@ router.get('/summary', getCartSummary);
 
 /**
  * @route   POST /api/cart/add
- * @desc    Agregar producto al carrito
+ * @desc    Agregar producto al carrito con modificadores opcionales
  * @access  Private (Customer Only)
  * @body    productId - ID del producto a agregar
  * @body    quantity - Cantidad a agregar (default: 1)
+ * @body    modifierOptionIds - Array de IDs de opciones de modificadores (opcional)
  */
 router.post(
   '/add',
@@ -49,7 +50,18 @@ router.post(
     body('quantity')
       .optional()
       .isInt({ min: 1, max: 99 })
-      .withMessage('La cantidad debe ser un número entero entre 1 y 99')
+      .withMessage('La cantidad debe ser un número entero entre 1 y 99'),
+    body('modifierOptionIds')
+      .optional()
+      .isArray()
+      .withMessage('Los modificadores deben ser un array')
+      .custom((value) => {
+        if (value && value.length > 0) {
+          return value.every(id => Number.isInteger(id) && id > 0);
+        }
+        return true;
+      })
+      .withMessage('Cada ID de modificador debe ser un número entero positivo')
   ],
   (req, res, next) => {
     // Verificar errores de validación

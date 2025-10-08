@@ -1712,7 +1712,7 @@ const getRestaurantProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { subcategoryId, name, description, imageUrl, price, isAvailable = true } = req.body;
+    const { subcategoryId, name, description, imageUrl, price, isAvailable = true, modifierGroupIds = [] } = req.body;
 
     // Convertir subcategoryId a número
     const subcategoryIdNum = parseInt(subcategoryId);
@@ -1792,40 +1792,112 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // 4. Crear el producto
-    const newProduct = await prisma.product.create({
-      data: {
-        restaurantId: subcategory.restaurantId,
-        subcategoryId: subcategoryIdNum,
-        name: name.trim(),
-        description: description ? description.trim() : null,
-        imageUrl: imageUrl ? imageUrl.trim() : null,
-        price: parseFloat(price),
-        isAvailable: isAvailable
+    // 4. Validar modifierGroupIds si se proporcionan
+    if (modifierGroupIds && modifierGroupIds.length > 0) {
+      // Verificar que todos los grupos pertenezcan al restaurante
+      const validGroups = await prisma.modifierGroup.findMany({
+        where: {
+          id: { in: modifierGroupIds },
+          restaurantId: subcategory.restaurantId
+        },
+        select: { id: true }
+      });
+
+      if (validGroups.length !== modifierGroupIds.length) {
+        const invalidIds = modifierGroupIds.filter(id => !validGroups.find(g => g.id === id));
+        return res.status(400).json({
+          status: 'error',
+          message: 'Algunos grupos de modificadores no pertenecen a este restaurante',
+          code: 'INVALID_MODIFIER_GROUPS',
+          details: {
+            invalidGroupIds: invalidIds,
+            restaurantId: subcategory.restaurantId
+          }
+        });
+      }
+    }
+
+    // 5. Crear el producto con transacción para incluir asociaciones de modificadores
+    const result = await prisma.$transaction(async (tx) => {
+      // Crear el producto
+      const newProduct = await tx.product.create({
+        data: {
+          restaurantId: subcategory.restaurantId,
+          subcategoryId: subcategoryIdNum,
+          name: name.trim(),
+          description: description ? description.trim() : null,
+          imageUrl: imageUrl ? imageUrl.trim() : null,
+          price: parseFloat(price),
+          isAvailable: isAvailable
+        },
+        include: {
+          subcategory: {
+            select: {
+              id: true,
+              name: true,
+              category: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Crear asociaciones con grupos de modificadores si se proporcionan
+      if (modifierGroupIds && modifierGroupIds.length > 0) {
+        await tx.productModifier.createMany({
+          data: modifierGroupIds.map(groupId => ({
+            productId: newProduct.id,
+            modifierGroupId: groupId
+          }))
+        });
+      }
+
+      return newProduct;
+    });
+
+    const newProduct = result;
+
+    // 6. Obtener grupos de modificadores asociados
+    const associatedModifierGroups = await prisma.modifierGroup.findMany({
+      where: {
+        products: {
+          some: {
+            productId: newProduct.id
+          }
+        }
       },
-      include: {
-        subcategory: {
+      select: {
+        id: true,
+        name: true,
+        minSelection: true,
+        maxSelection: true,
+        options: {
           select: {
             id: true,
             name: true,
-            category: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        restaurant: {
-          select: {
-            id: true,
-            name: true
+            price: true
+          },
+          orderBy: {
+            createdAt: 'asc'
           }
         }
+      },
+      orderBy: {
+        createdAt: 'asc'
       }
     });
 
-    // 5. Formatear respuesta
+    // 7. Formatear respuesta
     const formattedProduct = {
       id: newProduct.id,
       name: newProduct.name,
@@ -1845,11 +1917,22 @@ const createProduct = async (req, res) => {
         id: newProduct.restaurant.id,
         name: newProduct.restaurant.name
       },
+      modifierGroups: associatedModifierGroups.map(group => ({
+        id: group.id,
+        name: group.name,
+        minSelection: group.minSelection,
+        maxSelection: group.maxSelection,
+        options: group.options.map(option => ({
+          id: option.id,
+          name: option.name,
+          price: Number(option.price)
+        }))
+      })),
       createdAt: newProduct.createdAt,
       updatedAt: newProduct.updatedAt
     };
 
-    // 6. Respuesta exitosa
+    // 8. Respuesta exitosa
     res.status(201).json({
       status: 'success',
       message: 'Producto creado exitosamente',
@@ -1877,7 +1960,7 @@ const updateProduct = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId } = req.params;
-    const { subcategoryId, name, description, imageUrl, price, isAvailable } = req.body;
+    const { subcategoryId, name, description, imageUrl, price, isAvailable, modifierGroupIds } = req.body;
 
     // Convertir productId a número
     const productIdNum = parseInt(productId);
@@ -1997,7 +2080,34 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // 5. Preparar los datos de actualización (solo campos enviados)
+    // 5. Validar modifierGroupIds si se proporcionan
+    if (modifierGroupIds !== undefined) {
+      if (modifierGroupIds && modifierGroupIds.length > 0) {
+        // Verificar que todos los grupos pertenezcan al restaurante del producto
+        const validGroups = await prisma.modifierGroup.findMany({
+          where: {
+            id: { in: modifierGroupIds },
+            restaurantId: existingProduct.restaurantId
+          },
+          select: { id: true }
+        });
+
+        if (validGroups.length !== modifierGroupIds.length) {
+          const invalidIds = modifierGroupIds.filter(id => !validGroups.find(g => g.id === id));
+          return res.status(400).json({
+            status: 'error',
+            message: 'Algunos grupos de modificadores no pertenecen a este restaurante',
+            code: 'INVALID_MODIFIER_GROUPS',
+            details: {
+              invalidGroupIds: invalidIds,
+              restaurantId: existingProduct.restaurantId
+            }
+          });
+        }
+      }
+    }
+
+    // 6. Preparar los datos de actualización (solo campos enviados)
     const updateData = {};
     
     if (subcategoryId !== undefined) {
@@ -2024,8 +2134,8 @@ const updateProduct = async (req, res) => {
       updateData.isAvailable = isAvailable;
     }
 
-    // Si no hay campos para actualizar
-    if (Object.keys(updateData).length === 0) {
+    // Si no hay campos para actualizar (incluyendo modifierGroupIds)
+    if (Object.keys(updateData).length === 0 && modifierGroupIds === undefined) {
       return res.status(400).json({
         status: 'error',
         message: 'No se proporcionaron campos para actualizar',
@@ -2033,33 +2143,88 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    // 6. Actualizar el producto
-    const updatedProduct = await prisma.product.update({
-      where: { id: productIdNum },
-      data: updateData,
-      include: {
-        subcategory: {
+    // 7. Actualizar el producto con transacción para incluir asociaciones de modificadores
+    const result = await prisma.$transaction(async (tx) => {
+      // Actualizar el producto
+      const updatedProduct = await tx.product.update({
+        where: { id: productIdNum },
+        data: updateData,
+        include: {
+          subcategory: {
+            select: {
+              id: true,
+              name: true,
+              category: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Actualizar asociaciones con grupos de modificadores si se proporcionan
+      if (modifierGroupIds !== undefined) {
+        // Eliminar asociaciones existentes
+        await tx.productModifier.deleteMany({
+          where: { productId: productIdNum }
+        });
+
+        // Crear nuevas asociaciones si se proporcionan grupos
+        if (modifierGroupIds && modifierGroupIds.length > 0) {
+          await tx.productModifier.createMany({
+            data: modifierGroupIds.map(groupId => ({
+              productId: productIdNum,
+              modifierGroupId: groupId
+            }))
+          });
+        }
+      }
+
+      return updatedProduct;
+    });
+
+    const updatedProduct = result;
+
+    // 8. Obtener grupos de modificadores asociados
+    const associatedModifierGroups = await prisma.modifierGroup.findMany({
+      where: {
+        products: {
+          some: {
+            productId: updatedProduct.id
+          }
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        minSelection: true,
+        maxSelection: true,
+        options: {
           select: {
             id: true,
             name: true,
-            category: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        restaurant: {
-          select: {
-            id: true,
-            name: true
+            price: true
+          },
+          orderBy: {
+            createdAt: 'asc'
           }
         }
+      },
+      orderBy: {
+        createdAt: 'asc'
       }
     });
 
-    // 7. Formatear respuesta
+    // 9. Formatear respuesta
     const formattedProduct = {
       id: updatedProduct.id,
       name: updatedProduct.name,
@@ -2079,17 +2244,28 @@ const updateProduct = async (req, res) => {
         id: updatedProduct.restaurant.id,
         name: updatedProduct.restaurant.name
       },
+      modifierGroups: associatedModifierGroups.map(group => ({
+        id: group.id,
+        name: group.name,
+        minSelection: group.minSelection,
+        maxSelection: group.maxSelection,
+        options: group.options.map(option => ({
+          id: option.id,
+          name: option.name,
+          price: Number(option.price)
+        }))
+      })),
       createdAt: updatedProduct.createdAt,
       updatedAt: updatedProduct.updatedAt
     };
 
-    // 8. Respuesta exitosa
+    // 10. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Producto actualizado exitosamente',
       data: {
         product: formattedProduct,
-        updatedFields: Object.keys(updateData)
+        updatedFields: Object.keys(updateData).concat(modifierGroupIds !== undefined ? ['modifierGroupIds'] : [])
       }
     });
 
@@ -2327,7 +2503,6 @@ const getRestaurantProfile = async (req, res) => {
             name: true,
             address: true,
             phone: true,
-            email: true,
             status: true,
             createdAt: true,
             updatedAt: true
@@ -2360,7 +2535,7 @@ const getRestaurantProfile = async (req, res) => {
       name: restaurant.name,
       description: restaurant.description,
       logoUrl: restaurant.logoUrl,
-      coverImageUrl: restaurant.coverImageUrl,
+      coverPhotoUrl: restaurant.coverPhotoUrl,
       phone: restaurant.phone,
       email: restaurant.email,
       address: restaurant.address,
@@ -2377,7 +2552,6 @@ const getRestaurantProfile = async (req, res) => {
         name: branch.name,
         address: branch.address,
         phone: branch.phone,
-        email: branch.email,
         status: branch.status,
         createdAt: branch.createdAt,
         updatedAt: branch.updatedAt
@@ -3003,8 +3177,6 @@ const getRestaurantBranches = async (req, res) => {
         latitude: true,
         longitude: true,
         phone: true,
-        openingTime: true,
-        closingTime: true,
         usesPlatformDrivers: true,
         status: true,
         createdAt: true,
@@ -3034,8 +3206,6 @@ const getRestaurantBranches = async (req, res) => {
         longitude: Number(branch.longitude)
       },
       phone: branch.phone,
-      openingTime: branch.openingTime ? branch.openingTime.toTimeString().slice(0, 8) : null,
-      closingTime: branch.closingTime ? branch.closingTime.toTimeString().slice(0, 8) : null,
       usesPlatformDrivers: branch.usesPlatformDrivers,
       status: branch.status,
       statistics: {
@@ -3915,8 +4085,8 @@ const updateBranchSchedule = async (req, res) => {
       const newSchedules = scheduleData.map(item => ({
         branchId: branchIdNum,
         dayOfWeek: item.dayOfWeek,
-        openingTime: new Date(`1970-01-01T${item.openingTime}`),
-        closingTime: new Date(`1970-01-01T${item.closingTime}`),
+        openingTime: item.openingTime,
+        closingTime: item.closingTime,
         isClosed: item.isClosed
       }));
 

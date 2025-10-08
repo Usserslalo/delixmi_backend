@@ -156,7 +156,8 @@ const createPreference = async (req, res) => {
 
       cartItems = cart.items.map(item => ({
         productId: item.productId,
-        quantity: item.quantity
+        quantity: item.quantity,
+        priceAtAdd: item.priceAtAdd
       }));
     }
 
@@ -215,7 +216,9 @@ const createPreference = async (req, res) => {
     for (const item of itemsToProcess) {
       const product = products.find(p => p.id === item.productId);
       
-      const itemTotal = Number(product.price) * item.quantity;
+      // Usar priceAtAdd que incluye modificadores, o product.price como fallback
+      const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
+      const itemTotal = itemPrice * item.quantity;
       subtotal += itemTotal;
 
       mpItems.push({
@@ -223,7 +226,7 @@ const createPreference = async (req, res) => {
         description: product.description || `Producto de ${product.restaurant.name}`,
         quantity: item.quantity,
         currency_id: 'MXN',
-        unit_price: Number(product.price) // Precio unitario del producto (correcto)
+        unit_price: itemPrice // Precio unitario con modificadores incluidos
       });
     }
 
@@ -875,13 +878,15 @@ const createCashOrder = async (req, res) => {
         });
       }
 
-      const itemTotal = product.price * item.quantity;
+      // Usar priceAtAdd si está disponible (incluye modificadores), sino usar product.price
+      const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
+      const itemTotal = itemPrice * item.quantity;
       subtotal += itemTotal;
 
       orderItems.push({
         productId: product.id,
         quantity: item.quantity,
-        pricePerUnit: product.price,
+        pricePerUnit: itemPrice,
         total: itemTotal
       });
 

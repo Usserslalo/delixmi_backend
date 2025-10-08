@@ -10,6 +10,24 @@ async function main() {
     // ===== ELIMINACIÓN EN ORDEN INVERSO =====
     console.log('🧹 Limpiando datos existentes...');
     
+    await prisma.cartItemModifier.deleteMany({});
+    console.log('✅ CartItemModifiers eliminados');
+    
+    await prisma.cartItem.deleteMany({});
+    console.log('✅ CartItems eliminados');
+    
+    await prisma.cart.deleteMany({});
+    console.log('✅ Carts eliminados');
+    
+    await prisma.productModifier.deleteMany({});
+    console.log('✅ ProductModifiers eliminados');
+    
+    await prisma.modifierOption.deleteMany({});
+    console.log('✅ ModifierOptions eliminados');
+    
+    await prisma.modifierGroup.deleteMany({});
+    console.log('✅ ModifierGroups eliminados');
+    
     await prisma.orderItem.deleteMany({});
     console.log('✅ OrderItems eliminados');
     
@@ -495,19 +513,19 @@ async function main() {
     // 6.1. CREAR HORARIOS DE SUCURSALES
     console.log('⏰ Creando horarios de sucursales...');
     
-    // Horarios para Sucursal Centro (branchId: centroBranch.id) - 24 horas
+    // Horarios para Sucursal Centro (branchId: centroBranch.id) - Horario realista
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
-        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
-        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
-        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
-        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
-        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
-        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
+        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '00:00:00', isClosed: true }, // Domingo - Cerrado
+        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Lunes
+        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Martes
+        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Miércoles
+        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Jueves
+        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Viernes
+        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '11:00:00', closingTime: '23:00:00', isClosed: false }  // Sábado
       ]
     });
-    console.log('✅ Horarios Sucursal Centro creados (24 horas)');
+    console.log('✅ Horarios Sucursal Centro creados (horario realista)');
 
     // Horarios para Sucursal Río (branchId: rioBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
@@ -537,19 +555,19 @@ async function main() {
     });
     console.log('✅ Horarios Sucursal El Fitzhi creados (24 horas)');
 
-    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - 24 horas
+    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - Horario realista
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
-        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
-        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
-        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
-        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
-        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
-        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
+        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '12:00:00', closingTime: '21:00:00', isClosed: false }, // Domingo
+        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Lunes
+        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Martes
+        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Miércoles
+        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Jueves
+        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '11:30:00', closingTime: '23:00:00', isClosed: false }, // Viernes
+        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '12:00:00', closingTime: '23:30:00', isClosed: false }  // Sábado
       ]
     });
-    console.log('✅ Horarios Sucursal Sushi creados (24 horas)');
+    console.log('✅ Horarios Sucursal Sushi creados (horario realista)');
 
     // 7. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -1050,6 +1068,275 @@ async function main() {
     });
     console.log('✅ 2 pagos creados');
 
+    // 16. CREAR GRUPOS DE MODIFICADORES
+    console.log('🔧 Creando grupos de modificadores...');
+    
+    // Grupos para Pizzería de Ana
+    const tamanoGroup = await prisma.modifierGroup.create({
+      data: {
+        name: 'Tamaño',
+        restaurantId: restaurant.id,
+        minSelection: 1,
+        maxSelection: 1
+      }
+    });
+    console.log('✅ Grupo Tamaño creado');
+
+    const extrasGroup = await prisma.modifierGroup.create({
+      data: {
+        name: 'Extras',
+        restaurantId: restaurant.id,
+        minSelection: 0,
+        maxSelection: 5
+      }
+    });
+    console.log('✅ Grupo Extras creado');
+
+    const sinIngredientesGroup = await prisma.modifierGroup.create({
+      data: {
+        name: 'Sin Ingredientes',
+        restaurantId: restaurant.id,
+        minSelection: 0,
+        maxSelection: 3
+      }
+    });
+    console.log('✅ Grupo Sin Ingredientes creado');
+
+    // Grupos para Sushi Master Kenji
+    const nivelPicanteGroup = await prisma.modifierGroup.create({
+      data: {
+        name: 'Nivel de Picante',
+        restaurantId: sushiRestaurant.id,
+        minSelection: 1,
+        maxSelection: 1
+      }
+    });
+    console.log('✅ Grupo Nivel de Picante creado');
+
+    const extrasSushiGroup = await prisma.modifierGroup.create({
+      data: {
+        name: 'Extras Sushi',
+        restaurantId: sushiRestaurant.id,
+        minSelection: 0,
+        maxSelection: 3
+      }
+    });
+    console.log('✅ Grupo Extras Sushi creado');
+
+    // 17. CREAR OPCIONES DE MODIFICADORES
+    console.log('⚙️ Creando opciones de modificadores...');
+    
+    // Opciones para Tamaño (Pizzería)
+    await prisma.modifierOption.createMany({
+      data: [
+        { name: 'Personal (6 pulgadas)', price: 0.00, modifierGroupId: tamanoGroup.id },
+        { name: 'Mediana (10 pulgadas)', price: 25.00, modifierGroupId: tamanoGroup.id },
+        { name: 'Grande (12 pulgadas)', price: 45.00, modifierGroupId: tamanoGroup.id },
+        { name: 'Familiar (16 pulgadas)', price: 70.00, modifierGroupId: tamanoGroup.id }
+      ]
+    });
+    console.log('✅ Opciones de Tamaño creadas');
+
+    // Opciones para Extras (Pizzería)
+    await prisma.modifierOption.createMany({
+      data: [
+        { name: 'Extra Queso', price: 15.00, modifierGroupId: extrasGroup.id },
+        { name: 'Extra Pepperoni', price: 20.00, modifierGroupId: extrasGroup.id },
+        { name: 'Extra Champiñones', price: 12.00, modifierGroupId: extrasGroup.id },
+        { name: 'Extra Aceitunas', price: 10.00, modifierGroupId: extrasGroup.id },
+        { name: 'Extra Jalapeños', price: 8.00, modifierGroupId: extrasGroup.id },
+        { name: 'Extra Cebolla', price: 8.00, modifierGroupId: extrasGroup.id }
+      ]
+    });
+    console.log('✅ Opciones de Extras creadas');
+
+    // Opciones para Sin Ingredientes (Pizzería)
+    await prisma.modifierOption.createMany({
+      data: [
+        { name: 'Sin Cebolla', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
+        { name: 'Sin Aceitunas', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
+        { name: 'Sin Jalapeños', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
+        { name: 'Sin Champiñones', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
+        { name: 'Sin Queso', price: 0.00, modifierGroupId: sinIngredientesGroup.id }
+      ]
+    });
+    console.log('✅ Opciones Sin Ingredientes creadas');
+
+    // Opciones para Nivel de Picante (Sushi)
+    await prisma.modifierOption.createMany({
+      data: [
+        { name: 'Sin Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
+        { name: 'Poco Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
+        { name: 'Picante Medio', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
+        { name: 'Muy Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
+        { name: 'Extra Picante', price: 5.00, modifierGroupId: nivelPicanteGroup.id }
+      ]
+    });
+    console.log('✅ Opciones Nivel de Picante creadas');
+
+    // Opciones para Extras Sushi
+    await prisma.modifierOption.createMany({
+      data: [
+        { name: 'Extra Wasabi', price: 8.00, modifierGroupId: extrasSushiGroup.id },
+        { name: 'Extra Jengibre', price: 5.00, modifierGroupId: extrasSushiGroup.id },
+        { name: 'Salsa Teriyaki Extra', price: 10.00, modifierGroupId: extrasSushiGroup.id },
+        { name: 'Salsa de Soja Premium', price: 12.00, modifierGroupId: extrasSushiGroup.id },
+        { name: 'Aguacate Extra', price: 15.00, modifierGroupId: extrasSushiGroup.id }
+      ]
+    });
+    console.log('✅ Opciones Extras Sushi creadas');
+
+    // 18. CREAR ASOCIACIONES PRODUCTO-MODIFICADOR
+    console.log('🔗 Creando asociaciones producto-modificador...');
+    
+    // Pizzas con grupos de modificadores
+    await prisma.productModifier.createMany({
+      data: [
+        // Pizza Hawaiana
+        { productId: pizzaHawaiana.id, modifierGroupId: tamanoGroup.id },
+        { productId: pizzaHawaiana.id, modifierGroupId: extrasGroup.id },
+        { productId: pizzaHawaiana.id, modifierGroupId: sinIngredientesGroup.id },
+        
+        // Pizza Pepperoni
+        { productId: pizzaPepperoni.id, modifierGroupId: tamanoGroup.id },
+        { productId: pizzaPepperoni.id, modifierGroupId: extrasGroup.id },
+        { productId: pizzaPepperoni.id, modifierGroupId: sinIngredientesGroup.id },
+        
+        // Pizza Margherita
+        { productId: pizzaMargherita.id, modifierGroupId: tamanoGroup.id },
+        { productId: pizzaMargherita.id, modifierGroupId: extrasGroup.id },
+        { productId: pizzaMargherita.id, modifierGroupId: sinIngredientesGroup.id },
+        
+        // Pizza Quattro Stagioni
+        { productId: pizzaQuattro.id, modifierGroupId: tamanoGroup.id },
+        { productId: pizzaQuattro.id, modifierGroupId: extrasGroup.id },
+        { productId: pizzaQuattro.id, modifierGroupId: sinIngredientesGroup.id },
+        
+        // Pizza Vegetariana
+        { productId: pizzaVegetariana.id, modifierGroupId: tamanoGroup.id },
+        { productId: pizzaVegetariana.id, modifierGroupId: extrasGroup.id },
+        { productId: pizzaVegetariana.id, modifierGroupId: sinIngredientesGroup.id }
+      ]
+    });
+    console.log('✅ Asociaciones Pizzas-Modificadores creadas');
+
+    // Sushi con grupos de modificadores
+    await prisma.productModifier.createMany({
+      data: [
+        // Nigiri de Salmón
+        { productId: salmonNigiri.id, modifierGroupId: nivelPicanteGroup.id },
+        { productId: salmonNigiri.id, modifierGroupId: extrasSushiGroup.id },
+        
+        // Nigiri de Atún
+        { productId: tunaNigiri.id, modifierGroupId: nivelPicanteGroup.id },
+        { productId: tunaNigiri.id, modifierGroupId: extrasSushiGroup.id },
+        
+        // California Roll
+        { productId: californiaRoll.id, modifierGroupId: nivelPicanteGroup.id },
+        { productId: californiaRoll.id, modifierGroupId: extrasSushiGroup.id },
+        
+        // Dragon Roll
+        { productId: dragonRoll.id, modifierGroupId: nivelPicanteGroup.id },
+        { productId: dragonRoll.id, modifierGroupId: extrasSushiGroup.id },
+        
+        // Sashimi de Salmón
+        { productId: salmonSashimi.id, modifierGroupId: nivelPicanteGroup.id },
+        { productId: salmonSashimi.id, modifierGroupId: extrasSushiGroup.id }
+      ]
+    });
+    console.log('✅ Asociaciones Sushi-Modificadores creadas');
+
+    // 19. CREAR CARRITOS DE EJEMPLO CON MODIFICADORES
+    console.log('🛒 Creando carritos de ejemplo...');
+    
+    // Crear carrito para Sofía (cliente) en Pizzería de Ana
+    const cart1 = await prisma.cart.create({
+      data: {
+        userId: sofiaUser.id,
+        restaurantId: restaurant.id
+      }
+    });
+    console.log('✅ Carrito 1 creado');
+
+    // Crear carrito para Sofía en Sushi Master Kenji
+    const cart2 = await prisma.cart.create({
+      data: {
+        userId: sofiaUser.id,
+        restaurantId: sushiRestaurant.id
+      }
+    });
+    console.log('✅ Carrito 2 creado');
+
+    // Obtener algunos modificadores para usar en los ejemplos
+    const extraQuesoOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Extra Queso' }
+    });
+    const orillaRellenaOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Extra Queso' } // Usaremos este como ejemplo de orilla rellena
+    });
+    const grandeOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Grande (12 pulgadas)' }
+    });
+    const sinCebollaOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Sin Cebolla' }
+    });
+    const pocoPicanteOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Poco Picante' }
+    });
+    const extraWasabiOption = await prisma.modifierOption.findFirst({
+      where: { name: 'Extra Wasabi' }
+    });
+
+    // Crear items del carrito con modificadores
+    // Pizza Hawaiana con modificadores
+    const cartItem1 = await prisma.cartItem.create({
+      data: {
+        cartId: cart1.id,
+        productId: pizzaHawaiana.id,
+        quantity: 1,
+        priceAtAdd: 150.00 + 15.00 + 45.00 + 0.00 // precio base + extra queso + grande + sin cebolla
+      }
+    });
+
+    // Agregar modificadores al item
+    await prisma.cartItemModifier.createMany({
+      data: [
+        { cartItemId: cartItem1.id, modifierOptionId: extraQuesoOption.id },
+        { cartItemId: cartItem1.id, modifierOptionId: grandeOption.id },
+        { cartItemId: cartItem1.id, modifierOptionId: sinCebollaOption.id }
+      ]
+    });
+
+    // Pizza Margherita sin modificadores
+    await prisma.cartItem.create({
+      data: {
+        cartId: cart1.id,
+        productId: pizzaMargherita.id,
+        quantity: 2,
+        priceAtAdd: 135.00
+      }
+    });
+
+    // Nigiri de Salmón con modificadores
+    const cartItem3 = await prisma.cartItem.create({
+      data: {
+        cartId: cart2.id,
+        productId: salmonNigiri.id,
+        quantity: 1,
+        priceAtAdd: 85.00 + 0.00 + 8.00 // precio base + poco picante + extra wasabi
+      }
+    });
+
+    // Agregar modificadores al item de sushi
+    await prisma.cartItemModifier.createMany({
+      data: [
+        { cartItemId: cartItem3.id, modifierOptionId: pocoPicanteOption.id },
+        { cartItemId: cartItem3.id, modifierOptionId: extraWasabiOption.id }
+      ]
+    });
+
+    console.log('✅ Items del carrito con modificadores creados');
+
     console.log('🎉 ¡Seeding completado exitosamente!');
     console.log('\n📊 Resumen de datos creados:');
     console.log('- 10 roles');
@@ -1067,6 +1354,12 @@ async function main() {
     console.log('- 2 pedidos');
     console.log('- 5 items de pedido');
     console.log('- 2 pagos');
+    console.log('- 5 grupos de modificadores');
+    console.log('- 25 opciones de modificadores');
+    console.log('- 20 asociaciones producto-modificador');
+    console.log('- 2 carritos de ejemplo');
+    console.log('- 3 items de carrito (2 con modificadores, 1 sin)');
+    console.log('- 5 modificadores aplicados a items del carrito');
 
     console.log('\n👥 Usuarios de prueba creados:');
     console.log('- Admin (admin@delixmi.com) - Super Administrador');

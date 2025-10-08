@@ -43,6 +43,23 @@ const getCart = async (req, res) => {
                   }
                 }
               }
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    modifierGroup: {
+                      select: {
+                        id: true,
+                        name: true
+                      }
+                    }
+                  }
+                }
+              }
             }
           },
           orderBy: {
@@ -74,6 +91,12 @@ const getCart = async (req, res) => {
           quantity: item.quantity,
           priceAtAdd: Number(item.priceAtAdd),
           subtotal: Number(item.priceAtAdd) * item.quantity,
+          modifiers: item.modifiers.map(mod => ({
+            id: mod.modifierOption.id,
+            name: mod.modifierOption.name,
+            price: Number(mod.modifierOption.price),
+            group: mod.modifierOption.modifierGroup
+          })),
           createdAt: item.createdAt,
           updatedAt: item.updatedAt
         })),
@@ -135,7 +158,7 @@ const addToCart = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, modifierOptionIds = [] } = req.body;
 
     // 1. Verificar que el producto existe y está disponible
     const product = await prisma.product.findUnique({
@@ -195,22 +218,101 @@ const addToCart = async (req, res) => {
       });
     }
 
-    // 4. Verificar si el producto ya está en el carrito
-    const existingItem = await prisma.cartItem.findUnique({
-      where: {
-        cartId_productId: {
+    // 4. Validar modificadores si se proporcionan
+    let modifierOptions = [];
+    let totalModifierPrice = 0;
+    
+    if (modifierOptionIds && modifierOptionIds.length > 0) {
+      // Verificar que los modificadores existen y pertenecen al restaurante correcto
+      modifierOptions = await prisma.modifierOption.findMany({
+        where: {
+          id: { in: modifierOptionIds },
+          modifierGroup: {
+            restaurantId: product.restaurantId
+          }
+        },
+        include: {
+          modifierGroup: {
+            select: {
+              id: true,
+              name: true,
+              minSelection: true,
+              maxSelection: true
+            }
+          }
+        }
+      });
+
+      if (modifierOptions.length !== modifierOptionIds.length) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Algunos modificadores no son válidos para este producto',
+          code: 'INVALID_MODIFIERS'
+        });
+      }
+
+      // Calcular precio total de modificadores
+      totalModifierPrice = modifierOptions.reduce((sum, option) => sum + Number(option.price), 0);
+    }
+
+    // 5. Calcular precio total del item
+    const totalItemPrice = Number(product.price) + totalModifierPrice;
+    
+    // 6. Verificar si ya existe un item idéntico en el carrito
+    // Para productos sin modificadores, buscamos solo por productId
+    // Para productos con modificadores, necesitamos verificar que tengan exactamente los mismos modificadores
+    let existingItem = null;
+    
+    if (modifierOptions.length === 0) {
+      // Producto sin modificadores - buscar por productId únicamente
+      existingItem = await prisma.cartItem.findFirst({
+        where: {
+          cartId: cart.id,
+          productId: productId,
+          modifiers: {
+            none: {} // No debe tener modificadores
+          }
+        },
+        include: {
+          modifiers: true
+        }
+      });
+    } else {
+      // Producto con modificadores - buscar por productId y modificadores exactos
+      const existingItems = await prisma.cartItem.findMany({
+        where: {
           cartId: cart.id,
           productId: productId
+        },
+        include: {
+          modifiers: {
+            include: {
+              modifierOption: true
+            }
+          }
+        }
+      });
+      
+      // Verificar si existe un item con exactamente los mismos modificadores
+      for (const item of existingItems) {
+        const itemModifierIds = item.modifiers.map(mod => mod.modifierOptionId).sort();
+        const requestedModifierIds = modifierOptionIds.sort();
+        
+        if (itemModifierIds.length === requestedModifierIds.length &&
+            itemModifierIds.every((id, index) => id === requestedModifierIds[index])) {
+          existingItem = item;
+          break;
         }
       }
-    });
+    }
+
+    let cartItem;
+    let action;
 
     if (existingItem) {
-      // Actualizar cantidad del item existente
-      const updatedItem = await prisma.cartItem.update({
-        where: {
-          id: existingItem.id
-        },
+      // 7a. Si existe item idéntico, actualizar cantidad
+      cartItem = await prisma.cartItem.update({
+        where: { id: existingItem.id },
         data: {
           quantity: existingItem.quantity + quantity
         },
@@ -224,32 +326,35 @@ const addToCart = async (req, res) => {
               price: true,
               isAvailable: true
             }
+          },
+          modifiers: {
+            include: {
+              modifierOption: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  modifierGroup: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       });
-
-      return res.status(200).json({
-        status: 'success',
-        message: 'Cantidad actualizada en el carrito',
-        data: {
-          cartItem: {
-            id: updatedItem.id,
-            product: updatedItem.product,
-            quantity: updatedItem.quantity,
-            priceAtAdd: Number(updatedItem.priceAtAdd),
-            subtotal: Number(updatedItem.priceAtAdd) * updatedItem.quantity
-          },
-          action: 'quantity_updated'
-        }
-      });
+      action = 'quantity_updated';
     } else {
-      // Crear nuevo item en el carrito
-      const newItem = await prisma.cartItem.create({
+      // 7b. Si no existe, crear nuevo item
+      cartItem = await prisma.cartItem.create({
         data: {
           cartId: cart.id,
           productId: productId,
           quantity: quantity,
-          priceAtAdd: product.price
+          priceAtAdd: totalItemPrice
         },
         include: {
           product: {
@@ -261,25 +366,98 @@ const addToCart = async (req, res) => {
               price: true,
               isAvailable: true
             }
+          },
+          modifiers: {
+            include: {
+              modifierOption: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  modifierGroup: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       });
 
-      return res.status(201).json({
-        status: 'success',
-        message: 'Producto agregado al carrito exitosamente',
-        data: {
-          cartItem: {
-            id: newItem.id,
-            product: newItem.product,
-            quantity: newItem.quantity,
-            priceAtAdd: Number(newItem.priceAtAdd),
-            subtotal: Number(newItem.priceAtAdd) * newItem.quantity
-          },
-          action: 'item_added'
-        }
-      });
+      // 8. Crear registros de modificadores si existen
+      if (modifierOptions.length > 0) {
+        await prisma.cartItemModifier.createMany({
+          data: modifierOptions.map(option => ({
+            cartItemId: cartItem.id,
+            modifierOptionId: option.id
+          }))
+        });
+
+        // Obtener el item actualizado con modificadores
+        cartItem = await prisma.cartItem.findUnique({
+          where: { id: cartItem.id },
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                imageUrl: true,
+                price: true,
+                isAvailable: true
+              }
+            },
+            modifiers: {
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    modifierGroup: {
+                      select: {
+                        id: true,
+                        name: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+      action = 'item_added';
     }
+
+    // 9. Calcular subtotal
+    const subtotal = Number(cartItem.priceAtAdd) * cartItem.quantity;
+
+    return res.status(action === 'item_added' ? 201 : 200).json({
+      status: 'success',
+      message: action === 'item_added' 
+        ? 'Producto agregado al carrito exitosamente'
+        : 'Cantidad actualizada en el carrito',
+      data: {
+        cartItem: {
+          id: cartItem.id,
+          product: cartItem.product,
+          quantity: cartItem.quantity,
+          priceAtAdd: Number(cartItem.priceAtAdd),
+          subtotal: subtotal,
+          modifiers: cartItem.modifiers.map(mod => ({
+            id: mod.modifierOption.id,
+            name: mod.modifierOption.name,
+            price: Number(mod.modifierOption.price),
+            group: mod.modifierOption.modifierGroup
+          }))
+        },
+        action: action
+      }
+    });
 
   } catch (error) {
     console.error('Error agregando al carrito:', error);
