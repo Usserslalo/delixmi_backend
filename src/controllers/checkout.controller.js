@@ -4,6 +4,7 @@ const { MercadoPagoConfig, Preference } = require('mercadopago');
 const { v4: uuidv4 } = require('uuid');
 const { calculateDistance, calculateDeliveryFee } = require('../config/maps');
 const { getIo } = require('../config/socket');
+const { isWithinCoverage } = require('../services/geolocation.service');
 
 const prisma = new PrismaClient();
 
@@ -119,6 +120,95 @@ const createPreference = async (req, res) => {
         status: 'error',
         message: 'Dirección no encontrada o no pertenece al usuario'
       });
+    }
+
+    // 1.1. VALIDACIÓN DE COBERTURA TEMPRANA
+    // Obtener el branchId antes de procesar los items
+    let branchIdForValidation = null;
+    
+    if (useCart && restaurantId) {
+      // Si usa carrito, obtener la primera sucursal del restaurante
+      const restaurantData = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: {
+          branches: {
+            where: { status: 'active' },
+            select: { id: true, latitude: true, longitude: true, deliveryRadius: true, name: true },
+            take: 1
+          }
+        }
+      });
+      
+      if (restaurantData?.branches?.[0]) {
+        branchIdForValidation = restaurantData.branches[0].id;
+      }
+    } else if (items && items.length > 0) {
+      // Si no usa carrito, obtener la sucursal del primer producto
+      const firstProduct = await prisma.product.findUnique({
+        where: { id: items[0].productId },
+        select: {
+          restaurant: {
+            select: {
+              branches: {
+                where: { status: 'active' },
+                select: { id: true, latitude: true, longitude: true, deliveryRadius: true, name: true },
+                take: 1
+              }
+            }
+          }
+        }
+      });
+      
+      if (firstProduct?.restaurant?.branches?.[0]) {
+        branchIdForValidation = firstProduct.restaurant.branches[0].id;
+      }
+    }
+
+    // Validar cobertura si tenemos branchId
+    if (branchIdForValidation) {
+      const branch = await prisma.branch.findUnique({
+        where: { id: branchIdForValidation },
+        select: {
+          id: true,
+          name: true,
+          latitude: true,
+          longitude: true,
+          deliveryRadius: true,
+          restaurant: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      if (branch) {
+        const isCovered = isWithinCoverage(branch, address);
+        
+        if (!isCovered) {
+          console.log('❌ Dirección fuera del área de cobertura:', {
+            branchId: branch.id,
+            branchName: branch.name,
+            addressId: address.id,
+            addressAlias: address.alias
+          });
+          
+          return res.status(409).json({
+            status: 'error',
+            message: 'Lo sentimos, tu dirección está fuera del área de entrega de esta sucursal',
+            code: 'OUT_OF_COVERAGE_AREA',
+            details: {
+              restaurant: branch.restaurant.name,
+              branch: branch.name,
+              address: `${address.street} ${address.exteriorNumber}, ${address.neighborhood}, ${address.city}`,
+              deliveryRadius: `${Number(branch.deliveryRadius).toFixed(2)} km`,
+              suggestion: 'Por favor, elige otra dirección o restaurante más cercano'
+            }
+          });
+        }
+        
+        console.log('✅ Dirección dentro del área de cobertura');
+      }
     }
 
     // 2. Si useCart es true, obtener items del carrito
@@ -706,6 +796,69 @@ const createCashOrder = async (req, res) => {
       street: address.street,
       neighborhood: address.neighborhood
     });
+
+    // 2.1. VALIDACIÓN DE COBERTURA TEMPRANA
+    // Obtener el primer producto para determinar la sucursal
+    if (!items || items.length === 0) {
+      console.log('❌ No se proporcionaron productos');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Debe proporcionar al menos un producto'
+      });
+    }
+
+    const firstProductId = items[0].productId;
+    const productForBranch = await prisma.product.findUnique({
+      where: { id: firstProductId },
+      select: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            branches: {
+              where: { status: 'active' },
+              select: {
+                id: true,
+                name: true,
+                latitude: true,
+                longitude: true,
+                deliveryRadius: true
+              },
+              take: 1
+            }
+          }
+        }
+      }
+    });
+
+    if (productForBranch?.restaurant?.branches?.[0]) {
+      const branch = productForBranch.restaurant.branches[0];
+      const isCovered = isWithinCoverage(branch, address);
+
+      if (!isCovered) {
+        console.log('❌ Dirección fuera del área de cobertura:', {
+          branchId: branch.id,
+          branchName: branch.name,
+          addressId: address.id,
+          addressAlias: address.alias
+        });
+
+        return res.status(409).json({
+          status: 'error',
+          message: 'Lo sentimos, tu dirección está fuera del área de entrega de esta sucursal',
+          code: 'OUT_OF_COVERAGE_AREA',
+          details: {
+            restaurant: productForBranch.restaurant.name,
+            branch: branch.name,
+            address: `${address.street} ${address.exteriorNumber}, ${address.neighborhood}, ${address.city}`,
+            deliveryRadius: `${Number(branch.deliveryRadius).toFixed(2)} km`,
+            suggestion: 'Por favor, elige otra dirección o restaurante más cercano'
+          }
+        });
+      }
+
+      console.log('✅ Dirección dentro del área de cobertura');
+    }
 
     // 3. Validar y obtener productos
     if (!items || items.length === 0) {

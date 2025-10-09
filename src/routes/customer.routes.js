@@ -2,11 +2,43 @@ const express = require('express');
 const { param, query, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { getDriverLocationForOrder, getCustomerOrders, getCustomerOrderDetails, createCustomerAddress, getCustomerAddresses, updateCustomerAddress, deleteCustomerAddress } = require('../controllers/customer.controller');
+const { checkAddressCoverage } = require('../controllers/coverage.controller');
 
 const router = express.Router();
 
 // Aplicar autenticación a todas las rutas de cliente
 router.use(authenticateToken);
+
+/**
+ * @route   POST /api/customer/check-coverage
+ * @desc    Verificar qué sucursales pueden entregar a una dirección específica
+ * @access  Private (Customer Only)
+ * @body    addressId - ID de la dirección a verificar
+ */
+router.post(
+  '/check-coverage',
+  requireRole(['customer']),
+  [
+    body('addressId')
+      .notEmpty()
+      .withMessage('El ID de la dirección es requerido')
+      .isInt({ min: 1 })
+      .withMessage('El ID de la dirección debe ser un número entero válido')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  checkAddressCoverage
+);
 
 /**
  * @route   GET /api/customer/orders/:orderId/location

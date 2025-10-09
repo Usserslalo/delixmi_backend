@@ -468,11 +468,11 @@ async function main() {
         deliveryFee: 20.00,
         estimatedDeliveryMin: 25,
         estimatedDeliveryMax: 35,
-        deliveryRadius: 5.0,
+        deliveryRadius: 8.0, // Radio de 8 km - Zona céntrica amplia
         status: 'active'
       }
     });
-    console.log('✅ Sucursal Centro creada');
+    console.log('✅ Sucursal Centro creada (Radio: 8 km)');
 
     const rioBranch = await prisma.branch.create({
       data: {
@@ -486,11 +486,11 @@ async function main() {
         deliveryFee: 0.00, // Envío gratis - sucursal 24 horas
         estimatedDeliveryMin: 20,
         estimatedDeliveryMax: 30,
-        deliveryRadius: 7.0,
+        deliveryRadius: 10.0, // Radio de 10 km - Zona periférica amplia (envío gratis)
         status: 'active'
       }
     });
-    console.log('✅ Sucursal Río creada');
+    console.log('✅ Sucursal Río creada (Radio: 10 km)');
 
     const fitzhiBranch = await prisma.branch.create({
       data: {
@@ -504,11 +504,11 @@ async function main() {
         deliveryFee: 30.00, // Repartidores propios
         estimatedDeliveryMin: 30,
         estimatedDeliveryMax: 45,
-        deliveryRadius: 3.0,
+        deliveryRadius: 5.0, // Radio de 5 km - Zona específica con repartidores propios
         status: 'active'
       }
     });
-    console.log('✅ Sucursal El Fitzhi creada');
+    console.log('✅ Sucursal El Fitzhi creada (Radio: 5 km)');
 
     const sushiBranch = await prisma.branch.create({
       data: {
@@ -522,11 +522,11 @@ async function main() {
         deliveryFee: 25.00,
         estimatedDeliveryMin: 30,
         estimatedDeliveryMax: 40,
-        deliveryRadius: 6.0,
+        deliveryRadius: 7.0, // Radio de 7 km - Zona premium sushi
         status: 'active'
       }
     });
-    console.log('✅ Sucursal Sushi creada');
+    console.log('✅ Sucursal Sushi creada (Radio: 7 km)');
 
     // 6.1. CREAR HORARIOS DE SUCURSALES
     console.log('⏰ Creando horarios de sucursales...');

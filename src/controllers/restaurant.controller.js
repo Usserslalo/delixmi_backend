@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { calculateDistance } = require('../services/geolocation.service');
 
 const prisma = new PrismaClient();
 
@@ -111,6 +112,8 @@ const getRestaurants = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize) || 10;
     const category = req.query.category; // Filtro por categoría
     const search = req.query.search;     // Búsqueda de texto
+    const userLat = req.query.lat ? parseFloat(req.query.lat) : null; // Latitud del usuario
+    const userLng = req.query.lng ? parseFloat(req.query.lng) : null; // Longitud del usuario
     
     // Validar parámetros
     if (page < 1) {
@@ -124,6 +127,28 @@ const getRestaurants = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'El tamaño de página debe estar entre 1 y 100'
+      });
+    }
+
+    // Validar coordenadas si se proporcionan
+    if ((userLat !== null && userLng === null) || (userLat === null && userLng !== null)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Debes proporcionar tanto latitud (lat) como longitud (lng)'
+      });
+    }
+
+    if (userLat !== null && (userLat < -90 || userLat > 90)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'La latitud debe estar entre -90 y 90'
+      });
+    }
+
+    if (userLng !== null && (userLng < -180 || userLng > 180)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'La longitud debe estar entre -180 y 180'
       });
     }
 
@@ -215,31 +240,75 @@ const getRestaurants = async (req, res) => {
     // Procesar restaurantes para añadir isOpen a cada sucursal Y al restaurante
     const processedRestaurants = restaurants.map(restaurant => {
       // Calcular isOpen para cada sucursal y convertir números
-      const branchesWithIsOpen = restaurant.branches.map(branch => ({
-        ...branch,
-        latitude: Number(branch.latitude),
-        longitude: Number(branch.longitude),
-        deliveryFee: Number(branch.deliveryFee),
-        deliveryRadius: Number(branch.deliveryRadius),
-        isOpen: calculateIsOpen(branch.schedule)
-      }));
+      const branchesWithIsOpen = restaurant.branches.map(branch => {
+        const branchData = {
+          ...branch,
+          latitude: Number(branch.latitude),
+          longitude: Number(branch.longitude),
+          deliveryFee: Number(branch.deliveryFee),
+          deliveryRadius: Number(branch.deliveryRadius),
+          isOpen: calculateIsOpen(branch.schedule)
+        };
+
+        // Si se proporcionaron coordenadas del usuario, calcular distancia
+        if (userLat !== null && userLng !== null) {
+          const distance = calculateDistance(
+            { lat: userLat, lng: userLng },
+            { lat: branchData.latitude, lng: branchData.longitude }
+          );
+          branchData.distance = Number(distance.toFixed(2));
+        } else {
+          branchData.distance = null;
+        }
+
+        return branchData;
+      });
       
       // Un restaurante está abierto si AL MENOS UNA sucursal está abierta
       const restaurantIsOpen = branchesWithIsOpen.some(branch => branch.isOpen);
+      
+      // Calcular distancia mínima del restaurante (a su sucursal más cercana)
+      let minDistance = null;
+      if (userLat !== null && userLng !== null && branchesWithIsOpen.length > 0) {
+        const distances = branchesWithIsOpen
+          .filter(branch => branch.distance !== null)
+          .map(branch => branch.distance);
+        
+        if (distances.length > 0) {
+          minDistance = Math.min(...distances);
+        }
+      }
       
       return {
         ...restaurant,
         rating: restaurant.rating ? Number(restaurant.rating) : 0,
         isOpen: restaurantIsOpen,
-        branches: branchesWithIsOpen
+        branches: branchesWithIsOpen,
+        minDistance: minDistance // Distancia a la sucursal más cercana
       };
     });
+
+    // Si se proporcionaron coordenadas, ordenar por distancia mínima
+    let sortedRestaurants = processedRestaurants;
+    if (userLat !== null && userLng !== null) {
+      sortedRestaurants = processedRestaurants.sort((a, b) => {
+        // Restaurantes sin distancia van al final
+        if (a.minDistance === null && b.minDistance === null) return 0;
+        if (a.minDistance === null) return 1;
+        if (b.minDistance === null) return -1;
+        
+        // Ordenar por distancia ascendente (más cercano primero)
+        return a.minDistance - b.minDistance;
+      });
+
+      console.log(`📍 Restaurantes ordenados por proximidad a (${userLat}, ${userLng})`);
+    }
 
     // Estructurar respuesta
     const response = {
       status: 'success',
       data: {
-        restaurants: processedRestaurants,
+        restaurants: sortedRestaurants,
         pagination: {
           totalRestaurants: totalRestaurants,
           currentPage: page,
@@ -247,7 +316,15 @@ const getRestaurants = async (req, res) => {
           totalPages: totalPages,
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1
-        }
+        },
+        // Incluir información de geolocalización si se usó
+        geolocation: userLat !== null && userLng !== null ? {
+          userLocation: {
+            latitude: userLat,
+            longitude: userLng
+          },
+          sortedByProximity: true
+        } : null
       }
     };
 
@@ -272,12 +349,36 @@ const getRestaurants = async (req, res) => {
 const getRestaurantById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userLat = req.query.lat ? parseFloat(req.query.lat) : null; // Latitud del usuario
+    const userLng = req.query.lng ? parseFloat(req.query.lng) : null; // Longitud del usuario
     
     // Validar que el ID sea un número
     if (isNaN(id)) {
       return res.status(400).json({
         status: 'error',
         message: 'El ID del restaurante debe ser un número válido'
+      });
+    }
+
+    // Validar coordenadas si se proporcionan
+    if ((userLat !== null && userLng === null) || (userLat === null && userLng !== null)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Debes proporcionar tanto latitud (lat) como longitud (lng)'
+      });
+    }
+
+    if (userLat !== null && (userLat < -90 || userLat > 90)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'La latitud debe estar entre -90 y 90'
+      });
+    }
+
+    if (userLng !== null && (userLng < -180 || userLng > 180)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'La longitud debe estar entre -180 y 180'
       });
     }
 
@@ -433,14 +534,29 @@ const getRestaurantById = async (req, res) => {
       .filter(category => category.subcategories.length > 0);
 
     // Procesar branches para añadir isOpen a cada sucursal y convertir números
-    const processedBranches = restaurant.branches.map(branch => ({
-      ...branch,
-      latitude: Number(branch.latitude),
-      longitude: Number(branch.longitude),
-      deliveryFee: Number(branch.deliveryFee),
-      deliveryRadius: Number(branch.deliveryRadius),
-      isOpen: calculateIsOpen(branch.schedule)
-    }));
+    const processedBranches = restaurant.branches.map(branch => {
+      const branchData = {
+        ...branch,
+        latitude: Number(branch.latitude),
+        longitude: Number(branch.longitude),
+        deliveryFee: Number(branch.deliveryFee),
+        deliveryRadius: Number(branch.deliveryRadius),
+        isOpen: calculateIsOpen(branch.schedule)
+      };
+
+      // Si se proporcionaron coordenadas del usuario, calcular distancia
+      if (userLat !== null && userLng !== null) {
+        const distance = calculateDistance(
+          { lat: userLat, lng: userLng },
+          { lat: branchData.latitude, lng: branchData.longitude }
+        );
+        branchData.distance = Number(distance.toFixed(2));
+      } else {
+        branchData.distance = null;
+      }
+
+      return branchData;
+    });
 
     // Un restaurante está abierto si AL MENOS UNA sucursal está abierta
     const restaurantIsOpen = processedBranches.some(branch => branch.isOpen);
@@ -457,7 +573,15 @@ const getRestaurantById = async (req, res) => {
     res.status(200).json({
       status: 'success',
       data: {
-        restaurant: restaurantWithMenu
+        restaurant: restaurantWithMenu,
+        // Incluir información de geolocalización si se usó
+        geolocation: userLat !== null && userLng !== null ? {
+          userLocation: {
+            latitude: userLat,
+            longitude: userLng
+          },
+          distanceCalculated: true
+        } : null
       }
     });
 
