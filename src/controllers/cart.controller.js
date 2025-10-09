@@ -198,7 +198,21 @@ const addToCart = async (req, res) => {
       });
     }
 
-    // 2. Verificar si el usuario ya tiene un carrito para este restaurante
+    // 2. Obtener grupos de modificadores asociados al producto
+    const productModifierGroups = await prisma.productModifier.findMany({
+      where: {
+        productId: productId
+      },
+      include: {
+        modifierGroup: {
+          include: {
+            options: true
+          }
+        }
+      }
+    });
+
+    // 3. Verificar si el usuario ya tiene un carrito para este restaurante
     let cart = await prisma.cart.findUnique({
       where: {
         userId_restaurantId: {
@@ -208,7 +222,7 @@ const addToCart = async (req, res) => {
       }
     });
 
-    // 3. Si no existe carrito, crear uno nuevo
+    // Si no existe carrito, crear uno nuevo
     if (!cart) {
       cart = await prisma.cart.create({
         data: {
@@ -255,10 +269,115 @@ const addToCart = async (req, res) => {
       totalModifierPrice = modifierOptions.reduce((sum, option) => sum + Number(option.price), 0);
     }
 
-    // 5. Calcular precio total del item
+    // 5. Validar que se cumplan los requisitos de selección de modificadores REQUERIDOS
+    const requiredGroups = productModifierGroups.filter(pg => pg.modifierGroup.minSelection > 0);
+    
+    if (requiredGroups.length > 0) {
+      // Agrupar modificadores seleccionados por grupo
+      const selectedModifiersByGroup = {};
+      modifierOptions.forEach(option => {
+        const groupId = option.modifierGroup.id;
+        if (!selectedModifiersByGroup[groupId]) {
+          selectedModifiersByGroup[groupId] = [];
+        }
+        selectedModifiersByGroup[groupId].push(option);
+      });
+
+      // Verificar cada grupo requerido
+      const missingGroups = [];
+      const invalidSelectionGroups = [];
+
+      for (const pg of requiredGroups) {
+        const groupId = pg.modifierGroup.id;
+        const groupName = pg.modifierGroup.name;
+        const minSelection = pg.modifierGroup.minSelection;
+        const maxSelection = pg.modifierGroup.maxSelection;
+        
+        const selectedCount = selectedModifiersByGroup[groupId]?.length || 0;
+
+        // Validar selección mínima
+        if (selectedCount < minSelection) {
+          missingGroups.push({
+            groupId: groupId,
+            groupName: groupName,
+            minRequired: minSelection,
+            maxAllowed: maxSelection,
+            selected: selectedCount
+          });
+        }
+
+        // Validar selección máxima
+        if (selectedCount > maxSelection) {
+          invalidSelectionGroups.push({
+            groupId: groupId,
+            groupName: groupName,
+            minRequired: minSelection,
+            maxAllowed: maxSelection,
+            selected: selectedCount
+          });
+        }
+      }
+
+      // Si hay grupos con selecciones faltantes o inválidas
+      if (missingGroups.length > 0 || invalidSelectionGroups.length > 0) {
+        const errorDetails = {
+          productId: productId,
+          productName: product.name,
+          errors: []
+        };
+
+        if (missingGroups.length > 0) {
+          errorDetails.errors.push({
+            type: 'MISSING_REQUIRED_MODIFIERS',
+            message: 'Faltan modificadores requeridos',
+            groups: missingGroups
+          });
+        }
+
+        if (invalidSelectionGroups.length > 0) {
+          errorDetails.errors.push({
+            type: 'INVALID_MODIFIER_SELECTION',
+            message: 'Selección de modificadores fuera de rango permitido',
+            groups: invalidSelectionGroups
+          });
+        }
+
+        return res.status(400).json({
+          status: 'error',
+          message: 'Este producto requiere que selecciones modificadores antes de agregarlo al carrito',
+          code: 'MODIFIERS_REQUIRED',
+          details: errorDetails
+        });
+      }
+    }
+
+    // 6. Validar que los modificadores seleccionados pertenecen a grupos del producto
+    if (modifierOptions.length > 0) {
+      const validGroupIds = productModifierGroups.map(pg => pg.modifierGroup.id);
+      const invalidModifiers = modifierOptions.filter(
+        option => !validGroupIds.includes(option.modifierGroup.id)
+      );
+
+      if (invalidModifiers.length > 0) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Algunos modificadores no pertenecen a este producto',
+          code: 'INVALID_PRODUCT_MODIFIERS',
+          details: {
+            invalidModifiers: invalidModifiers.map(m => ({
+              id: m.id,
+              name: m.name,
+              groupName: m.modifierGroup.name
+            }))
+          }
+        });
+      }
+    }
+
+    // 7. Calcular precio total del item
     const totalItemPrice = Number(product.price) + totalModifierPrice;
     
-    // 6. Verificar si ya existe un item idéntico en el carrito
+    // 8. Verificar si ya existe un item idéntico en el carrito
     // Para productos sin modificadores, buscamos solo por productId
     // Para productos con modificadores, necesitamos verificar que tengan exactamente los mismos modificadores
     let existingItem = null;
@@ -310,7 +429,7 @@ const addToCart = async (req, res) => {
     let action;
 
     if (existingItem) {
-      // 7a. Si existe item idéntico, actualizar cantidad
+      // 9a. Si existe item idéntico, actualizar cantidad
       cartItem = await prisma.cartItem.update({
         where: { id: existingItem.id },
         data: {
@@ -348,7 +467,7 @@ const addToCart = async (req, res) => {
       });
       action = 'quantity_updated';
     } else {
-      // 7b. Si no existe, crear nuevo item
+      // 9b. Si no existe, crear nuevo item
       cartItem = await prisma.cartItem.create({
         data: {
           cartId: cart.id,
@@ -387,7 +506,7 @@ const addToCart = async (req, res) => {
         }
       });
 
-      // 8. Crear registros de modificadores si existen
+      // 10. Crear registros de modificadores si existen
       if (modifierOptions.length > 0) {
         await prisma.cartItemModifier.createMany({
           data: modifierOptions.map(option => ({
@@ -433,7 +552,7 @@ const addToCart = async (req, res) => {
       action = 'item_added';
     }
 
-    // 9. Calcular subtotal
+    // 11. Calcular subtotal
     const subtotal = Number(cartItem.priceAtAdd) * cartItem.quantity;
 
     return res.status(action === 'item_added' ? 201 : 200).json({

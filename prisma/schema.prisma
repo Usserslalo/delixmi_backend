@@ -163,6 +163,7 @@ model Restaurant {
   ownerId        Int      @map("owner_id")
   name           String   @db.VarChar(150)
   description    String?  @db.Text
+  category       String?  @db.VarChar(50)
   logoUrl        String?  @map("logo_url") @db.VarChar(255)
   coverPhotoUrl  String?  @map("cover_photo_url") @db.VarChar(255)
   commissionRate Decimal  @default(10.00) @map("commission_rate") @db.Decimal(5, 2)
@@ -192,6 +193,10 @@ model Branch {
   longitude            Decimal  @db.Decimal(11, 8)
   phone                String?  @db.VarChar(20)
   usesPlatformDrivers  Boolean  @default(true) @map("uses_platform_drivers")
+  deliveryFee          Decimal  @default(25.00) @map("delivery_fee") @db.Decimal(10, 2)
+  estimatedDeliveryMin Int      @default(25) @map("estimated_delivery_min")
+  estimatedDeliveryMax Int      @default(35) @map("estimated_delivery_max")
+  deliveryRadius       Decimal  @default(5.0) @map("delivery_radius") @db.Decimal(5, 2)
   status               BranchStatus @default(active)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(6)

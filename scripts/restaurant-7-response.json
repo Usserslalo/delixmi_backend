@@ -1,0 +1,862 @@
+{
+  "status": "success",
+  "data": {
+    "restaurant": {
+      "id": 7,
+      "name": "Pizzería de Ana",
+      "description": "Las mejores pizzas artesanales de la región, con ingredientes frescos y locales.",
+      "category": "Pizzas",
+      "rating": 0,
+      "logoUrl": "https://example.com/logos/pizzeria-ana.jpg",
+      "coverPhotoUrl": "https://example.com/covers/pizzeria-ana-cover.jpg",
+      "createdAt": "2025-10-08T21:10:48.708Z",
+      "branches": [
+        {
+          "id": 13,
+          "name": "Sucursal Centro",
+          "address": "Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.",
+          "latitude": 20.484123,
+          "longitude": -99.216345,
+          "phone": "7711234567",
+          "usesPlatformDrivers": true,
+          "deliveryFee": 20,
+          "estimatedDeliveryMin": 25,
+          "estimatedDeliveryMax": 35,
+          "deliveryRadius": 5,
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "openingTime": "00:00:00",
+              "closingTime": "00:00:00",
+              "isClosed": true
+            },
+            {
+              "dayOfWeek": 1,
+              "openingTime": "09:00:00",
+              "closingTime": "22:00:00",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 2,
+              "openingTime": "09:00:00",
+              "closingTime": "22:00:00",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 3,
+              "openingTime": "09:00:00",
+              "closingTime": "22:00:00",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 4,
+              "openingTime": "09:00:00",
+              "closingTime": "22:00:00",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 5,
+              "openingTime": "09:00:00",
+              "closingTime": "22:00:00",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 6,
+              "openingTime": "11:00:00",
+              "closingTime": "23:00:00",
+              "isClosed": false
+            }
+          ],
+          "isOpen": true
+        },
+        {
+          "id": 14,
+          "name": "Sucursal Río",
+          "address": "Paseo del Roble 205, Barrio del Río, Ixmiquilpan, Hgo.",
+          "latitude": 20.47589,
+          "longitude": -99.225678,
+          "phone": "7717654321",
+          "usesPlatformDrivers": true,
+          "deliveryFee": 0,
+          "estimatedDeliveryMin": 20,
+          "estimatedDeliveryMax": 30,
+          "deliveryRadius": 7,
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 1,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 2,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 3,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 4,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 5,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 6,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            }
+          ],
+          "isOpen": true
+        },
+        {
+          "id": 15,
+          "name": "Sucursal El Fitzhi",
+          "address": "Calle Morelos 45, El Fitzhi, Ixmiquilpan, Hgo.",
+          "latitude": 20.492345,
+          "longitude": -99.208765,
+          "phone": "7719876543",
+          "usesPlatformDrivers": false,
+          "deliveryFee": 30,
+          "estimatedDeliveryMin": 30,
+          "estimatedDeliveryMax": 45,
+          "deliveryRadius": 3,
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 1,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 2,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 3,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 4,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 5,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            },
+            {
+              "dayOfWeek": 6,
+              "openingTime": "00:00:00",
+              "closingTime": "23:59:59",
+              "isClosed": false
+            }
+          ],
+          "isOpen": true
+        }
+      ],
+      "isOpen": true,
+      "menu": [
+        {
+          "id": 20,
+          "name": "Bebidas",
+          "subcategories": [
+            {
+              "id": 46,
+              "name": "Refrescos",
+              "displayOrder": 4,
+              "products": [
+                {
+                  "id": 57,
+                  "name": "Coca-Cola 600ml",
+                  "description": "Refresco de cola bien frío.",
+                  "imageUrl": "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=500&h=500&fit=crop",
+                  "price": 25,
+                  "modifierGroups": []
+                },
+                {
+                  "id": 58,
+                  "name": "Sprite 600ml",
+                  "description": "Refresco de lima-limón bien frío.",
+                  "imageUrl": "https://images.unsplash.com/photo-1625772452859-1c03d5bf1137?w=500&h=500&fit=crop",
+                  "price": 25,
+                  "modifierGroups": []
+                }
+              ]
+            },
+            {
+              "id": 47,
+              "name": "Aguas Frescas",
+              "displayOrder": 5,
+              "products": [
+                {
+                  "id": 59,
+                  "name": "Agua de Horchata",
+                  "description": "Agua fresca de horchata natural.",
+                  "imageUrl": "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=500&h=500&fit=crop",
+                  "price": 20,
+                  "modifierGroups": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "name": "Entradas",
+          "subcategories": [
+            {
+              "id": 49,
+              "name": "Aperitivos",
+              "displayOrder": 7,
+              "products": [
+                {
+                  "id": 60,
+                  "name": "Aros de Cebolla",
+                  "description": "Crujientes aros de cebolla empanizados.",
+                  "imageUrl": "https://images.unsplash.com/photo-1639024471283-03518883512d?w=500&h=500&fit=crop",
+                  "price": 45,
+                  "modifierGroups": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 19,
+          "name": "Pizzas",
+          "subcategories": [
+            {
+              "id": 43,
+              "name": "Pizzas Tradicionales",
+              "displayOrder": 1,
+              "products": [
+                {
+                  "id": 53,
+                  "name": "Pizza de Pepperoni",
+                  "description": "Generosa porción de pepperoni sobre nuestra salsa especial de la casa.",
+                  "imageUrl": "https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&h=500&fit=crop",
+                  "price": 145.5,
+                  "modifierGroups": [
+                    {
+                      "id": 16,
+                      "name": "Tamaño",
+                      "minSelection": 1,
+                      "maxSelection": 1,
+                      "required": true,
+                      "options": [
+                        {
+                          "id": 76,
+                          "name": "Personal (6 pulgadas)",
+                          "price": 0
+                        },
+                        {
+                          "id": 77,
+                          "name": "Mediana (10 pulgadas)",
+                          "price": 25
+                        },
+                        {
+                          "id": 78,
+                          "name": "Grande (12 pulgadas)",
+                          "price": 45
+                        },
+                        {
+                          "id": 79,
+                          "name": "Familiar (16 pulgadas)",
+                          "price": 70
+                        }
+                      ]
+                    },
+                    {
+                      "id": 17,
+                      "name": "Extras",
+                      "minSelection": 0,
+                      "maxSelection": 5,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 80,
+                          "name": "Extra Queso",
+                          "price": 15
+                        },
+                        {
+                          "id": 81,
+                          "name": "Extra Pepperoni",
+                          "price": 20
+                        },
+                        {
+                          "id": 82,
+                          "name": "Extra Champiñones",
+                          "price": 12
+                        },
+                        {
+                          "id": 83,
+                          "name": "Extra Aceitunas",
+                          "price": 10
+                        },
+                        {
+                          "id": 84,
+                          "name": "Extra Jalapeños",
+                          "price": 8
+                        },
+                        {
+                          "id": 85,
+                          "name": "Extra Cebolla",
+                          "price": 8
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "name": "Sin Ingredientes",
+                      "minSelection": 0,
+                      "maxSelection": 3,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 86,
+                          "name": "Sin Cebolla",
+                          "price": 0
+                        },
+                        {
+                          "id": 87,
+                          "name": "Sin Aceitunas",
+                          "price": 0
+                        },
+                        {
+                          "id": 88,
+                          "name": "Sin Jalapeños",
+                          "price": 0
+                        },
+                        {
+                          "id": 89,
+                          "name": "Sin Champiñones",
+                          "price": 0
+                        },
+                        {
+                          "id": 90,
+                          "name": "Sin Queso",
+                          "price": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 52,
+                  "name": "Pizza Hawaiana",
+                  "description": "La clásica pizza con jamón y piña fresca.",
+                  "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+                  "price": 150,
+                  "modifierGroups": [
+                    {
+                      "id": 16,
+                      "name": "Tamaño",
+                      "minSelection": 1,
+                      "maxSelection": 1,
+                      "required": true,
+                      "options": [
+                        {
+                          "id": 76,
+                          "name": "Personal (6 pulgadas)",
+                          "price": 0
+                        },
+                        {
+                          "id": 77,
+                          "name": "Mediana (10 pulgadas)",
+                          "price": 25
+                        },
+                        {
+                          "id": 78,
+                          "name": "Grande (12 pulgadas)",
+                          "price": 45
+                        },
+                        {
+                          "id": 79,
+                          "name": "Familiar (16 pulgadas)",
+                          "price": 70
+                        }
+                      ]
+                    },
+                    {
+                      "id": 17,
+                      "name": "Extras",
+                      "minSelection": 0,
+                      "maxSelection": 5,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 80,
+                          "name": "Extra Queso",
+                          "price": 15
+                        },
+                        {
+                          "id": 81,
+                          "name": "Extra Pepperoni",
+                          "price": 20
+                        },
+                        {
+                          "id": 82,
+                          "name": "Extra Champiñones",
+                          "price": 12
+                        },
+                        {
+                          "id": 83,
+                          "name": "Extra Aceitunas",
+                          "price": 10
+                        },
+                        {
+                          "id": 84,
+                          "name": "Extra Jalapeños",
+                          "price": 8
+                        },
+                        {
+                          "id": 85,
+                          "name": "Extra Cebolla",
+                          "price": 8
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "name": "Sin Ingredientes",
+                      "minSelection": 0,
+                      "maxSelection": 3,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 86,
+                          "name": "Sin Cebolla",
+                          "price": 0
+                        },
+                        {
+                          "id": 87,
+                          "name": "Sin Aceitunas",
+                          "price": 0
+                        },
+                        {
+                          "id": 88,
+                          "name": "Sin Jalapeños",
+                          "price": 0
+                        },
+                        {
+                          "id": 89,
+                          "name": "Sin Champiñones",
+                          "price": 0
+                        },
+                        {
+                          "id": 90,
+                          "name": "Sin Queso",
+                          "price": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 54,
+                  "name": "Pizza Margherita",
+                  "description": "Pizza clásica con mozzarella fresca, tomate y albahaca.",
+                  "imageUrl": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop",
+                  "price": 135,
+                  "modifierGroups": [
+                    {
+                      "id": 16,
+                      "name": "Tamaño",
+                      "minSelection": 1,
+                      "maxSelection": 1,
+                      "required": true,
+                      "options": [
+                        {
+                          "id": 76,
+                          "name": "Personal (6 pulgadas)",
+                          "price": 0
+                        },
+                        {
+                          "id": 77,
+                          "name": "Mediana (10 pulgadas)",
+                          "price": 25
+                        },
+                        {
+                          "id": 78,
+                          "name": "Grande (12 pulgadas)",
+                          "price": 45
+                        },
+                        {
+                          "id": 79,
+                          "name": "Familiar (16 pulgadas)",
+                          "price": 70
+                        }
+                      ]
+                    },
+                    {
+                      "id": 17,
+                      "name": "Extras",
+                      "minSelection": 0,
+                      "maxSelection": 5,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 80,
+                          "name": "Extra Queso",
+                          "price": 15
+                        },
+                        {
+                          "id": 81,
+                          "name": "Extra Pepperoni",
+                          "price": 20
+                        },
+                        {
+                          "id": 82,
+                          "name": "Extra Champiñones",
+                          "price": 12
+                        },
+                        {
+                          "id": 83,
+                          "name": "Extra Aceitunas",
+                          "price": 10
+                        },
+                        {
+                          "id": 84,
+                          "name": "Extra Jalapeños",
+                          "price": 8
+                        },
+                        {
+                          "id": 85,
+                          "name": "Extra Cebolla",
+                          "price": 8
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "name": "Sin Ingredientes",
+                      "minSelection": 0,
+                      "maxSelection": 3,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 86,
+                          "name": "Sin Cebolla",
+                          "price": 0
+                        },
+                        {
+                          "id": 87,
+                          "name": "Sin Aceitunas",
+                          "price": 0
+                        },
+                        {
+                          "id": 88,
+                          "name": "Sin Jalapeños",
+                          "price": 0
+                        },
+                        {
+                          "id": 89,
+                          "name": "Sin Champiñones",
+                          "price": 0
+                        },
+                        {
+                          "id": 90,
+                          "name": "Sin Queso",
+                          "price": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": 44,
+              "name": "Pizzas Gourmet",
+              "displayOrder": 2,
+              "products": [
+                {
+                  "id": 55,
+                  "name": "Pizza Quattro Stagioni",
+                  "description": "Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.",
+                  "imageUrl": "https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop",
+                  "price": 180,
+                  "modifierGroups": [
+                    {
+                      "id": 16,
+                      "name": "Tamaño",
+                      "minSelection": 1,
+                      "maxSelection": 1,
+                      "required": true,
+                      "options": [
+                        {
+                          "id": 76,
+                          "name": "Personal (6 pulgadas)",
+                          "price": 0
+                        },
+                        {
+                          "id": 77,
+                          "name": "Mediana (10 pulgadas)",
+                          "price": 25
+                        },
+                        {
+                          "id": 78,
+                          "name": "Grande (12 pulgadas)",
+                          "price": 45
+                        },
+                        {
+                          "id": 79,
+                          "name": "Familiar (16 pulgadas)",
+                          "price": 70
+                        }
+                      ]
+                    },
+                    {
+                      "id": 17,
+                      "name": "Extras",
+                      "minSelection": 0,
+                      "maxSelection": 5,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 80,
+                          "name": "Extra Queso",
+                          "price": 15
+                        },
+                        {
+                          "id": 81,
+                          "name": "Extra Pepperoni",
+                          "price": 20
+                        },
+                        {
+                          "id": 82,
+                          "name": "Extra Champiñones",
+                          "price": 12
+                        },
+                        {
+                          "id": 83,
+                          "name": "Extra Aceitunas",
+                          "price": 10
+                        },
+                        {
+                          "id": 84,
+                          "name": "Extra Jalapeños",
+                          "price": 8
+                        },
+                        {
+                          "id": 85,
+                          "name": "Extra Cebolla",
+                          "price": 8
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "name": "Sin Ingredientes",
+                      "minSelection": 0,
+                      "maxSelection": 3,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 86,
+                          "name": "Sin Cebolla",
+                          "price": 0
+                        },
+                        {
+                          "id": 87,
+                          "name": "Sin Aceitunas",
+                          "price": 0
+                        },
+                        {
+                          "id": 88,
+                          "name": "Sin Jalapeños",
+                          "price": 0
+                        },
+                        {
+                          "id": 89,
+                          "name": "Sin Champiñones",
+                          "price": 0
+                        },
+                        {
+                          "id": 90,
+                          "name": "Sin Queso",
+                          "price": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": 45,
+              "name": "Pizzas Vegetarianas",
+              "displayOrder": 3,
+              "products": [
+                {
+                  "id": 56,
+                  "name": "Pizza Vegetariana",
+                  "description": "Pizza con champiñones, pimientos, cebolla, aceitunas y queso de cabra.",
+                  "imageUrl": "https://images.unsplash.com/photo-1511689660979-10d2b1aada49?w=500&h=500&fit=crop",
+                  "price": 160,
+                  "modifierGroups": [
+                    {
+                      "id": 16,
+                      "name": "Tamaño",
+                      "minSelection": 1,
+                      "maxSelection": 1,
+                      "required": true,
+                      "options": [
+                        {
+                          "id": 76,
+                          "name": "Personal (6 pulgadas)",
+                          "price": 0
+                        },
+                        {
+                          "id": 77,
+                          "name": "Mediana (10 pulgadas)",
+                          "price": 25
+                        },
+                        {
+                          "id": 78,
+                          "name": "Grande (12 pulgadas)",
+                          "price": 45
+                        },
+                        {
+                          "id": 79,
+                          "name": "Familiar (16 pulgadas)",
+                          "price": 70
+                        }
+                      ]
+                    },
+                    {
+                      "id": 17,
+                      "name": "Extras",
+                      "minSelection": 0,
+                      "maxSelection": 5,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 80,
+                          "name": "Extra Queso",
+                          "price": 15
+                        },
+                        {
+                          "id": 81,
+                          "name": "Extra Pepperoni",
+                          "price": 20
+                        },
+                        {
+                          "id": 82,
+                          "name": "Extra Champiñones",
+                          "price": 12
+                        },
+                        {
+                          "id": 83,
+                          "name": "Extra Aceitunas",
+                          "price": 10
+                        },
+                        {
+                          "id": 84,
+                          "name": "Extra Jalapeños",
+                          "price": 8
+                        },
+                        {
+                          "id": 85,
+                          "name": "Extra Cebolla",
+                          "price": 8
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "name": "Sin Ingredientes",
+                      "minSelection": 0,
+                      "maxSelection": 3,
+                      "required": false,
+                      "options": [
+                        {
+                          "id": 86,
+                          "name": "Sin Cebolla",
+                          "price": 0
+                        },
+                        {
+                          "id": 87,
+                          "name": "Sin Aceitunas",
+                          "price": 0
+                        },
+                        {
+                          "id": 88,
+                          "name": "Sin Jalapeños",
+                          "price": 0
+                        },
+                        {
+                          "id": 89,
+                          "name": "Sin Champiñones",
+                          "price": 0
+                        },
+                        {
+                          "id": 90,
+                          "name": "Sin Queso",
+                          "price": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "name": "Postres",
+          "subcategories": [
+            {
+              "id": 51,
+              "name": "Pasteles",
+              "displayOrder": 9,
+              "products": [
+                {
+                  "id": 61,
+                  "name": "Tiramisú",
+                  "description": "Postre italiano con café, mascarpone y cacao.",
+                  "imageUrl": "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&h=500&fit=crop",
+                  "price": 55,
+                  "modifierGroups": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

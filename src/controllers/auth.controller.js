@@ -171,16 +171,29 @@ const login = async (req, res) => {
     // Buscar el usuario por email
     const user = await prisma.user.findUnique({
       where: { email },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        lastname: true,
+        email: true,
+        phone: true,
+        password: true,
+        status: true,
+        emailVerifiedAt: true,
+        phoneVerifiedAt: true,
+        createdAt: true,
+        updatedAt: true,
         userRoleAssignments: {
-          include: {
+          select: {
+            roleId: true,
             role: {
               select: {
-                id: true,
                 name: true,
                 displayName: true
               }
-            }
+            },
+            restaurantId: true,
+            branchId: true
           }
         }
       }
@@ -254,9 +267,14 @@ const login = async (req, res) => {
           name: user.name,
           lastname: user.lastname,
           email: user.email,
+          phone: user.phone,
           status: user.status,
+          emailVerifiedAt: user.emailVerifiedAt,
+          phoneVerifiedAt: user.phoneVerifiedAt,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
           roles: user.userRoleAssignments.map(assignment => ({
-            roleId: assignment.role.id,
+            roleId: assignment.roleId,
             roleName: assignment.role.name,
             roleDisplayName: assignment.role.displayName,
             restaurantId: assignment.restaurantId,
@@ -293,6 +311,165 @@ const getProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error al obtener perfil:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
+ * Controlador para actualizar el perfil del usuario autenticado
+ * PUT /api/auth/profile
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, lastname, phone } = req.body;
+
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    // Verificar si el teléfono ya está en uso por otro usuario
+    if (phone) {
+      const existingPhone = await prisma.user.findFirst({
+        where: {
+          phone: phone,
+          id: { not: userId }
+        }
+      });
+
+      if (existingPhone) {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Este número de teléfono ya está registrado por otro usuario',
+          code: 'PHONE_EXISTS'
+        });
+      }
+    }
+
+    // Preparar datos para actualizar
+    const updateData = {};
+    if (name) updateData.name = name.trim();
+    if (lastname) updateData.lastname = lastname.trim();
+    if (phone) updateData.phone = phone.trim();
+
+    // Actualizar el usuario
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        lastname: true,
+        email: true,
+        phone: true,
+        status: true,
+        emailVerifiedAt: true,
+        phoneVerifiedAt: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Perfil actualizado exitosamente',
+      data: {
+        user: updatedUser
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al actualizar perfil:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
+ * Controlador para cambiar la contraseña del usuario autenticado
+ * PUT /api/auth/change-password
+ */
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+
+    // Obtener el usuario con su contraseña actual
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+        name: true,
+        email: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Verificar la contraseña actual
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'La contraseña actual es incorrecta',
+        code: 'INVALID_CURRENT_PASSWORD'
+      });
+    }
+
+    // Hashear la nueva contraseña
+    const saltRounds = 12;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Actualizar la contraseña
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        updatedAt: new Date()
+      }
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Contraseña actualizada exitosamente',
+      data: {
+        userId: user.id,
+        updatedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al cambiar contraseña:', error);
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
@@ -1242,6 +1419,8 @@ module.exports = {
   register,
   login,
   getProfile,
+  updateProfile,
+  changePassword,
   logout,
   verifyToken,
   verifyEmail,

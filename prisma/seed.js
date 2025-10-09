@@ -429,9 +429,10 @@ async function main() {
       data: {
         ownerId: anaUser.id, // Ana García
         name: 'Pizzería de Ana',
+        category: 'Pizzas',
         description: 'Las mejores pizzas artesanales de la región, con ingredientes frescos y locales.',
-        logoUrl: 'https://example.com/logos/pizzeria-ana.jpg',
-        coverPhotoUrl: 'https://example.com/covers/pizzeria-ana-cover.jpg',
+        logoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
         commissionRate: 12.50,
         status: 'active'
       }
@@ -442,9 +443,10 @@ async function main() {
       data: {
         ownerId: kenjiUser.id, // Kenji Tanaka
         name: 'Sushi Master Kenji',
+        category: 'Sushi',
         description: 'Auténtico sushi japonés preparado por maestros sushiman con ingredientes frescos importados de Japón.',
-        logoUrl: 'https://example.com/logos/sushi-kenji.jpg',
-        coverPhotoUrl: 'https://example.com/covers/sushi-kenji-cover.jpg',
+        logoUrl: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?w=1200&h=400&fit=crop',
         commissionRate: 15.00,
         status: 'active'
       }
@@ -463,6 +465,10 @@ async function main() {
         longitude: -99.216345,
         phone: '7711234567',
         usesPlatformDrivers: true,
+        deliveryFee: 20.00,
+        estimatedDeliveryMin: 25,
+        estimatedDeliveryMax: 35,
+        deliveryRadius: 5.0,
         status: 'active'
       }
     });
@@ -477,6 +483,10 @@ async function main() {
         longitude: -99.225678,
         phone: '7717654321',
         usesPlatformDrivers: true,
+        deliveryFee: 0.00, // Envío gratis - sucursal 24 horas
+        estimatedDeliveryMin: 20,
+        estimatedDeliveryMax: 30,
+        deliveryRadius: 7.0,
         status: 'active'
       }
     });
@@ -491,6 +501,10 @@ async function main() {
         longitude: -99.208765,
         phone: '7719876543',
         usesPlatformDrivers: false,
+        deliveryFee: 30.00, // Repartidores propios
+        estimatedDeliveryMin: 30,
+        estimatedDeliveryMax: 45,
+        deliveryRadius: 3.0,
         status: 'active'
       }
     });
@@ -505,6 +519,10 @@ async function main() {
         longitude: -99.212345,
         phone: '7714567890',
         usesPlatformDrivers: true,
+        deliveryFee: 25.00,
+        estimatedDeliveryMin: 30,
+        estimatedDeliveryMax: 40,
+        deliveryRadius: 6.0,
         status: 'active'
       }
     });
@@ -513,19 +531,19 @@ async function main() {
     // 6.1. CREAR HORARIOS DE SUCURSALES
     console.log('⏰ Creando horarios de sucursales...');
     
-    // Horarios para Sucursal Centro (branchId: centroBranch.id) - Horario realista
+    // Horarios para Sucursal Centro (branchId: centroBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '00:00:00', isClosed: true }, // Domingo - Cerrado
-        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Lunes
-        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Martes
-        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Miércoles
-        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Jueves
-        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '09:00:00', closingTime: '22:00:00', isClosed: false }, // Viernes
-        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '11:00:00', closingTime: '23:00:00', isClosed: false }  // Sábado
+        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Domingo
+        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Lunes
+        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Martes
+        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Miércoles
+        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Jueves
+        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Viernes
+        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }  // Sábado
       ]
     });
-    console.log('✅ Horarios Sucursal Centro creados (horario realista)');
+    console.log('✅ Horarios Sucursal Centro creados (24 horas)');
 
     // Horarios para Sucursal Río (branchId: rioBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
@@ -555,19 +573,19 @@ async function main() {
     });
     console.log('✅ Horarios Sucursal El Fitzhi creados (24 horas)');
 
-    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - Horario realista
+    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - 24 horas
     await prisma.branchSchedule.createMany({
       data: [
-        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '12:00:00', closingTime: '21:00:00', isClosed: false }, // Domingo
-        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Lunes
-        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Martes
-        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Miércoles
-        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '11:30:00', closingTime: '22:30:00', isClosed: false }, // Jueves
-        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '11:30:00', closingTime: '23:00:00', isClosed: false }, // Viernes
-        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '12:00:00', closingTime: '23:30:00', isClosed: false }  // Sábado
+        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Domingo
+        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Lunes
+        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Martes
+        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Miércoles
+        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Jueves
+        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Viernes
+        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }  // Sábado
       ]
     });
-    console.log('✅ Horarios Sucursal Sushi creados (horario realista)');
+    console.log('✅ Horarios Sucursal Sushi creados (24 horas)');
 
     // 7. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -652,7 +670,7 @@ async function main() {
         name: 'Pizza Hawaiana',
         description: 'La clásica pizza con jamón y piña fresca.',
         price: 150.00,
-        imageUrl: 'https://example.com/products/hawaiana.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'pizza, jamon, pina'
       }
@@ -664,7 +682,7 @@ async function main() {
         name: 'Pizza de Pepperoni',
         description: 'Generosa porción de pepperoni sobre nuestra salsa especial de la casa.',
         price: 145.50,
-        imageUrl: 'https://example.com/products/pepperoni.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'pizza, pepperoni'
       }
@@ -676,7 +694,7 @@ async function main() {
         name: 'Pizza Margherita',
         description: 'Pizza clásica con mozzarella fresca, tomate y albahaca.',
         price: 135.00,
-        imageUrl: 'https://example.com/products/margherita.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'pizza, vegetariana, mozzarella'
       }
@@ -690,7 +708,7 @@ async function main() {
         name: 'Pizza Quattro Stagioni',
         description: 'Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.',
         price: 180.00,
-        imageUrl: 'https://example.com/products/quattro-stagioni.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'pizza, gourmet, jamon, champinones, aceitunas'
       }
@@ -704,7 +722,7 @@ async function main() {
         name: 'Pizza Vegetariana',
         description: 'Pizza con champiñones, pimientos, cebolla, aceitunas y queso de cabra.',
         price: 160.00,
-        imageUrl: 'https://example.com/products/vegetariana.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1511689660979-10d2b1aada49?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'pizza, vegetariana, champinones, pimientos, cebolla, aceitunas'
       }
@@ -718,7 +736,7 @@ async function main() {
         name: 'Coca-Cola 600ml',
         description: 'Refresco de cola bien frío.',
         price: 25.00,
-        imageUrl: 'https://example.com/products/coca-cola.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'bebida, refresco, cola'
       }
@@ -730,7 +748,7 @@ async function main() {
         name: 'Sprite 600ml',
         description: 'Refresco de lima-limón bien frío.',
         price: 25.00,
-        imageUrl: 'https://example.com/products/sprite.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1625772452859-1c03d5bf1137?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'bebida, refresco, lima, limon'
       }
@@ -744,7 +762,7 @@ async function main() {
         name: 'Agua de Horchata',
         description: 'Agua fresca de horchata natural.',
         price: 20.00,
-        imageUrl: 'https://example.com/products/horchata.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'bebida, agua, horchata, natural'
       }
@@ -758,7 +776,7 @@ async function main() {
         name: 'Aros de Cebolla',
         description: 'Crujientes aros de cebolla empanizados.',
         price: 45.00,
-        imageUrl: 'https://example.com/products/aros-cebolla.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1639024471283-03518883512d?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'aperitivo, cebolla, empanizado, frito'
       }
@@ -772,7 +790,7 @@ async function main() {
         name: 'Tiramisú',
         description: 'Postre italiano con café, mascarpone y cacao.',
         price: 55.00,
-        imageUrl: 'https://example.com/products/tiramisu.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'postre, italiano, cafe, mascarpone, cacao'
       }
@@ -786,7 +804,7 @@ async function main() {
         name: 'Nigiri de Salmón',
         description: 'Fresco salmón sobre arroz sazonado con vinagre de arroz.',
         price: 85.00,
-        imageUrl: 'https://example.com/products/salmon-nigiri.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sushi, salmon, nigiri, fresco'
       }
@@ -799,7 +817,7 @@ async function main() {
         name: 'Nigiri de Atún',
         description: 'Atún fresco de primera calidad sobre arroz sazonado.',
         price: 95.00,
-        imageUrl: 'https://example.com/products/tuna-nigiri.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sushi, atun, nigiri, premium'
       }
@@ -812,7 +830,7 @@ async function main() {
         name: 'California Roll',
         description: 'Roll clásico con cangrejo, aguacate y pepino, cubierto con hueva de pez volador.',
         price: 120.00,
-        imageUrl: 'https://example.com/products/california-roll.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sushi, roll, cangrejo, aguacate, pepino'
       }
@@ -825,7 +843,7 @@ async function main() {
         name: 'Dragon Roll',
         description: 'Roll con langostinos tempura y aguacate, cubierto con anguila y salsa teriyaki.',
         price: 150.00,
-        imageUrl: 'https://example.com/products/dragon-roll.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sushi, roll, langostino, tempura, aguacate, anguila'
       }
@@ -838,7 +856,7 @@ async function main() {
         name: 'Sashimi de Salmón',
         description: '5 piezas de salmón fresco cortado en láminas finas.',
         price: 110.00,
-        imageUrl: 'https://example.com/products/salmon-sashimi.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1580822184713-fc5400e7fe10?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sushi, sashimi, salmon, fresco, 5 piezas'
       }
@@ -851,7 +869,7 @@ async function main() {
         name: 'Tempura de Camarones',
         description: '6 camarones grandes empanizados con masa tempura crujiente.',
         price: 80.00,
-        imageUrl: 'https://example.com/products/shrimp-tempura.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1599921829015-4e4094c0d5e2?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'tempura, camarones, frito, crujiente, 6 piezas'
       }
@@ -864,7 +882,7 @@ async function main() {
         name: 'Sake Premium 180ml',
         description: 'Sake japonés premium de alta calidad, perfecto para acompañar el sushi.',
         price: 180.00,
-        imageUrl: 'https://example.com/products/sake-premium.jpg',
+        imageUrl: 'https://images.unsplash.com/photo-1551095353-aab14e736426?w=500&h=500&fit=crop',
         isAvailable: true,
         tags: 'sake, alcohol, japones, premium, 180ml'
       }

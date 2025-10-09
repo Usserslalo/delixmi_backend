@@ -32,7 +32,12 @@ const authenticateToken = async (req, res, next) => {
         name: true,
         lastname: true,
         email: true,
+        phone: true,
         status: true,
+        emailVerifiedAt: true,
+        phoneVerifiedAt: true,
+        createdAt: true,
+        updatedAt: true,
         userRoleAssignments: {
           select: {
             roleId: true,
@@ -72,7 +77,12 @@ const authenticateToken = async (req, res, next) => {
       name: user.name,
       lastname: user.lastname,
       email: user.email,
+      phone: user.phone,
       status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt,
+      phoneVerifiedAt: user.phoneVerifiedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       roles: user.userRoleAssignments.map(assignment => ({
         roleId: assignment.roleId,
         roleName: assignment.role.name,
@@ -163,7 +173,12 @@ const optionalAuth = async (req, res, next) => {
         name: true,
         lastname: true,
         email: true,
+        phone: true,
         status: true,
+        emailVerifiedAt: true,
+        phoneVerifiedAt: true,
+        createdAt: true,
+        updatedAt: true,
         userRoleAssignments: {
           select: {
             roleId: true,
@@ -186,7 +201,12 @@ const optionalAuth = async (req, res, next) => {
         name: user.name,
         lastname: user.lastname,
         email: user.email,
+        phone: user.phone,
         status: user.status,
+        emailVerifiedAt: user.emailVerifiedAt,
+        phoneVerifiedAt: user.phoneVerifiedAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
         roles: user.userRoleAssignments.map(assignment => ({
           roleId: assignment.roleId,
           roleName: assignment.role.name,

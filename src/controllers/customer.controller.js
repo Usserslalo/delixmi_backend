@@ -469,7 +469,8 @@ const getCustomerOrders = async (req, res) => {
               select: {
                 id: true,
                 name: true,
-                logoUrl: true
+                logoUrl: true,
+                coverPhotoUrl: true
               }
             }
           }
@@ -541,6 +542,7 @@ const getCustomerOrders = async (req, res) => {
         id: order.branch.restaurant.id,
         name: order.branch.restaurant.name,
         logoUrl: order.branch.restaurant.logoUrl,
+        coverPhotoUrl: order.branch.restaurant.coverPhotoUrl,
         branch: {
           id: order.branch.id,
           name: order.branch.name,
@@ -1426,7 +1428,8 @@ const getCustomerOrderDetails = async (req, res) => {
               select: {
                 id: true,
                 name: true,
-                logoUrl: true
+                logoUrl: true,
+                coverPhotoUrl: true
               }
             }
           }
@@ -1518,6 +1521,7 @@ const getCustomerOrderDetails = async (req, res) => {
         id: order.branch.restaurant.id,
         name: order.branch.restaurant.name,
         logoUrl: order.branch.restaurant.logoUrl,
+        coverPhotoUrl: order.branch.restaurant.coverPhotoUrl,
         branch: {
           id: order.branch.id,
           name: order.branch.name,

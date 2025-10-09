@@ -4,6 +4,8 @@ const {
   register, 
   login, 
   getProfile, 
+  updateProfile,
+  changePassword,
   logout, 
   verifyToken,
   verifyEmail,
@@ -107,6 +109,47 @@ const resetPasswordValidation = [
     .withMessage('La nueva contraseña no puede exceder 128 caracteres')
 ];
 
+// Validaciones para actualizar perfil
+const updateProfileValidation = [
+  body('name')
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('El nombre debe tener entre 2 y 100 caracteres')
+    .trim()
+    .escape(),
+  
+  body('lastname')
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('El apellido debe tener entre 2 y 100 caracteres')
+    .trim()
+    .escape(),
+  
+  body('phone')
+    .optional()
+    .isMobilePhone('es-MX')
+    .withMessage('Debe ser un número de teléfono válido')
+    .isLength({ min: 10, max: 20 })
+    .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
+];
+
+// Validaciones para cambiar contraseña
+const changePasswordValidation = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('La contraseña actual es requerida')
+    .isLength({ min: 1 })
+    .withMessage('La contraseña actual no puede estar vacía'),
+  
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('La nueva contraseña debe tener al menos 8 caracteres')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]/)
+    .withMessage('La nueva contraseña debe contener al menos: 1 letra minúscula, 1 mayúscula, 1 número y 1 carácter especial')
+    .isLength({ max: 128 })
+    .withMessage('La nueva contraseña no puede exceder 128 caracteres')
+];
+
 // Validaciones para verificación de teléfono - COMENTADO TEMPORALMENTE
 // const verifyPhoneValidation = [
 //   body('otp')
@@ -182,6 +225,20 @@ router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordValidation,
  * @access  Public
  */
 router.post('/reset-password', resetPasswordValidation, resetPassword);
+
+/**
+ * @route   PUT /api/auth/profile
+ * @desc    Actualizar perfil del usuario autenticado
+ * @access  Private
+ */
+router.put('/profile', authenticateToken, updateProfileValidation, updateProfile);
+
+/**
+ * @route   PUT /api/auth/change-password
+ * @desc    Cambiar contraseña del usuario autenticado
+ * @access  Private
+ */
+router.put('/change-password', authenticateToken, changePasswordValidation, changePassword);
 
 // ============================================================================
 // RUTAS DE VERIFICACIÓN POR TELÉFONO - COMENTADAS TEMPORALMENTE

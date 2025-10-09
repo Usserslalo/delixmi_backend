@@ -1,5 +1,5 @@
 const express = require('express');
-const { getRestaurants, getRestaurantById } = require('../controllers/restaurant.controller');
+const { getRestaurants, getRestaurantById, getProductById } = require('../controllers/restaurant.controller');
 
 const router = express.Router();
 
@@ -19,5 +19,14 @@ router.get('/', getRestaurants);
  * @params  id - ID del restaurante
  */
 router.get('/:id', getRestaurantById);
+
+/**
+ * @route   GET /api/restaurants/:restaurantId/products/:productId
+ * @desc    Obtener un producto específico con sus modificadores
+ * @access  Public
+ * @params  restaurantId - ID del restaurante
+ * @params  productId - ID del producto
+ */
+router.get('/:restaurantId/products/:productId', getProductById);
 
 module.exports = router;

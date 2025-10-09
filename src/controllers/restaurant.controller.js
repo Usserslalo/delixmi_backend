@@ -106,9 +106,11 @@ const calculateIsOpen = (schedule) => {
  */
 const getRestaurants = async (req, res) => {
   try {
-    // Obtener parámetros de paginación
+    // Obtener parámetros de paginación y filtros
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
+    const category = req.query.category; // Filtro por categoría
+    const search = req.query.search;     // Búsqueda de texto
     
     // Validar parámetros
     if (page < 1) {
@@ -128,18 +130,44 @@ const getRestaurants = async (req, res) => {
     // Calcular offset para la paginación
     const skip = (page - 1) * pageSize;
 
-    // Consultar restaurantes activos con paginación
+    // Construir filtros dinámicos
+    const where = {
+      status: 'active'
+    };
+    
+    // Filtro por categoría
+    if (category) {
+      where.category = category;
+    }
+    
+    // Filtro por búsqueda de texto
+    if (search) {
+      where.OR = [
+        {
+          name: {
+            contains: search
+          }
+        },
+        {
+          description: {
+            contains: search
+          }
+        }
+      ];
+    }
+
+    // Consultar restaurantes activos con paginación y filtros
     const [restaurants, totalRestaurants] = await Promise.all([
       prisma.restaurant.findMany({
-        where: {
-          status: 'active'
-        },
+        where: where,
         select: {
           id: true,
           name: true,
           description: true,
+          category: true,
           logoUrl: true,
           coverPhotoUrl: true,
+          rating: true,
           branches: {
             where: {
               status: 'active'
@@ -152,6 +180,10 @@ const getRestaurants = async (req, res) => {
               longitude: true,
               phone: true,
               usesPlatformDrivers: true,
+              deliveryFee: true,
+              estimatedDeliveryMin: true,
+              estimatedDeliveryMax: true,
+              deliveryRadius: true,
               schedule: {
                 select: {
                   dayOfWeek: true,
@@ -173,23 +205,35 @@ const getRestaurants = async (req, res) => {
         }
       }),
       prisma.restaurant.count({
-        where: {
-          status: 'active'
-        }
+        where: where
       })
     ]);
 
     // Calcular información de paginación
     const totalPages = Math.ceil(totalRestaurants / pageSize);
 
-    // Procesar restaurantes para añadir isOpen a cada sucursal
-    const processedRestaurants = restaurants.map(restaurant => ({
-      ...restaurant,
-      branches: restaurant.branches.map(branch => ({
+    // Procesar restaurantes para añadir isOpen a cada sucursal Y al restaurante
+    const processedRestaurants = restaurants.map(restaurant => {
+      // Calcular isOpen para cada sucursal y convertir números
+      const branchesWithIsOpen = restaurant.branches.map(branch => ({
         ...branch,
+        latitude: Number(branch.latitude),
+        longitude: Number(branch.longitude),
+        deliveryFee: Number(branch.deliveryFee),
+        deliveryRadius: Number(branch.deliveryRadius),
         isOpen: calculateIsOpen(branch.schedule)
-      }))
-    }));
+      }));
+      
+      // Un restaurante está abierto si AL MENOS UNA sucursal está abierta
+      const restaurantIsOpen = branchesWithIsOpen.some(branch => branch.isOpen);
+      
+      return {
+        ...restaurant,
+        rating: restaurant.rating ? Number(restaurant.rating) : 0,
+        isOpen: restaurantIsOpen,
+        branches: branchesWithIsOpen
+      };
+    });
 
     // Estructurar respuesta
     const response = {
@@ -247,6 +291,8 @@ const getRestaurantById = async (req, res) => {
         id: true,
         name: true,
         description: true,
+        category: true,
+        rating: true,
         logoUrl: true,
         coverPhotoUrl: true,
         createdAt: true,
@@ -262,6 +308,10 @@ const getRestaurantById = async (req, res) => {
             longitude: true,
             phone: true,
             usesPlatformDrivers: true,
+            deliveryFee: true,
+            estimatedDeliveryMin: true,
+            estimatedDeliveryMax: true,
+            deliveryRadius: true,
             schedule: {
               select: {
                 dayOfWeek: true,
@@ -285,7 +335,7 @@ const getRestaurantById = async (req, res) => {
       });
     }
 
-    // Obtener el menú completo del restaurante
+    // Obtener el menú completo del restaurante con modificadores
     const menu = await prisma.category.findMany({
       where: {
         subcategories: {
@@ -314,7 +364,29 @@ const getRestaurantById = async (req, res) => {
                 name: true,
                 description: true,
                 imageUrl: true,
-                price: true
+                price: true,
+                modifierGroups: {
+                  select: {
+                    modifierGroup: {
+                      select: {
+                        id: true,
+                        name: true,
+                        minSelection: true,
+                        maxSelection: true,
+                        options: {
+                          select: {
+                            id: true,
+                            name: true,
+                            price: true
+                          },
+                          orderBy: {
+                            createdAt: 'asc'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               },
               orderBy: {
                 name: 'asc'
@@ -331,25 +403,53 @@ const getRestaurantById = async (req, res) => {
       }
     });
 
-    // Filtrar categorías que tengan subcategorías con productos
+    // Filtrar categorías que tengan subcategorías con productos y formatear modificadores
     const filteredMenu = menu
       .map(category => ({
         ...category,
-        subcategories: category.subcategories.filter(subcategory => 
-          subcategory.products.length > 0
-        )
+        subcategories: category.subcategories
+          .filter(subcategory => subcategory.products.length > 0)
+          .map(subcategory => ({
+            ...subcategory,
+            products: subcategory.products.map(product => ({
+              ...product,
+              price: Number(product.price),
+              // Aplanar estructura de modifierGroups
+              modifierGroups: product.modifierGroups.map(pg => ({
+                id: pg.modifierGroup.id,
+                name: pg.modifierGroup.name,
+                minSelection: pg.modifierGroup.minSelection,
+                maxSelection: pg.modifierGroup.maxSelection,
+                required: pg.modifierGroup.minSelection > 0,
+                options: pg.modifierGroup.options.map(option => ({
+                  id: option.id,
+                  name: option.name,
+                  price: Number(option.price)
+                }))
+              }))
+            }))
+          }))
       }))
       .filter(category => category.subcategories.length > 0);
 
-    // Procesar branches para añadir isOpen a cada sucursal
+    // Procesar branches para añadir isOpen a cada sucursal y convertir números
     const processedBranches = restaurant.branches.map(branch => ({
       ...branch,
+      latitude: Number(branch.latitude),
+      longitude: Number(branch.longitude),
+      deliveryFee: Number(branch.deliveryFee),
+      deliveryRadius: Number(branch.deliveryRadius),
       isOpen: calculateIsOpen(branch.schedule)
     }));
+
+    // Un restaurante está abierto si AL MENOS UNA sucursal está abierta
+    const restaurantIsOpen = processedBranches.some(branch => branch.isOpen);
 
     // Agregar el menú y branches procesadas al objeto del restaurante
     const restaurantWithMenu = {
       ...restaurant,
+      rating: restaurant.rating ? Number(restaurant.rating) : 0,
+      isOpen: restaurantIsOpen,
       branches: processedBranches,
       menu: filteredMenu
     };
@@ -372,7 +472,134 @@ const getRestaurantById = async (req, res) => {
   }
 };
 
+/**
+ * Controlador para obtener un producto específico con sus modificadores
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getProductById = async (req, res) => {
+  try {
+    const { restaurantId, productId } = req.params;
+    
+    // Validar que los IDs sean números
+    if (isNaN(restaurantId) || isNaN(productId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Los IDs deben ser números válidos'
+      });
+    }
+
+    // Obtener el producto con sus modificadores
+    const product = await prisma.product.findFirst({
+      where: {
+        id: parseInt(productId),
+        restaurantId: parseInt(restaurantId),
+        isAvailable: true
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        price: true,
+        tags: true,
+        subcategory: {
+          select: {
+            id: true,
+            name: true,
+            category: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            status: true
+          }
+        },
+        modifierGroups: {
+          select: {
+            modifierGroup: {
+              select: {
+                id: true,
+                name: true,
+                minSelection: true,
+                maxSelection: true,
+                options: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true
+                  },
+                  orderBy: {
+                    createdAt: 'asc'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Producto no encontrado o no está disponible'
+      });
+    }
+
+    // Verificar que el restaurante esté activo
+    if (product.restaurant.status !== 'active') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'El restaurante no está activo'
+      });
+    }
+
+    // Formatear modificadores
+    const formattedProduct = {
+      ...product,
+      price: Number(product.price),
+      modifierGroups: product.modifierGroups.map(pg => ({
+        id: pg.modifierGroup.id,
+        name: pg.modifierGroup.name,
+        minSelection: pg.modifierGroup.minSelection,
+        maxSelection: pg.modifierGroup.maxSelection,
+        required: pg.modifierGroup.minSelection > 0,
+        options: pg.modifierGroup.options.map(option => ({
+          id: option.id,
+          name: option.name,
+          price: Number(option.price)
+        }))
+      }))
+    };
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        product: formattedProduct
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener producto por ID:', error);
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener el producto',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getRestaurants,
-  getRestaurantById
+  getRestaurantById,
+  getProductById
 };
