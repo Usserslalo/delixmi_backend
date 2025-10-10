@@ -94,9 +94,9 @@ const calculateDistance = async (originCoords, destinationCoords) => {
  * @returns {Object} - Objeto con la tarifa calculada y detalles
  */
 const calculateDeliveryFee = (distanceInKm) => {
-  const tarifaBase = 15.00; // Tarifa base en MXN
-  const costoPorKm = 5.00; // Costo por kilómetro en MXN
-  const tarifaMinima = 20.00; // Tarifa mínima en MXN
+  const tarifaBase = parseFloat(process.env.DELIVERY_BASE_FEE || '15.00'); // Tarifa base en MXN
+  const costoPorKm = parseFloat(process.env.DELIVERY_COST_PER_KM || '5.00'); // Costo por kilómetro en MXN
+  const tarifaMinima = parseFloat(process.env.DELIVERY_MIN_FEE || '20.00'); // Tarifa mínima en MXN
 
   // Calcular tarifa basada en distancia
   const tarifaCalculada = tarifaBase + (distanceInKm * costoPorKm);

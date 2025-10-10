@@ -2,7 +2,12 @@
 const { PrismaClient } = require('@prisma/client');
 
 // Configuración de la URL de conexión
-const DATABASE_URL = process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/delixmi';
+const DATABASE_URL = process.env.DATABASE_URL;
+
+// Validar que DATABASE_URL esté configurada
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL no está configurada en las variables de entorno');
+}
 
 // Crear instancia de Prisma
 const prisma = new PrismaClient({
