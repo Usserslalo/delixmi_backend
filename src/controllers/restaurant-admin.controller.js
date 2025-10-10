@@ -2373,12 +2373,64 @@ const deleteProduct = async (req, res) => {
       });
     }
 
-    // 4. Eliminar el producto
+    // 4. Verificar si el producto tiene pedidos asociados (con detalles)
+    const orderItems = await prisma.orderItem.findMany({
+      where: { productId: productIdNum },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            createdAt: true,
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      },
+      take: 5 // Mostrar máximo 5 pedidos
+    });
+
+    if (orderItems.length > 0) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'No se puede eliminar el producto porque está asociado a pedidos existentes',
+        code: 'PRODUCT_IN_USE',
+        details: {
+          ordersCount: orderItems.length,
+          productId: productIdNum,
+          productName: existingProduct.name,
+          orders: orderItems.map(item => ({
+            orderId: item.order.id,
+            orderNumber: item.order.orderNumber,
+            status: item.order.status,
+            customerName: item.order.customer.name,
+            date: item.order.createdAt
+          }))
+        },
+        suggestion: 'Considera marcar el producto como no disponible en lugar de eliminarlo. Usa: PATCH /api/restaurant/products/' + productIdNum + ' con { "isAvailable": false }',
+        devNote: process.env.NODE_ENV === 'development' 
+          ? 'Si estos son pedidos de prueba del seed, reinicia la base de datos con: npx prisma migrate reset' 
+          : undefined
+      });
+    }
+
+    // 5. Eliminar asociaciones con modificadores primero (ProductModifier)
+    await prisma.productModifier.deleteMany({
+      where: { productId: productIdNum }
+    });
+
+    // 6. Eliminar el producto
     await prisma.product.delete({
       where: { id: productIdNum }
     });
 
-    // 5. Respuesta exitosa
+    // 7. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Producto eliminado exitosamente',
@@ -2388,23 +2440,14 @@ const deleteProduct = async (req, res) => {
           name: existingProduct.name,
           restaurantId: existingProduct.restaurantId,
           restaurantName: existingProduct.restaurant.name,
-          subcategoryName: existingProduct.subcategory.name
+          subcategoryName: existingProduct.subcategory.name,
+          deletedAt: new Date().toISOString()
         }
       }
     });
 
   } catch (error) {
     console.error('Error eliminando producto:', error);
-    
-    // Manejar error de foreign key constraint (si hay pedidos que referencian este producto)
-    if (error.code === 'P2003') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar el producto porque está asociado a pedidos existentes',
-        code: 'PRODUCT_IN_USE',
-        suggestion: 'Considera marcar el producto como no disponible en lugar de eliminarlo'
-      });
-    }
 
     res.status(500).json({
       status: 'error',
