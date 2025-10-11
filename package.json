@@ -9,6 +9,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
+    "build": "npm install && npx prisma migrate deploy && npx prisma generate",
     "dev": "nodemon src/server.js",
     "seed": "node scripts/seed-database.js",
     "seed:prisma": "node prisma/seed.js",
