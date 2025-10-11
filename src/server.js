@@ -9,8 +9,46 @@ const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
+// Configuración de CORS para aplicaciones móviles y web
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir peticiones sin origen (apps móviles, Postman, herramientas de testing)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Whitelist de orígenes permitidos
+    const whitelist = [
+      process.env.FRONTEND_URL,           // URL del frontend en producción
+      'http://localhost:3000',            // Desarrollo local
+      'http://localhost:3001',            // Desarrollo local alternativo
+      'http://127.0.0.1:3000',           // Desarrollo local (IP)
+      'http://127.0.0.1:3001'            // Desarrollo local alternativo (IP)
+    ].filter(Boolean); // Filtrar valores undefined/null
+    
+    // Verificar si el origen está en la whitelist
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Permitir otros orígenes en desarrollo, bloquear en producción
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(`⚠️ Origen no permitido bloqueado: ${origin}`);
+        callback(new Error('No permitido por CORS'));
+      } else {
+        console.log(`✅ Origen permitido en desarrollo: ${origin}`);
+        callback(null, true);
+      }
+    }
+  },
+  credentials: true, // Permitir cookies y headers de autenticación
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // Cache preflight requests por 24 horas
+};
+
 // Middleware básico
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
