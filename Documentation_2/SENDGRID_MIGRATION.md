@@ -124,16 +124,23 @@ try {
 
 #### **Variables ANTIGUAS (Ya no se usan):**
 ```bash
-EMAIL_USER=tu_email@gmail.com        # ❌ OBSOLETA
-EMAIL_PASS=tu_app_password_gmail     # ❌ OBSOLETA
+EMAIL_USER=tu_email@gmail.com        # ❌ OBSOLETA - Eliminar
+EMAIL_PASS=tu_app_password_gmail     # ❌ OBSOLETA - Eliminar
 ```
 
 #### **Variables NUEVAS (Requeridas):**
 ```bash
-# SendGrid Configuration
+# SendGrid Configuration - OBLIGATORIAS
 SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SENDGRID_FROM_EMAIL=noreply@tudominio.com
+
+# Nota: SENDGRID_FROM_EMAIL debe ser un email verificado en SendGrid
 ```
+
+**⚠️ IMPORTANTE:** 
+- El email en `SENDGRID_FROM_EMAIL` **DEBE** estar verificado en SendGrid
+- Si no está verificado, todos los emails fallarán
+- Puedes usar el valor por defecto `noreply@delixmi.com` solo si has verificado ese dominio
 
 ### Cómo Obtener las Credenciales de SendGrid
 
@@ -384,16 +391,20 @@ SENDGRID_FROM_EMAIL
 - [x] ✅ Modificar `src/config/email.js` para usar SendGrid
 - [x] ✅ Actualizar campo `from` en todas las funciones de email
 - [x] ✅ Corregir flujo de registro para manejar errores de email
+- [x] ✅ Limpiar logs de debugging innecesarios
+- [x] ✅ Eliminar referencias a deep links en código
 - [ ] ⬜ Obtener API Key de SendGrid
 - [ ] ⬜ Verificar dominio o email del remitente en SendGrid
 - [ ] ⬜ Configurar `SENDGRID_API_KEY` en Render
 - [ ] ⬜ Configurar `SENDGRID_FROM_EMAIL` en Render
+- [ ] ⬜ Eliminar variables antiguas `EMAIL_USER` y `EMAIL_PASS` en Render (opcional)
 - [ ] ⬜ Desplegar cambios a producción
 - [ ] ⬜ Probar registro de usuario
 - [ ] ⬜ Probar forgot password
 - [ ] ⬜ Probar reenvío de verificación
 - [ ] ⬜ Verificar que los emails llegan correctamente
 - [ ] ⬜ Revisar métricas en SendGrid Dashboard
+- [ ] ⬜ Confirmar que no hay errores en los logs
 
 ---
 

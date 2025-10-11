@@ -38,37 +38,14 @@ const createTransporter = async () => {
 // Función para enviar email de verificación
 const sendVerificationEmail = async (email, name, verificationToken) => {
   try {
-    console.log('🔍 DEBUG: Iniciando sendVerificationEmail');
-    console.log('🔍 DEBUG: email recibido:', email);
-    console.log('🔍 DEBUG: name recibido:', name);
-    console.log('🔍 DEBUG: verificationToken recibido:', verificationToken);
-    console.log('🔍 DEBUG: verificationToken tipo:', typeof verificationToken);
-    console.log('🔍 DEBUG: verificationToken longitud:', verificationToken ? verificationToken.length : 'undefined');
+    console.log('📧 Iniciando envío de email de verificación a:', email);
     
     const transporter = await createTransporter();
     
-    // Generar deep link para la app móvil
-    const deepLinkUrl = `delixmi://verify-email?token=${verificationToken}`;
-    
-    // Generar enlace web de respaldo
+    // Generar enlace web de verificación
     const webUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
     
-    // Log para debugging
-    console.log('🔗 URLs generadas para verificación de email:');
-    console.log('📱 Deep Link:', deepLinkUrl);
-    console.log('🌐 Web URL:', webUrl);
-    console.log('🔍 FRONTEND_URL configurado:', process.env.FRONTEND_URL || 'NO CONFIGURADO (usando localhost:3000)');
-    
-    // Verificar que las URLs se generaron correctamente
-    if (!deepLinkUrl.includes('delixmi://')) {
-      console.error('❌ ERROR: Deep link no se generó correctamente');
-      throw new Error('Deep link no se generó correctamente');
-    }
-    
-    if (!webUrl.includes('http')) {
-      console.error('❌ ERROR: Web URL no se generó correctamente');
-      throw new Error('Web URL no se generó correctamente');
-    }
+    console.log('🔗 URL de verificación generada para:', email);
     
     const htmlContent = `
         <!DOCTYPE html>
@@ -211,24 +188,11 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
         </html>
       `;
 
-    // Verificar que el HTML contenga los enlaces correctos
-    console.log('🔍 DEBUG: Verificando HTML generado...');
-    console.log('🔍 DEBUG: ¿Contiene deep link?', htmlContent.includes(deepLinkUrl));
-    console.log('🔍 DEBUG: ¿Contiene web URL?', htmlContent.includes(webUrl));
-    console.log('🔍 DEBUG: ¿Contiene href delixmi?', htmlContent.includes('href="delixmi://'));
-    
-    // Mostrar una muestra del HTML generado
-    const buttonSection = htmlContent.match(/<a href="delixmi:.*?<\/a>/s);
-    if (buttonSection) {
-      console.log('🔍 DEBUG: Sección del botón encontrada:');
-      console.log(buttonSection[0]);
-    } else {
-      console.error('❌ ERROR: No se encontró la sección del botón en el HTML');
-    }
-    
-    // Verificar que no haya variables sin reemplazar
+    // Verificar que las variables se hayan reemplazado correctamente
     if (htmlContent.includes('${')) {
       console.error('❌ ERROR: HTML contiene variables sin reemplazar:', htmlContent.match(/\$\{[^}]+\}/g));
+    } else {
+      console.log('✅ Email de verificación: HTML generado correctamente');
     }
 
     const mailOptions = {
@@ -241,18 +205,14 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
         
         Hola ${name},
         
-        Gracias por registrarte en Delixmi. Para completar tu registro y activar tu cuenta, puedes usar cualquiera de estas opciones:
+        Gracias por registrarte en Delixmi. Para completar tu registro y activar tu cuenta, haz clic en el siguiente enlace:
         
-        📱 DEEP LINK (para la app móvil):
-        ${deepLinkUrl}
-        
-        🌐 ENLACE WEB (para navegador):
+        🌐 ENLACE DE VERIFICACIÓN:
         ${webUrl}
         
         INSTRUCCIONES:
-        - Haz clic en el enlace web de arriba
-        - Si tienes la app instalada: Se abrirá automáticamente
-        - Si no tienes la app: Continuarás en el navegador web
+        - Haz clic en el enlace de arriba
+        - Serás redirigido a la página de verificación
         - El enlace expirará en 1 hora por seguridad
         
         Una vez verificado, podrás:
@@ -267,20 +227,12 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
       `
     };
 
-    console.log('🔍 DEBUG: Enviando email...');
-    console.log('🔍 DEBUG: mailOptions.from:', mailOptions.from);
-    console.log('🔍 DEBUG: mailOptions.to:', mailOptions.to);
-    console.log('🔍 DEBUG: mailOptions.subject:', mailOptions.subject);
-    console.log('🔍 DEBUG: mailOptions.html longitud:', mailOptions.html.length);
-    
     const info = await transporter.sendMail(mailOptions);
     
     console.log('✅ Email de verificación enviado exitosamente:');
     console.log('📧 messageId:', info.messageId);
     console.log('📧 to:', email);
     console.log('📧 from:', process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com');
-    console.log('📧 deepLinkUsed:', deepLinkUrl);
-    console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
@@ -454,37 +406,14 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
 // Función para enviar email de restablecimiento de contraseña
 const sendPasswordResetEmail = async (email, name, resetToken) => {
   try {
-    console.log('🔍 DEBUG: Iniciando sendPasswordResetEmail');
-    console.log('🔍 DEBUG: email recibido:', email);
-    console.log('🔍 DEBUG: name recibido:', name);
-    console.log('🔍 DEBUG: resetToken recibido:', resetToken);
-    console.log('🔍 DEBUG: resetToken tipo:', typeof resetToken);
-    console.log('🔍 DEBUG: resetToken longitud:', resetToken ? resetToken.length : 'undefined');
+    console.log('📧 Iniciando envío de email de reset password a:', email);
     
     const transporter = await createTransporter();
     
-    // Generar deep link para la app móvil
-    const deepLinkUrl = `delixmi://reset-password?token=${resetToken}`;
-    
-    // Generar enlace web de respaldo
+    // Generar enlace web para reset de contraseña
     const webUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
     
-    // Log para debugging
-    console.log('🔗 URLs generadas para reset password:');
-    console.log('📱 Deep Link:', deepLinkUrl);
-    console.log('🌐 Web URL:', webUrl);
-    console.log('🔍 FRONTEND_URL configurado:', process.env.FRONTEND_URL || 'NO CONFIGURADO (usando localhost:3000)');
-    
-    // Verificar que las URLs se generaron correctamente
-    if (!deepLinkUrl.includes('delixmi://')) {
-      console.error('❌ ERROR: Deep link no se generó correctamente');
-      throw new Error('Deep link no se generó correctamente');
-    }
-    
-    if (!webUrl.includes('http')) {
-      console.error('❌ ERROR: Web URL no se generó correctamente');
-      throw new Error('Web URL no se generó correctamente');
-    }
+    console.log('🔗 URL de reset password generada para:', email);
     
     // Generar el HTML del email
     const htmlContent = `
@@ -639,24 +568,11 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
         </html>
       `;
 
-    // Verificar que el HTML contenga los enlaces correctos
-    console.log('🔍 DEBUG: Verificando HTML generado...');
-    console.log('🔍 DEBUG: ¿Contiene deep link?', htmlContent.includes(deepLinkUrl));
-    console.log('🔍 DEBUG: ¿Contiene web URL?', htmlContent.includes(webUrl));
-    console.log('🔍 DEBUG: ¿Contiene href delixmi?', htmlContent.includes('href="delixmi://'));
-    
-    // Mostrar una muestra del HTML generado
-    const buttonSection = htmlContent.match(/<a href="delixmi:.*?<\/a>/s);
-    if (buttonSection) {
-      console.log('🔍 DEBUG: Sección del botón encontrada:');
-      console.log(buttonSection[0]);
-    } else {
-      console.error('❌ ERROR: No se encontró la sección del botón en el HTML');
-    }
-    
-    // Verificar que no haya variables sin reemplazar
+    // Verificar que las variables se hayan reemplazado correctamente
     if (htmlContent.includes('${')) {
       console.error('❌ ERROR: HTML contiene variables sin reemplazar:', htmlContent.match(/\$\{[^}]+\}/g));
+    } else {
+      console.log('✅ Email de reset password: HTML generado correctamente');
     }
 
     const mailOptions = {
@@ -671,18 +587,14 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
         
         Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en Delixmi.
         
-        Si solicitaste este cambio, puedes usar cualquiera de estas opciones:
+        Si solicitaste este cambio, haz clic en el siguiente enlace:
         
-        📱 DEEP LINK (para la app móvil):
-        ${deepLinkUrl}
-        
-        🌐 ENLACE WEB (para navegador):
+        🌐 ENLACE DE RESTABLECIMIENTO:
         ${webUrl}
         
         INSTRUCCIONES:
-        - Haz clic en el enlace web de arriba
-        - Si tienes la app instalada: Se abrirá automáticamente
-        - Si no tienes la app: Continuarás en el navegador web
+        - Haz clic en el enlace de arriba
+        - Serás redirigido a la página de restablecimiento
         - El enlace expirará en 15 minutos por seguridad
         
         Si no solicitaste este cambio de contraseña, puedes ignorar este correo. Tu cuenta permanecerá segura.
@@ -691,20 +603,12 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
       `
     };
 
-    console.log('🔍 DEBUG: Enviando email...');
-    console.log('🔍 DEBUG: mailOptions.from:', mailOptions.from);
-    console.log('🔍 DEBUG: mailOptions.to:', mailOptions.to);
-    console.log('🔍 DEBUG: mailOptions.subject:', mailOptions.subject);
-    console.log('🔍 DEBUG: mailOptions.html longitud:', mailOptions.html.length);
-    
     const info = await transporter.sendMail(mailOptions);
     
     console.log('✅ Email de restablecimiento de contraseña enviado exitosamente:');
     console.log('📧 messageId:', info.messageId);
     console.log('📧 to:', email);
     console.log('📧 from:', process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com');
-    console.log('📧 deepLinkUsed:', deepLinkUrl);
-    console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
