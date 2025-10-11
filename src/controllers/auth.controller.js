@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
-const { validationResult } = require('express-validator');
 const { sendVerificationEmail, sendResendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
 const { sendOtpSms, isValidPhoneNumber } = require('../config/sms');
 
@@ -14,16 +13,7 @@ const prisma = new PrismaClient();
  */
 const register = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { name, lastname, email, phone, password } = req.body;
 
     // Verificar si el usuario ya existe
@@ -40,9 +30,11 @@ const register = async (req, res) => {
       const conflictField = existingUser.email === email ? 'email' : 'phone';
       return res.status(409).json({
         status: 'error',
-        message: `Ya existe un usuario con este ${conflictField === 'email' ? 'correo electrónico' : 'teléfono'}`,
+        message: conflictField === 'email' 
+          ? 'El correo electrónico ya está en uso' 
+          : 'El número de teléfono ya está en uso',
         code: 'USER_EXISTS',
-        field: conflictField
+        data: null
       });
     }
 
@@ -145,7 +137,8 @@ const register = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -156,16 +149,7 @@ const register = async (req, res) => {
  */
 const login = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { email, password } = req.body;
 
     // Buscar el usuario por email
@@ -200,10 +184,11 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({
+      return res.status(401).json({
         status: 'error',
-        message: 'Usuario no encontrado',
-        code: 'USER_NOT_FOUND'
+        message: 'Credenciales incorrectas',
+        code: 'INVALID_CREDENTIALS',
+        data: null
       });
     }
 
@@ -212,8 +197,9 @@ const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         status: 'error',
-        message: 'Credenciales inválidas',
-        code: 'INVALID_CREDENTIALS'
+        message: 'Credenciales incorrectas',
+        code: 'INVALID_CREDENTIALS',
+        data: null
       });
     }
 
@@ -223,7 +209,7 @@ const login = async (req, res) => {
         status: 'error',
         message: 'Cuenta no verificada. Por favor, verifica tu correo electrónico.',
         code: 'ACCOUNT_NOT_VERIFIED',
-        userStatus: user.status
+        data: null
       });
     }
 
@@ -234,7 +220,8 @@ const login = async (req, res) => {
       return res.status(500).json({
         status: 'error',
         message: 'Error de configuración: usuario sin roles asignados',
-        code: 'NO_ROLES_ASSIGNED'
+        code: 'NO_ROLES_ASSIGNED',
+        data: null
       });
     }
 
@@ -290,7 +277,8 @@ const login = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -314,7 +302,8 @@ const getProfile = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -326,17 +315,8 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+    // Los datos ya están validados por Zod
     const { name, lastname, phone } = req.body;
-
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
 
     // Verificar si el teléfono ya está en uso por otro usuario
     if (phone) {
@@ -351,7 +331,8 @@ const updateProfile = async (req, res) => {
         return res.status(409).json({
           status: 'error',
           message: 'Este número de teléfono ya está registrado por otro usuario',
-          code: 'PHONE_EXISTS'
+          code: 'PHONE_EXISTS',
+          data: null
         });
       }
     }
@@ -393,7 +374,8 @@ const updateProfile = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -405,17 +387,8 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   try {
     const userId = req.user.id;
+    // Los datos ya están validados por Zod
     const { currentPassword, newPassword } = req.body;
-
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
 
     // Obtener el usuario con su contraseña actual
     const user = await prisma.user.findUnique({
@@ -432,7 +405,8 @@ const changePassword = async (req, res) => {
       return res.status(404).json({
         status: 'error',
         message: 'Usuario no encontrado',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
+        data: null
       });
     }
 
@@ -442,7 +416,8 @@ const changePassword = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'La contraseña actual es incorrecta',
-        code: 'INVALID_CURRENT_PASSWORD'
+        code: 'INVALID_CURRENT_PASSWORD',
+        data: null
       });
     }
 
@@ -473,7 +448,8 @@ const changePassword = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -489,14 +465,16 @@ const logout = async (req, res) => {
     
     res.json({
       status: 'success',
-      message: 'Sesión cerrada exitosamente'
+      message: 'Sesión cerrada exitosamente',
+      data: null
     });
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -521,7 +499,8 @@ const verifyToken = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -769,16 +748,7 @@ const verifyEmail = async (req, res) => {
  */
 const resendVerification = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { email } = req.body;
 
     // Buscar al usuario
@@ -790,7 +760,8 @@ const resendVerification = async (req, res) => {
       return res.status(404).json({
         status: 'error',
         message: 'Usuario no encontrado',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
+        data: null
       });
     }
 
@@ -799,7 +770,8 @@ const resendVerification = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'La cuenta ya está verificada',
-        code: 'ALREADY_VERIFIED'
+        code: 'ALREADY_VERIFIED',
+        data: null
       });
     }
 
@@ -808,7 +780,8 @@ const resendVerification = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'La cuenta no está pendiente de verificación',
-        code: 'NOT_PENDING'
+        code: 'NOT_PENDING',
+        data: null
       });
     }
 
@@ -851,7 +824,8 @@ const resendVerification = async (req, res) => {
       res.status(500).json({
         status: 'error',
         message: 'Error al enviar el email de verificación',
-        code: 'EMAIL_SEND_ERROR'
+        code: 'EMAIL_SEND_ERROR',
+        data: null
       });
     }
 
@@ -860,7 +834,8 @@ const resendVerification = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -1121,16 +1096,7 @@ const verifyPhone = async (req, res) => {
  */
 const forgotPassword = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { email } = req.body;
 
     // Buscar al usuario por email
@@ -1219,7 +1185,8 @@ const forgotPassword = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
@@ -1230,46 +1197,11 @@ const forgotPassword = async (req, res) => {
  */
 const resetPassword = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { token, newPassword } = req.body;
-
-    // 🔍 DEBUG: Logs detallados para debugging
-    console.log('🔍 DEBUG: Iniciando reset-password');
-    console.log('🔍 DEBUG: Token recibido:', token);
-    console.log('🔍 DEBUG: Longitud del token:', token ? token.length : 'undefined');
-    console.log('🔍 DEBUG: Nueva contraseña recibida:', newPassword ? 'SÍ' : 'NO');
-    
-    // Validar formato del token
-    if (!token || typeof token !== 'string') {
-      console.log('❌ DEBUG: Token inválido - no es string o está vacío');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Token inválido.',
-        code: 'INVALID_TOKEN_FORMAT'
-      });
-    }
-    
-    if (token.length !== 64) {
-      console.log('❌ DEBUG: Token inválido - longitud incorrecta:', token.length);
-      return res.status(400).json({
-        status: 'error',
-        message: 'Token inválido.',
-        code: 'INVALID_TOKEN_LENGTH'
-      });
-    }
 
     // Hashear el token recibido de la misma forma que al crearlo
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    console.log('🔍 DEBUG: Token hasheado:', hashedToken);
 
     // Buscar usuario con el token hasheado y que no haya expirado
     console.log('🔍 DEBUG: Buscando usuario en la base de datos...');
@@ -1363,7 +1295,8 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'Token inválido o expirado.',
-        code: 'INVALID_OR_EXPIRED_TOKEN'
+        code: 'INVALID_OR_EXPIRED_TOKEN',
+        data: null
       });
     }
 
@@ -1373,7 +1306,8 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         message: 'Token inválido o expirado.',
-        code: 'INVALID_OR_EXPIRED_TOKEN'
+        code: 'INVALID_OR_EXPIRED_TOKEN',
+        data: null
       });
     }
 
@@ -1410,7 +1344,8 @@ const resetPassword = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      data: null
     });
   }
 };
