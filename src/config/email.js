@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
+const sgTransport = require('nodemailer-sendgrid-transport');
 
-// Configuración para Gmail SMTP (producción)
+// Configuración para SendGrid (producción)
 let transporter;
 
 const createTransporter = async () => {
@@ -9,26 +10,23 @@ const createTransporter = async () => {
   }
 
   try {
-    // Validar que las variables de entorno estén configuradas
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      throw new Error('Variables de entorno EMAIL_USER y EMAIL_PASS son requeridas para la configuración de Gmail');
+    // Validar que la API Key de SendGrid esté configurada
+    if (!process.env.SENDGRID_API_KEY) {
+      throw new Error('Variable de entorno SENDGRID_API_KEY es requerida para la configuración de SendGrid');
     }
 
-    // Crear transporter para Gmail SMTP
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
+    // Configurar opciones de SendGrid
+    const options = {
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        api_key: process.env.SENDGRID_API_KEY
       }
-    });
+    };
 
-    // Verificar la conexión
-    await transporter.verify();
+    // Crear transporter con SendGrid
+    transporter = nodemailer.createTransport(sgTransport(options));
 
-    console.log('📧 Configuración de email (Gmail SMTP) creada exitosamente');
-    console.log(`👤 Usuario: ${process.env.EMAIL_USER}`);
-    console.log('🔗 Servicio: Gmail SMTP');
+    console.log('📧 Configuración de email (SendGrid) creada exitosamente');
+    console.log('🔗 Servicio: SendGrid API');
     
     return transporter;
   } catch (error) {
@@ -234,7 +232,7 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
     }
 
     const mailOptions = {
-      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com',
       to: email,
       subject: 'Verifica tu cuenta en Delixmi',
       html: htmlContent,
@@ -280,14 +278,14 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
     console.log('✅ Email de verificación enviado exitosamente:');
     console.log('📧 messageId:', info.messageId);
     console.log('📧 to:', email);
-    console.log('📧 from:', process.env.EMAIL_USER);
+    console.log('📧 from:', process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com');
     console.log('📧 deepLinkUsed:', deepLinkUrl);
     console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: null // Gmail no proporciona preview URL como Ethereal
+      previewUrl: null // SendGrid no proporciona preview URL como Ethereal
     };
 
   } catch (error) {
@@ -304,7 +302,7 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
     const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/verify-email?token=${verificationToken}`;
     
     const mailOptions = {
-      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com',
       to: email,
       subject: 'Nuevo enlace de verificación - Delixmi',
       html: `
@@ -435,16 +433,16 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
 
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('📧 Email de reenvío de verificación enviado:', {
-      messageId: info.messageId,
-      to: email,
-      from: process.env.EMAIL_USER
-    });
+      console.log('📧 Email de reenvío de verificación enviado:', {
+        messageId: info.messageId,
+        to: email,
+        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com'
+      });
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: null // Gmail no proporciona preview URL como Ethereal
+      previewUrl: null // SendGrid no proporciona preview URL como Ethereal
     };
 
   } catch (error) {
@@ -662,7 +660,7 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
     }
 
     const mailOptions = {
-      from: `"Delixmi Team" <${process.env.EMAIL_USER}>`,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com',
       to: email,
       subject: 'Restablece tu contraseña - Delixmi',
       html: htmlContent,
@@ -704,14 +702,14 @@ const sendPasswordResetEmail = async (email, name, resetToken) => {
     console.log('✅ Email de restablecimiento de contraseña enviado exitosamente:');
     console.log('📧 messageId:', info.messageId);
     console.log('📧 to:', email);
-    console.log('📧 from:', process.env.EMAIL_USER);
+    console.log('📧 from:', process.env.SENDGRID_FROM_EMAIL || 'noreply@delixmi.com');
     console.log('📧 deepLinkUsed:', deepLinkUrl);
     console.log('📧 webUrlBackup:', webUrl);
 
     return {
       success: true,
       messageId: info.messageId,
-      previewUrl: null // Gmail no proporciona preview URL como Ethereal
+      previewUrl: null // SendGrid no proporciona preview URL como Ethereal
     };
 
   } catch (error) {

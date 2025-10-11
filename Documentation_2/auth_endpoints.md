@@ -127,7 +127,22 @@ Content-Type: application/json
 }
 ```
 
-**Error 500 - Error del Servidor**
+**Error 500 - Error al Enviar Correo de Verificación**
+```json
+{
+  "status": "error",
+  "message": "Usuario creado, pero no se pudo enviar el correo de verificación. Por favor, solicita un reenvío.",
+  "code": "EMAIL_SEND_ERROR",
+  "data": {
+    "userId": 1,
+    "email": "juan.perez@example.com"
+  }
+}
+```
+
+**Nota:** Este error ocurre cuando el usuario se registra correctamente en la base de datos, pero el sistema no puede enviar el correo electrónico de verificación. El usuario ha sido creado y puede solicitar un reenvío del correo usando el endpoint `/api/auth/resend-verification`.
+
+**Error 500 - Error Interno del Servidor**
 ```json
 {
   "status": "error",
@@ -780,7 +795,7 @@ Authorization: Bearer {token}
 | `TOKEN_EXPIRED` | Token expirado |
 | `PHONE_EXISTS` | Teléfono ya registrado |
 | `INVALID_CURRENT_PASSWORD` | Contraseña actual incorrecta |
-| `EMAIL_SEND_ERROR` | Error al enviar email |
+| `EMAIL_SEND_ERROR` | Usuario creado pero error al enviar email de verificación |
 | `INTERNAL_ERROR` | Error interno del servidor |
 
 ---
@@ -820,23 +835,51 @@ const registerUser = async (userData) => {
 
     if (data.status === 'success') {
       console.log('Usuario registrado:', data.data.user);
-      // Mostrar mensaje de verificación de email
+      // Mostrar mensaje: "Verifica tu correo electrónico"
+      return { success: true, user: data.data.user };
     } else {
-      console.error('Error:', data.message);
+      // Manejar errores
+      if (data.code === 'EMAIL_SEND_ERROR') {
+        console.warn('Usuario creado pero email no enviado:', data.message);
+        // El usuario fue creado exitosamente
+        // Ofrecer opción de reenviar verificación
+        return { 
+          success: false, 
+          needsResend: true, 
+          userId: data.data.userId,
+          email: data.data.email,
+          message: data.message 
+        };
+      } else if (data.code === 'USER_EXISTS') {
+        console.error('El usuario ya existe');
+        // Sugerir login o recuperación de contraseña
+        return { success: false, userExists: true, message: data.message };
+      } else {
+        console.error('Error:', data.message);
+        return { success: false, message: data.message };
+      }
     }
   } catch (error) {
     console.error('Error de red:', error);
+    return { success: false, message: 'Error de conexión' };
   }
 };
 
 // Uso
-registerUser({
+const result = await registerUser({
   name: 'Juan',
   lastname: 'Pérez',
   email: 'juan.perez@example.com',
   phone: '5512345678',
   password: 'MiContraseña123'
 });
+
+if (result.success) {
+  // Redirigir a pantalla de verificación
+} else if (result.needsResend) {
+  // Mostrar opción de reenviar email de verificación
+  console.log('Solicitar reenvío para:', result.email);
+}
 ```
 
 #### Login
@@ -920,6 +963,11 @@ const getUserProfile = async () => {
 - **Verificar `status`:** Siempre verifica si `data.status === 'success'` antes de procesar la respuesta
 - **Mostrar Mensajes:** Usa `data.message` para mostrar mensajes al usuario
 - **Códigos de Error:** Usa `data.code` para manejar errores específicos programáticamente
+- **Error EMAIL_SEND_ERROR en Registro:** 
+  - Este error indica que el usuario **sí fue creado** exitosamente
+  - Ofrece al usuario la opción de reenviar el correo de verificación
+  - Usa el `userId` y `email` proporcionados en `data.data` para el reenvío
+  - No solicites al usuario que se registre nuevamente (causaría error `USER_EXISTS`)
 
 ### 3. Validación del Frontend
 - Implementa validación en el frontend para proporcionar retroalimentación inmediata

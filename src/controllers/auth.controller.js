@@ -118,19 +118,31 @@ const register = async (req, res) => {
       );
       
       console.log('📧 Email de verificación enviado:', emailResult.previewUrl);
+      
+      // Solo responder con éxito si el email se envió correctamente
+      res.status(201).json({
+        status: 'success',
+        message: 'Usuario registrado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.',
+        data: {
+          user: newUser,
+          emailSent: true
+        }
+      });
+      
     } catch (emailError) {
       console.error('❌ Error al enviar email de verificación:', emailError);
-      // No fallar el registro si el email falla, pero logear el error
+      
+      // Si el envío del email falla, devolver error 500 al cliente
+      return res.status(500).json({
+        status: 'error',
+        message: 'Usuario creado, pero no se pudo enviar el correo de verificación. Por favor, solicita un reenvío.',
+        code: 'EMAIL_SEND_ERROR',
+        data: {
+          userId: newUser.id,
+          email: newUser.email
+        }
+      });
     }
-
-    res.status(201).json({
-      status: 'success',
-      message: 'Usuario registrado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.',
-      data: {
-        user: newUser,
-        emailSent: true
-      }
-    });
 
   } catch (error) {
     console.error('Error en registro de usuario:', error);
