@@ -158,7 +158,18 @@ const addToCart = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { productId, quantity = 1, modifierOptionIds = [] } = req.body;
+    const { productId, quantity = 1, modifiers = [] } = req.body;
+
+    // Extraer IDs de opciones de modificadores del nuevo formato
+    const modifierOptionIds = modifiers.map(mod => mod.selectedOptionId);
+
+    console.log('📝 Agregar al carrito:', {
+      userId,
+      productId,
+      quantity,
+      modifiers,
+      modifierOptionIds
+    });
 
     // 1. Verificar que el producto existe y está disponible
     const product = await prisma.product.findUnique({
@@ -269,7 +280,48 @@ const addToCart = async (req, res) => {
       totalModifierPrice = modifierOptions.reduce((sum, option) => sum + Number(option.price), 0);
     }
 
-    // 5. Validar que se cumplan los requisitos de selección de modificadores REQUERIDOS
+    // 5. Validar que los modificadores enviados correspondan a los grupos correctos
+    if (modifiers.length > 0) {
+      for (const modifier of modifiers) {
+        const { modifierGroupId, selectedOptionId } = modifier;
+        
+        // Verificar que el grupo existe en el producto
+        const productGroup = productModifierGroups.find(pg => pg.modifierGroup.id === modifierGroupId);
+        if (!productGroup) {
+          return res.status(400).json({
+            status: 'error',
+            message: `El grupo de modificadores ${modifierGroupId} no pertenece a este producto`,
+            code: 'INVALID_MODIFIER_GROUP'
+          });
+        }
+        
+        // Verificar que la opción seleccionada pertenece al grupo correcto
+        const option = modifierOptions.find(opt => opt.id === selectedOptionId);
+        if (!option) {
+          return res.status(400).json({
+            status: 'error',
+            message: `La opción ${selectedOptionId} no existe`,
+            code: 'INVALID_MODIFIER_OPTION'
+          });
+        }
+        
+        if (option.modifierGroup.id !== modifierGroupId) {
+          return res.status(400).json({
+            status: 'error',
+            message: `La opción ${selectedOptionId} no pertenece al grupo ${modifierGroupId}`,
+            code: 'MODIFIER_GROUP_MISMATCH',
+            details: {
+              expectedGroupId: modifierGroupId,
+              actualGroupId: option.modifierGroup.id,
+              optionName: option.name,
+              groupName: option.modifierGroup.name
+            }
+          });
+        }
+      }
+    }
+
+    // 6. Validar que se cumplan los requisitos de selección de modificadores REQUERIDOS
     const requiredGroups = productModifierGroups.filter(pg => pg.modifierGroup.minSelection > 0);
     
     if (requiredGroups.length > 0) {
@@ -351,7 +403,8 @@ const addToCart = async (req, res) => {
       }
     }
 
-    // 6. Validar que los modificadores seleccionados pertenecen a grupos del producto
+    // 7. Validar que los modificadores seleccionados pertenecen a grupos del producto
+    // (Esta validación ya se hizo en el paso 5, así que podemos omitirla o dejarla como doble validación)
     if (modifierOptions.length > 0) {
       const validGroupIds = productModifierGroups.map(pg => pg.modifierGroup.id);
       const invalidModifiers = modifierOptions.filter(
@@ -374,10 +427,10 @@ const addToCart = async (req, res) => {
       }
     }
 
-    // 7. Calcular precio total del item
+    // 8. Calcular precio total del item
     const totalItemPrice = Number(product.price) + totalModifierPrice;
     
-    // 8. Verificar si ya existe un item idéntico en el carrito
+    // 9. Verificar si ya existe un item idéntico en el carrito
     // Para productos sin modificadores, buscamos solo por productId
     // Para productos con modificadores, necesitamos verificar que tengan exactamente los mismos modificadores
     let existingItem = null;
@@ -429,7 +482,7 @@ const addToCart = async (req, res) => {
     let action;
 
     if (existingItem) {
-      // 9a. Si existe item idéntico, actualizar cantidad
+      // 10a. Si existe item idéntico, actualizar cantidad
       cartItem = await prisma.cartItem.update({
         where: { id: existingItem.id },
         data: {
@@ -467,7 +520,7 @@ const addToCart = async (req, res) => {
       });
       action = 'quantity_updated';
     } else {
-      // 9b. Si no existe, crear nuevo item
+      // 10b. Si no existe, crear nuevo item
       cartItem = await prisma.cartItem.create({
         data: {
           cartId: cart.id,
@@ -506,7 +559,7 @@ const addToCart = async (req, res) => {
         }
       });
 
-      // 10. Crear registros de modificadores si existen
+      // 11. Crear registros de modificadores si existen
       if (modifierOptions.length > 0) {
         await prisma.cartItemModifier.createMany({
           data: modifierOptions.map(option => ({
@@ -552,7 +605,7 @@ const addToCart = async (req, res) => {
       action = 'item_added';
     }
 
-    // 11. Calcular subtotal
+    // 12. Calcular subtotal
     const subtotal = Number(cartItem.priceAtAdd) * cartItem.quantity;
 
     return res.status(action === 'item_added' ? 201 : 200).json({
