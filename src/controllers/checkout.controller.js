@@ -207,7 +207,23 @@ const createPreference = async (req, res) => {
     const { addressId, items, specialInstructions, useCart = false, restaurantId } = req.body;
     const userId = req.user.id;
 
-    // 1. Verificar que la dirección pertenece al usuario
+    // 1. Validar que si useCart es true, restaurantId sea obligatorio
+    if (useCart && !restaurantId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'El restaurantId es obligatorio cuando se usa el carrito (useCart: true)'
+      });
+    }
+
+    // Validar que si no usa carrito, items sea obligatorio
+    if (!useCart && (!items || items.length === 0)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Debe proporcionar items o usar el carrito (useCart: true con restaurantId)'
+      });
+    }
+
+    // 2. Verificar que la dirección pertenece al usuario
     const address = await prisma.address.findFirst({
       where: {
         id: addressId,
@@ -222,7 +238,7 @@ const createPreference = async (req, res) => {
       });
     }
 
-    // 1.1. VALIDACIÓN DE COBERTURA TEMPRANA
+    // 3. VALIDACIÓN DE COBERTURA TEMPRANA
     // Obtener el branchId antes de procesar los items
     let branchIdForValidation = null;
     
@@ -311,7 +327,7 @@ const createPreference = async (req, res) => {
       }
     }
 
-    // 2. Si useCart es true, obtener items del carrito
+    // 4. Si useCart es true, obtener items del carrito
     let cartItems = [];
     if (useCart) {
       const cart = await prisma.cart.findUnique({
@@ -351,7 +367,7 @@ const createPreference = async (req, res) => {
       }));
     }
 
-    // 3. Obtener información de los productos y verificar precios
+    // 5. Obtener información de los productos y verificar precios
     const productIds = useCart ? cartItems.map(item => item.productId) : items.map(item => item.productId);
     const products = await prisma.product.findMany({
       where: {
@@ -398,7 +414,7 @@ const createPreference = async (req, res) => {
       });
     }
 
-    // 4. Obtener la sucursal para cálculos
+    // 6. Obtener la sucursal para cálculos
     const firstProduct = products[0];
     if (!firstProduct.restaurant.branches || firstProduct.restaurant.branches.length === 0) {
       console.error('❌ No se encontró sucursal activa para el restaurante');
@@ -411,11 +427,11 @@ const createPreference = async (req, res) => {
     const branch = firstProduct.restaurant.branches[0];
     const itemsToProcess = useCart ? cartItems : items;
 
-    // 5. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
+    // 7. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
     const pricing = await calculateOrderPricing(itemsToProcess, products, branch, address);
     const { subtotal, deliveryFee, serviceFee, total, deliveryDetails, travelTimeMinutes } = pricing;
 
-    // 6. Calcular tiempo estimado de entrega
+    // 8. Calcular tiempo estimado de entrega
     const estimatedDeliveryTime = calculateEstimatedDeliveryTime(
       travelTimeMinutes || 0, 
       itemsToProcess.length,
@@ -427,7 +443,7 @@ const createPreference = async (req, res) => {
       deliveryDetails.estimatedDeliveryTime = estimatedDeliveryTime;
     }
 
-    // 7. Construir items para Mercado Pago
+    // 9. Construir items para Mercado Pago
     const mpItems = [];
     for (const item of itemsToProcess) {
       const product = products.find(p => p.id === item.productId);
@@ -442,7 +458,7 @@ const createPreference = async (req, res) => {
       });
     }
 
-    // 8. Agregar tarifas de envío y servicio como items adicionales para Mercado Pago
+    // 10. Agregar tarifas de envío y servicio como items adicionales para Mercado Pago
     if (deliveryFee > 0) {
       mpItems.push({
         title: 'Costo de envío',
@@ -474,10 +490,10 @@ const createPreference = async (req, res) => {
       totalCalculated: mpItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0)
     });
 
-    // 9. Generar external_reference único
+    // 11. Generar external_reference único
     const externalReference = `delixmi_${uuidv4()}`;
 
-    // 10. Crear objeto preference para Mercado Pago
+    // 12. Crear objeto preference para Mercado Pago
     const preferenceData = {
       items: mpItems,
       payer: {
@@ -511,10 +527,10 @@ const createPreference = async (req, res) => {
       }
     };
 
-    // 8. Crear preferencia en Mercado Pago
+    // 13. Crear preferencia en Mercado Pago
     const mpResponse = await preference.create({ body: preferenceData });
 
-    // 9. Obtener el branchId de la sucursal ya obtenida
+    // 14. Obtener el branchId de la sucursal ya obtenida
     const branchId = branch.id;
     
     console.log(`🔍 Branch seleccionado:`, {
@@ -524,7 +540,7 @@ const createPreference = async (req, res) => {
       restaurantName: firstProduct.restaurant.name
     });
 
-    // 9.1. Validación de horario de la sucursal
+    // 15. Validación de horario de la sucursal
     const currentDate = new Date();
     const currentDayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
     const currentTime = currentDate.toTimeString().slice(0, 8); // HH:MM:SS
@@ -584,7 +600,7 @@ const createPreference = async (req, res) => {
 
     console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
 
-    // 9. Crear la Order primero con todos sus datos
+    // 16. Crear la Order primero con todos sus datos
     const createdOrder = await prisma.order.create({
       data: {
         customerId: userId,
@@ -631,7 +647,7 @@ const createPreference = async (req, res) => {
       }
     });
 
-    // 10. Crear el Payment usando el ID de la Order recién creada
+    // 17. Crear el Payment usando el ID de la Order recién creada
     await prisma.payment.create({
       data: {
         amount: total,
@@ -643,12 +659,12 @@ const createPreference = async (req, res) => {
       }
     });
 
-    // 11. NO limpiar el carrito aquí - se limpiará cuando el webhook confirme el pago
+    // 18. NO limpiar el carrito aquí - se limpiará cuando el webhook confirme el pago
     if (useCart) {
       console.log(`🛒 Carrito del restaurante ${restaurantId} se mantendrá hasta confirmación de pago`);
     }
 
-    // 12. Respuesta exitosa
+    // 19. Respuesta exitosa
     res.status(200).json({
       status: 'success',
       message: 'Preferencia de pago creada exitosamente',
@@ -793,10 +809,26 @@ const createCashOrder = async (req, res) => {
       });
     }
 
-    const { addressId, items } = req.body;
+    const { addressId, items, specialInstructions, useCart = false, restaurantId } = req.body;
     const userId = req.user.id;
 
-    console.log(`👤 Usuario: ${userId}, Dirección: ${addressId}, Items: ${items.length}`);
+    console.log(`👤 Usuario: ${userId}, Dirección: ${addressId}, useCart: ${useCart}`);
+
+    // 1.1. Validar que si useCart es true, restaurantId sea obligatorio
+    if (useCart && !restaurantId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'El restaurantId es obligatorio cuando se usa el carrito (useCart: true)'
+      });
+    }
+
+    // 1.2. Validar que si no usa carrito, items sea obligatorio
+    if (!useCart && (!items || items.length === 0)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Debe proporcionar items o usar el carrito (useCart: true con restaurantId)'
+      });
+    }
 
     // 2. Validar que la dirección existe y pertenece al usuario
     const address = await prisma.address.findFirst({
@@ -821,9 +853,56 @@ const createCashOrder = async (req, res) => {
       neighborhood: address.neighborhood
     });
 
-    // 2.1. VALIDACIÓN DE COBERTURA TEMPRANA
+    // 3. Si useCart es true, obtener items del carrito
+    let cartItems = [];
+    let itemsToProcess = items || [];
+    
+    if (useCart) {
+      console.log(`🛒 Obteniendo items del carrito para restaurante ${restaurantId}`);
+      
+      const cart = await prisma.cart.findUnique({
+        where: {
+          userId_restaurantId: {
+            userId: userId,
+            restaurantId: restaurantId
+          }
+        },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  isAvailable: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!cart || cart.items.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Carrito vacío o no encontrado'
+        });
+      }
+
+      cartItems = cart.items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtAdd: item.priceAtAdd
+      }));
+      
+      itemsToProcess = cartItems;
+      console.log(`✅ ${cartItems.length} items obtenidos del carrito`);
+    }
+
+    // 4. VALIDACIÓN DE COBERTURA TEMPRANA
     // Obtener el primer producto para determinar la sucursal
-    if (!items || items.length === 0) {
+    if (!itemsToProcess || itemsToProcess.length === 0) {
       console.log('❌ No se proporcionaron productos');
       return res.status(400).json({
         status: 'error',
@@ -831,7 +910,7 @@ const createCashOrder = async (req, res) => {
       });
     }
 
-    const firstProductId = items[0].productId;
+    const firstProductId = itemsToProcess[0].productId;
     const productForBranch = await prisma.product.findUnique({
       where: { id: firstProductId },
       select: {
@@ -884,16 +963,8 @@ const createCashOrder = async (req, res) => {
       console.log('✅ Dirección dentro del área de cobertura');
     }
 
-    // 3. Validar y obtener productos
-    if (!items || items.length === 0) {
-      console.log('❌ No se proporcionaron productos');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Debe proporcionar al menos un producto'
-      });
-    }
-
-    const productIds = items.map(item => item.productId);
+    // 5. Validar y obtener productos
+    const productIds = itemsToProcess.map(item => item.productId);
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds }
@@ -915,7 +986,7 @@ const createCashOrder = async (req, res) => {
       });
     }
 
-    // 4. Validar que todos los productos son del mismo restaurante
+    // 6. Validar que todos los productos son del mismo restaurante
     const restaurantIds = [...new Set(products.map(p => p.restaurant.id))];
     if (restaurantIds.length > 1) {
       console.log('❌ Los productos deben ser del mismo restaurante');
@@ -928,7 +999,7 @@ const createCashOrder = async (req, res) => {
     const restaurant = products[0].restaurant;
     console.log(`✅ Restaurante validado: ${restaurant.name} (ID: ${restaurant.id})`);
 
-    // 5. Obtener el branchId del primer producto
+    // 7. Obtener el branchId del primer producto
     const firstProduct = products[0];
     let branchId = 1; // Valor por defecto
     
@@ -948,7 +1019,7 @@ const createCashOrder = async (req, res) => {
       console.log(`⚠️ No se encontraron sucursales para el restaurante ${firstProduct.restaurant.name}, usando branchId por defecto: ${branchId}`);
     }
 
-    // 6. Validar horario de la sucursal
+    // 8. Validar horario de la sucursal
     const currentDate = new Date();
     const currentDayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
     const currentTime = currentDate.toTimeString().slice(0, 8); // HH:MM:SS
@@ -1007,13 +1078,13 @@ const createCashOrder = async (req, res) => {
 
     console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
 
-    // 7. Obtener la sucursal para cálculos
+    // 9. Obtener la sucursal para cálculos
     const branch = firstProduct.restaurant.branches[0];
 
-    // 8. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
+    // 10. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
     let pricing;
     try {
-      pricing = await calculateOrderPricing(items, products, branch, address);
+      pricing = await calculateOrderPricing(itemsToProcess, products, branch, address);
     } catch (error) {
       console.error('❌ Error calculando precios:', error);
       return res.status(500).json({
@@ -1025,16 +1096,16 @@ const createCashOrder = async (req, res) => {
 
     const { subtotal, deliveryFee, serviceFee, total, deliveryDetails, travelTimeMinutes } = pricing;
 
-    // 9. Calcular tiempo estimado de entrega
+    // 11. Calcular tiempo estimado de entrega
     const estimatedDeliveryTime = calculateEstimatedDeliveryTime(
       travelTimeMinutes || 0, 
-      items.length, 
+      itemsToProcess.length, 
       restaurant.name
     );
 
-    // 10. Construir items de la orden
+    // 12. Construir items de la orden
     const orderItems = [];
-    for (const item of items) {
+    for (const item of itemsToProcess) {
       const product = products.find(p => p.id === item.productId);
       if (!product) {
         console.log(`❌ Producto no encontrado: ${item.productId}`);
@@ -1065,7 +1136,7 @@ const createCashOrder = async (req, res) => {
       console.log(`✅ Producto: ${product.name} x${item.quantity} = $${itemTotal}`);
     }
 
-    // 11. Crear orden y pago usando transacción
+    // 13. Crear orden y pago usando transacción
     console.log('💾 Creando orden y pago en efectivo...');
     
     const result = await prisma.$transaction(async (tx) => {
@@ -1084,7 +1155,7 @@ const createCashOrder = async (req, res) => {
           restaurantPayout: subtotal - (subtotal * restaurant.commissionRate / 100),
           paymentMethod: 'cash',
           paymentStatus: 'pending',
-          specialInstructions: req.body.specialInstructions || null,
+          specialInstructions: specialInstructions || null,
           orderPlacedAt: new Date()
         }
       });
@@ -1122,22 +1193,24 @@ const createCashOrder = async (req, res) => {
       return { order, payment };
     });
 
-    // 12. Limpiar carrito del restaurante específico
-    console.log('🛒 Limpiando carrito del restaurante...');
-    try {
-      await prisma.cart.deleteMany({
-        where: {
-          userId: userId,
-          restaurantId: restaurant.id
-        }
-      });
-      console.log(`✅ Carrito del restaurante ${restaurant.id} limpiado exitosamente`);
-    } catch (error) {
-      console.log('⚠️ Error limpiando carrito:', error.message);
-      // No fallar el pedido por error en limpieza del carrito
+    // 14. Limpiar carrito del restaurante específico (solo si se usó carrito)
+    if (useCart) {
+      console.log('🛒 Limpiando carrito del restaurante...');
+      try {
+        await prisma.cart.deleteMany({
+          where: {
+            userId: userId,
+            restaurantId: restaurant.id
+          }
+        });
+        console.log(`✅ Carrito del restaurante ${restaurant.id} limpiado exitosamente`);
+      } catch (error) {
+        console.log('⚠️ Error limpiando carrito:', error.message);
+        // No fallar el pedido por error en limpieza del carrito
+      }
     }
 
-    // 13. Emitir evento de nueva orden por Socket.io
+    // 15. Emitir evento de nueva orden por Socket.io
     console.log('📡 Emitiendo evento de nueva orden...');
     try {
       const io = getIo();
@@ -1155,7 +1228,7 @@ const createCashOrder = async (req, res) => {
       console.log('⚠️ Socket.io no disponible:', error.message);
     }
 
-    // 14. Respuesta exitosa
+    // 16. Respuesta exitosa
     console.log('🎉 Orden de pago en efectivo creada exitosamente');
     
     res.status(201).json({
@@ -1191,8 +1264,9 @@ const createCashOrder = async (req, res) => {
           provider: result.payment.provider,
           status: result.payment.status
         },
-        cartCleared: true,
-        message: 'Carrito del restaurante limpiado automáticamente'
+        cartUsed: useCart,
+        cartCleared: useCart,
+        message: useCart ? 'Carrito del restaurante limpiado automáticamente' : 'Pedido creado desde items directos'
       }
     });
 

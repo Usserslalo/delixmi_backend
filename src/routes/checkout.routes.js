@@ -48,16 +48,29 @@ const createCashOrderValidation = [
     .withMessage('El addressId debe ser un número entero válido'),
   
   body('items')
+    .optional()
     .isArray({ min: 1 })
     .withMessage('Los items deben ser un array con al menos un elemento'),
   
   body('items.*.productId')
+    .optional()
     .isInt({ min: 1 })
     .withMessage('Cada item debe tener un productId válido'),
   
   body('items.*.quantity')
+    .optional()
     .isInt({ min: 1 })
     .withMessage('Cada item debe tener una cantidad válida mayor a 0'),
+
+  body('useCart')
+    .optional()
+    .isBoolean()
+    .withMessage('useCart debe ser un valor booleano'),
+
+  body('restaurantId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('restaurantId debe ser un número entero válido'),
 
   body('specialInstructions')
     .optional()
