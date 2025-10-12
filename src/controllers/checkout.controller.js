@@ -9,6 +9,15 @@ const { isWithinCoverage } = require('../services/geolocation.service');
 const prisma = new PrismaClient();
 
 /**
+ * Redondea un número a 2 decimales para cálculos monetarios
+ * @param {number} num - Número a redondear
+ * @returns {number} Número redondeado a 2 decimales
+ */
+const roundToTwoDecimals = (num) => {
+  return Math.round(num * 100) / 100;
+};
+
+/**
  * Calcula los precios de una orden de manera centralizada
  * @param {Array} items - Items del pedido con productId, quantity, y opcionalmente priceAtAdd
  * @param {Array} products - Productos obtenidos de la base de datos
@@ -31,6 +40,9 @@ const calculateOrderPricing = async (items, products, branch, address) => {
     const itemTotal = itemPrice * item.quantity;
     subtotal += itemTotal;
   }
+
+  // Redondear subtotal a 2 decimales
+  subtotal = roundToTwoDecimals(subtotal);
 
   // 2. Calcular tarifa de envío dinámicamente basada en distancia
   let deliveryFee = 25.00; // Valor por defecto en caso de error
@@ -84,18 +96,22 @@ const calculateOrderPricing = async (items, products, branch, address) => {
     };
   }
 
-  // 3. Calcular cuota de servicio (5% del subtotal)
-  const serviceFee = subtotal * 0.05;
-  
-  // 4. Calcular total
-  const total = subtotal + deliveryFee + serviceFee;
+  // Redondear deliveryFee a 2 decimales
+  deliveryFee = roundToTwoDecimals(deliveryFee);
 
-  console.log('💰 Cálculo de precios centralizado:', {
+  // 3. Calcular cuota de servicio (5% del subtotal ya redondeado)
+  const serviceFee = roundToTwoDecimals(subtotal * 0.05);
+  
+  // 4. Calcular total (suma de componentes ya redondeados, y redondear el resultado)
+  const total = roundToTwoDecimals(subtotal + deliveryFee + serviceFee);
+
+  console.log('💰 Cálculo de precios centralizado (con redondeo):', {
     subtotal: subtotal.toFixed(2),
     deliveryFee: deliveryFee.toFixed(2),
     serviceFee: serviceFee.toFixed(2),
     total: total.toFixed(2),
-    itemsCount: items.length
+    itemsCount: items.length,
+    note: 'Todos los valores redondeados a 2 decimales'
   });
 
   return {
