@@ -9,6 +9,106 @@ const { isWithinCoverage } = require('../services/geolocation.service');
 const prisma = new PrismaClient();
 
 /**
+ * Calcula los precios de una orden de manera centralizada
+ * @param {Array} items - Items del pedido con productId, quantity, y opcionalmente priceAtAdd
+ * @param {Array} products - Productos obtenidos de la base de datos
+ * @param {Object} branch - Sucursal del restaurante
+ * @param {Object} address - Dirección de entrega
+ * @returns {Promise<Object>} Objeto con subtotal, deliveryFee, serviceFee, total y deliveryDetails
+ */
+const calculateOrderPricing = async (items, products, branch, address) => {
+  // 1. Calcular subtotal
+  let subtotal = 0;
+  
+  for (const item of items) {
+    const product = products.find(p => p.id === item.productId);
+    if (!product) {
+      throw new Error(`Producto con ID ${item.productId} no encontrado`);
+    }
+    
+    // Usar priceAtAdd que incluye modificadores, o product.price como fallback
+    const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
+    const itemTotal = itemPrice * item.quantity;
+    subtotal += itemTotal;
+  }
+
+  // 2. Calcular tarifa de envío dinámicamente basada en distancia
+  let deliveryFee = 25.00; // Valor por defecto en caso de error
+  let deliveryDetails = null;
+  let travelTimeMinutes = 0;
+
+  try {
+    // Obtener coordenadas de la dirección de entrega
+    const destinationCoords = {
+      latitude: Number(address.latitude),
+      longitude: Number(address.longitude)
+    };
+
+    // Obtener coordenadas de la sucursal
+    const originCoords = {
+      latitude: Number(branch.latitude),
+      longitude: Number(branch.longitude)
+    };
+
+    // Calcular distancia usando Google Maps
+    const distanceResult = await calculateDistance(originCoords, destinationCoords);
+    
+    // Calcular tarifa de envío basada en la distancia
+    const feeCalculation = calculateDeliveryFee(distanceResult.distance);
+    deliveryFee = feeCalculation.tarifaFinal;
+    travelTimeMinutes = distanceResult.duration;
+    
+    deliveryDetails = {
+      distance: distanceResult.distance,
+      duration: distanceResult.duration,
+      distanceText: distanceResult.distanceText,
+      durationText: distanceResult.durationText,
+      calculation: feeCalculation,
+      isDefault: distanceResult.isDefault || false
+    };
+
+    console.log('✅ Cálculo de tarifa de envío:', {
+      origin: `${originCoords.latitude}, ${originCoords.longitude}`,
+      destination: `${destinationCoords.latitude}, ${destinationCoords.longitude}`,
+      distance: distanceResult.distance,
+      deliveryFee: deliveryFee,
+      travelTimeMinutes: travelTimeMinutes,
+      isDefault: distanceResult.isDefault
+    });
+  } catch (error) {
+    console.error('❌ Error calculando tarifa de envío:', error);
+    console.warn('⚠️ Usando valores por defecto debido a error');
+    deliveryDetails = {
+      isDefault: true,
+      error: error.message
+    };
+  }
+
+  // 3. Calcular cuota de servicio (5% del subtotal)
+  const serviceFee = subtotal * 0.05;
+  
+  // 4. Calcular total
+  const total = subtotal + deliveryFee + serviceFee;
+
+  console.log('💰 Cálculo de precios centralizado:', {
+    subtotal: subtotal.toFixed(2),
+    deliveryFee: deliveryFee.toFixed(2),
+    serviceFee: serviceFee.toFixed(2),
+    total: total.toFixed(2),
+    itemsCount: items.length
+  });
+
+  return {
+    subtotal,
+    deliveryFee,
+    serviceFee,
+    total,
+    deliveryDetails,
+    travelTimeMinutes
+  };
+};
+
+/**
  * Calcula el tiempo estimado de entrega basado en tiempo de viaje y preparación
  * @param {number} travelTimeMinutes - Tiempo de viaje en minutos (desde Google Maps)
  * @param {number} itemCount - Número de productos en el pedido
@@ -298,117 +398,51 @@ const createPreference = async (req, res) => {
       });
     }
 
-    // 4. Construir items para Mercado Pago con precios reales de la BD
-    const mpItems = [];
-    let subtotal = 0;
+    // 4. Obtener la sucursal para cálculos
+    const firstProduct = products[0];
+    if (!firstProduct.restaurant.branches || firstProduct.restaurant.branches.length === 0) {
+      console.error('❌ No se encontró sucursal activa para el restaurante');
+      return res.status(500).json({
+        status: 'error',
+        message: 'No se encontró una sucursal activa para este restaurante'
+      });
+    }
+
+    const branch = firstProduct.restaurant.branches[0];
     const itemsToProcess = useCart ? cartItems : items;
 
+    // 5. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
+    const pricing = await calculateOrderPricing(itemsToProcess, products, branch, address);
+    const { subtotal, deliveryFee, serviceFee, total, deliveryDetails, travelTimeMinutes } = pricing;
+
+    // 6. Calcular tiempo estimado de entrega
+    const estimatedDeliveryTime = calculateEstimatedDeliveryTime(
+      travelTimeMinutes || 0, 
+      itemsToProcess.length,
+      firstProduct.restaurant.name
+    );
+
+    // Agregar tiempo estimado a deliveryDetails
+    if (deliveryDetails) {
+      deliveryDetails.estimatedDeliveryTime = estimatedDeliveryTime;
+    }
+
+    // 7. Construir items para Mercado Pago
+    const mpItems = [];
     for (const item of itemsToProcess) {
       const product = products.find(p => p.id === item.productId);
-      
-      // Usar priceAtAdd que incluye modificadores, o product.price como fallback
       const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
-      const itemTotal = itemPrice * item.quantity;
-      subtotal += itemTotal;
 
       mpItems.push({
         title: product.name,
         description: product.description || `Producto de ${product.restaurant.name}`,
         quantity: item.quantity,
         currency_id: 'MXN',
-        unit_price: itemPrice // Precio unitario con modificadores incluidos
+        unit_price: itemPrice
       });
     }
 
-    // 5. Calcular tarifa de envío dinámicamente basada en distancia
-    let deliveryFee = 25.00; // Valor por defecto en caso de error
-    let deliveryDetails = null;
-    let estimatedDeliveryTime = null;
-
-    try {
-      // Obtener coordenadas de la dirección de entrega
-      const destinationCoords = {
-        latitude: Number(address.latitude),
-        longitude: Number(address.longitude)
-      };
-
-      // Obtener coordenadas de la sucursal del primer producto (simplificación)
-      const firstProduct = products[0];
-      if (firstProduct.restaurant.branches && firstProduct.restaurant.branches.length > 0) {
-        const branch = firstProduct.restaurant.branches[0];
-        const originCoords = {
-          latitude: Number(branch.latitude),
-          longitude: Number(branch.longitude)
-        };
-
-        // Calcular distancia usando Google Maps
-        const distanceResult = await calculateDistance(originCoords, destinationCoords);
-        
-        // Calcular tarifa de envío basada en la distancia
-        const feeCalculation = calculateDeliveryFee(distanceResult.distance);
-        deliveryFee = feeCalculation.tarifaFinal;
-        
-        // 5.1. Calcular tiempo estimado de entrega
-        const estimatedTime = calculateEstimatedDeliveryTime(
-          distanceResult.duration, 
-          itemsToProcess.length,
-          firstProduct.restaurant.name
-        );
-        
-        deliveryDetails = {
-          distance: distanceResult.distance,
-          duration: distanceResult.duration,
-          distanceText: distanceResult.distanceText,
-          durationText: distanceResult.durationText,
-          calculation: feeCalculation,
-          isDefault: distanceResult.isDefault || false,
-          estimatedDeliveryTime: estimatedTime
-        };
-
-        estimatedDeliveryTime = estimatedTime;
-
-        console.log('Cálculo de tarifa de envío y tiempo estimado:', {
-          origin: `${originCoords.latitude}, ${originCoords.longitude}`,
-          destination: `${destinationCoords.latitude}, ${destinationCoords.longitude}`,
-          distance: distanceResult.distance,
-          deliveryFee: deliveryFee,
-          travelTimeMinutes: distanceResult.duration,
-          estimatedDeliveryTime: estimatedTime,
-          isDefault: distanceResult.isDefault
-        });
-      } else {
-        console.warn('No se encontró sucursal activa para el producto, usando valores por defecto');
-        // Tiempo estimado por defecto cuando no hay datos de distancia
-        estimatedDeliveryTime = calculateEstimatedDeliveryTime(0, itemsToProcess.length, 'Restaurante');
-        deliveryDetails = {
-          estimatedDeliveryTime: estimatedDeliveryTime,
-          isDefault: true
-        };
-      }
-    } catch (error) {
-      console.error('Error calculando tarifa de envío y tiempo estimado:', error);
-      console.warn('Usando valores por defecto debido a error');
-      // Tiempo estimado por defecto en caso de error
-      estimatedDeliveryTime = calculateEstimatedDeliveryTime(0, itemsToProcess.length, 'Restaurante');
-      deliveryDetails = {
-        estimatedDeliveryTime: estimatedDeliveryTime,
-        isDefault: true
-      };
-    }
-
-    // 5. Calcular otros fees
-    const serviceFee = subtotal * 0.05; // 5% del subtotal como fee de servicio
-    const total = subtotal + deliveryFee + serviceFee;
-
-    console.log('💰 Cálculo de totales para Mercado Pago:', {
-      subtotal: subtotal,
-      deliveryFee: deliveryFee,
-      serviceFee: serviceFee,
-      total: total,
-      itemsCount: mpItems.length
-    });
-
-    // 6. Agregar tarifas de envío y servicio como items adicionales para Mercado Pago
+    // 8. Agregar tarifas de envío y servicio como items adicionales para Mercado Pago
     if (deliveryFee > 0) {
       mpItems.push({
         title: 'Costo de envío',
@@ -440,10 +474,10 @@ const createPreference = async (req, res) => {
       totalCalculated: mpItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0)
     });
 
-    // 7. Generar external_reference único
+    // 9. Generar external_reference único
     const externalReference = `delixmi_${uuidv4()}`;
 
-    // 8. Crear objeto preference para Mercado Pago
+    // 10. Crear objeto preference para Mercado Pago
     const preferenceData = {
       items: mpItems,
       payer: {
@@ -480,25 +514,15 @@ const createPreference = async (req, res) => {
     // 8. Crear preferencia en Mercado Pago
     const mpResponse = await preference.create({ body: preferenceData });
 
-    // 9. Obtener el branchId del primer producto (todos los productos deben ser del mismo restaurante)
-    const firstProduct = products[0];
-    let branchId = 1; // Valor por defecto
+    // 9. Obtener el branchId de la sucursal ya obtenida
+    const branchId = branch.id;
     
-    console.log(`🔍 Producto seleccionado:`, {
-      productId: firstProduct.id,
-      productName: firstProduct.name,
+    console.log(`🔍 Branch seleccionado:`, {
+      branchId: branchId,
+      branchName: branch.name,
       restaurantId: firstProduct.restaurant.id,
-      restaurantName: firstProduct.restaurant.name,
-      branchesCount: firstProduct.restaurant.branches ? firstProduct.restaurant.branches.length : 0,
-      branches: firstProduct.restaurant.branches
+      restaurantName: firstProduct.restaurant.name
     });
-    
-    if (firstProduct.restaurant.branches && firstProduct.restaurant.branches.length > 0) {
-      branchId = firstProduct.restaurant.branches[0].id;
-      console.log(`✅ BranchId obtenido del producto: ${branchId}`);
-    } else {
-      console.log(`⚠️ No se encontraron sucursales para el restaurante ${firstProduct.restaurant.name}, usando branchId por defecto: ${branchId}`);
-    }
 
     // 9.1. Validación de horario de la sucursal
     const currentDate = new Date();
@@ -983,36 +1007,33 @@ const createCashOrder = async (req, res) => {
 
     console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
 
-    // 7. Calcular tarifas y tiempo estimado
+    // 7. Obtener la sucursal para cálculos
     const branch = firstProduct.restaurant.branches[0];
-    const origin = {
-      latitude: parseFloat(branch.latitude),
-      longitude: parseFloat(branch.longitude)
-    };
-    const destination = {
-      latitude: parseFloat(address.latitude),
-      longitude: parseFloat(address.longitude)
-    };
 
-    console.log(`🚚 Calculando tarifa de envío: ${origin.latitude}, ${origin.longitude} → ${destination.latitude}, ${destination.longitude}`);
+    // 8. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
+    let pricing;
+    try {
+      pricing = await calculateOrderPricing(items, products, branch, address);
+    } catch (error) {
+      console.error('❌ Error calculando precios:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error en el cálculo de precios',
+        error: error.message
+      });
+    }
 
-    const deliveryDetails = await calculateDistance(origin, destination);
-    const deliveryFee = deliveryDetails.deliveryFee || 20; // Valor por defecto si falla
-    const travelTimeMinutes = deliveryDetails.travelTimeMinutes || 15; // Valor por defecto si falla
+    const { subtotal, deliveryFee, serviceFee, total, deliveryDetails, travelTimeMinutes } = pricing;
 
-    console.log(`💰 Tarifa de envío calculada: $${deliveryFee}, Tiempo de viaje: ${travelTimeMinutes} min`);
-
-    // Calcular tiempo estimado de entrega
+    // 9. Calcular tiempo estimado de entrega
     const estimatedDeliveryTime = calculateEstimatedDeliveryTime(
-      travelTimeMinutes, 
+      travelTimeMinutes || 0, 
       items.length, 
       restaurant.name
     );
 
-    // 8. Calcular totales
-    let subtotal = 0;
+    // 10. Construir items de la orden
     const orderItems = [];
-
     for (const item of items) {
       const product = products.find(p => p.id === item.productId);
       if (!product) {
@@ -1031,10 +1052,8 @@ const createCashOrder = async (req, res) => {
         });
       }
 
-      // Usar priceAtAdd si está disponible (incluye modificadores), sino usar product.price
       const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
       const itemTotal = itemPrice * item.quantity;
-      subtotal += itemTotal;
 
       orderItems.push({
         productId: product.id,
@@ -1046,32 +1065,7 @@ const createCashOrder = async (req, res) => {
       console.log(`✅ Producto: ${product.name} x${item.quantity} = $${itemTotal}`);
     }
 
-    const serviceFee = subtotal * 0.05; // 5% de cuota de servicio
-    const total = subtotal + deliveryFee + serviceFee;
-
-    // Validar que todos los valores numéricos sean válidos
-    if (isNaN(subtotal) || isNaN(deliveryFee) || isNaN(serviceFee) || isNaN(total)) {
-      console.log('❌ Error: Valores numéricos inválidos en el cálculo de totales');
-      return res.status(500).json({
-        status: 'error',
-        message: 'Error en el cálculo de totales',
-        details: {
-          subtotal: subtotal,
-          deliveryFee: deliveryFee,
-          serviceFee: serviceFee,
-          total: total
-        }
-      });
-    }
-
-    console.log(`💰 Totales calculados:`, {
-      subtotal: subtotal,
-      deliveryFee: deliveryFee,
-      serviceFee: serviceFee,
-      total: total
-    });
-
-    // 9. Crear orden y pago usando transacción
+    // 11. Crear orden y pago usando transacción
     console.log('💾 Creando orden y pago en efectivo...');
     
     const result = await prisma.$transaction(async (tx) => {
@@ -1128,7 +1122,7 @@ const createCashOrder = async (req, res) => {
       return { order, payment };
     });
 
-    // 10. Limpiar carrito del restaurante específico
+    // 12. Limpiar carrito del restaurante específico
     console.log('🛒 Limpiando carrito del restaurante...');
     try {
       await prisma.cart.deleteMany({
@@ -1143,7 +1137,7 @@ const createCashOrder = async (req, res) => {
       // No fallar el pedido por error en limpieza del carrito
     }
 
-    // 11. Emitir evento de nueva orden por Socket.io
+    // 13. Emitir evento de nueva orden por Socket.io
     console.log('📡 Emitiendo evento de nueva orden...');
     try {
       const io = getIo();
@@ -1161,7 +1155,7 @@ const createCashOrder = async (req, res) => {
       console.log('⚠️ Socket.io no disponible:', error.message);
     }
 
-    // 12. Respuesta exitosa
+    // 14. Respuesta exitosa
     console.log('🎉 Orden de pago en efectivo creada exitosamente');
     
     res.status(201).json({
@@ -1178,13 +1172,15 @@ const createCashOrder = async (req, res) => {
           paymentMethod: result.order.paymentMethod,
           paymentStatus: result.order.paymentStatus,
           estimatedDeliveryTime: estimatedDeliveryTime,
-          deliveryDetails: {
+          deliveryDetails: deliveryDetails ? {
             distance: deliveryDetails.distance,
-            duration: deliveryDetails.travelTimeMinutes,
+            duration: deliveryDetails.duration,
             distanceText: deliveryDetails.distanceText,
             durationText: deliveryDetails.durationText,
+            calculation: deliveryDetails.calculation,
+            isDefault: deliveryDetails.isDefault,
             estimatedDeliveryTime: estimatedDeliveryTime
-          },
+          } : null,
           items: orderItems,
           orderPlacedAt: result.order.orderPlacedAt
         },
