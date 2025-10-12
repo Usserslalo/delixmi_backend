@@ -77,11 +77,13 @@ const handleMercadoPagoWebhook = async (req, res) => {
         });
 
         // Segundo, actualizar la ORDEN
+        // Estado 'placed' = Pedido Realizado (pago aprobado, esperando confirmación del restaurante)
+        // El restaurante cambiará el estado a 'confirmed' manualmente cuando acepte el pedido
         const updatedOrder = await tx.order.update({
           where: { id: order.id },
           data: {
             paymentStatus: 'completed',
-            status: 'confirmed'
+            status: 'placed' // Pedido realizado, esperando confirmación del restaurante
           },
           include: {
              customer: true,
@@ -117,7 +119,7 @@ const handleMercadoPagoWebhook = async (req, res) => {
         // No fallar el proceso por error en limpieza del carrito
       }
       
-      console.log(`🎉 Pago ${paymentId} procesado. Orden ${order.id} confirmada.`);
+      console.log(`🎉 Pago ${paymentId} procesado. Orden ${order.id} realizada (esperando confirmación del restaurante).`);
 
       // Emitir evento de Socket.io
       const io = getIo();

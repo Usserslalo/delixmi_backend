@@ -35,6 +35,7 @@ enum BranchStatus {
 
 enum OrderStatus {
   pending
+  placed
   confirmed
   preparing
   ready_for_pickup
