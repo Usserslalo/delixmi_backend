@@ -106,6 +106,7 @@ const customerRoutes = require('./routes/customer.routes');
 const adminRoutes = require('./routes/admin.routes');
 const cartRoutes = require('./routes/cart.routes');
 const categoryRoutes = require('./routes/category.routes');
+const geocodingRoutes = require('./routes/geocoding.routes');
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -118,6 +119,7 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/geocoding', geocodingRoutes);
 
 // Ruta de prueba básica
 app.get('/', (req, res) => {
@@ -185,6 +187,9 @@ app.get('/', (req, res) => {
       },
       admin: {
         restaurants: 'GET /api/admin/restaurants'
+      },
+      geocoding: {
+        reverseGeocode: 'POST /api/geocoding/reverse'
       }
     }
   });
