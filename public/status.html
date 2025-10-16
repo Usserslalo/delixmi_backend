@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delixmi - Estado de Verificación</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="status-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">🍽️</span>
+        <span class="logo-text">Delixmi</span>
+      </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="status-card">
+        <!-- Status Icon -->
+        <div class="status-icon" id="statusIcon">
+          <div class="icon-circle">
+            <span class="icon" id="icon">⏳</span>
+          </div>
+        </div>
+        
+        <!-- Status Title -->
+        <h1 class="status-title" id="statusTitle">Cargando...</h1>
+        
+        <!-- Status Message -->
+        <div class="status-message" id="statusMessage">
+          <p>Procesando tu solicitud...</p>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons" id="actionButtons">
+          <!-- Los botones se generarán dinámicamente -->
+        </div>
+        
+        <!-- Additional Info -->
+        <div class="additional-info" id="additionalInfo">
+          <!-- Información adicional se mostrará según el estado -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+      <p class="footer-text">
+        © 2024 Delixmi. Todos los derechos reservados.
+      </p>
+      <div class="footer-links">
+        <a href="/" class="footer-link">Inicio</a>
+        <a href="/api/auth/login" class="footer-link">Iniciar Sesión</a>
+        <a href="/api/auth/register" class="footer-link">Registrarse</a>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Configuración de estados
+    const statusConfig = {
+      success: {
+        icon: '✅',
+        iconClass: 'success',
+        title: '¡Éxito!',
+        message: 'Tu solicitud se ha procesado correctamente.',
+        buttons: [
+          { text: 'Iniciar Sesión', href: '/api/auth/login', primary: true },
+          { text: 'Ir al Inicio', href: '/', primary: false }
+        ],
+        additionalInfo: 'Ya puedes usar todas las funcionalidades de tu cuenta.'
+      },
+      error: {
+        icon: '❌',
+        iconClass: 'error',
+        title: 'Error',
+        message: 'Ha ocurrido un problema al procesar tu solicitud.',
+        buttons: [
+          { text: 'Intentar de Nuevo', href: '/api/auth/resend-verification', primary: true },
+          { text: 'Ir al Inicio', href: '/', primary: false }
+        ],
+        additionalInfo: 'Si el problema persiste, contacta con nuestro soporte.'
+      },
+      expired: {
+        icon: '⏰',
+        iconClass: 'warning',
+        title: 'Enlace Expirado',
+        message: 'El enlace de verificación ha expirado.',
+        buttons: [
+          { text: 'Solicitar Nuevo Enlace', href: '/api/auth/resend-verification', primary: true },
+          { text: 'Ir al Inicio', href: '/', primary: false }
+        ],
+        additionalInfo: 'Los enlaces de verificación expiran por seguridad después de 1 hora.'
+      },
+      already_verified: {
+        icon: 'ℹ️',
+        iconClass: 'info',
+        title: 'Ya Verificado',
+        message: 'Tu cuenta ya está verificada.',
+        buttons: [
+          { text: 'Iniciar Sesión', href: '/api/auth/login', primary: true },
+          { text: 'Ir al Inicio', href: '/', primary: false }
+        ],
+        additionalInfo: 'Puedes iniciar sesión normalmente con tus credenciales.'
+      },
+      loading: {
+        icon: '⏳',
+        iconClass: 'loading',
+        title: 'Cargando...',
+        message: 'Procesando tu solicitud...',
+        buttons: [],
+        additionalInfo: 'Por favor espera un momento.'
+      }
+    };
+    
+    // Función para obtener parámetros de la URL
+    function getUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        status: params.get('status') || 'loading',
+        title: params.get('title') || '',
+        message: params.get('message') || '',
+        actionUrl: params.get('actionUrl') || '',
+        actionText: params.get('actionText') || ''
+      };
+    }
+    
+    // Función para actualizar el contenido de la página
+    function updatePageContent(params) {
+      const { status, title, message, actionUrl, actionText } = params;
+      
+      // Obtener configuración del estado
+      let config = statusConfig[status] || statusConfig.error;
+      
+      // Si se proporcionan título y mensaje personalizados, usarlos
+      if (title) config.title = title;
+      if (message) config.message = message;
+      
+      // Actualizar icono
+      const statusIcon = document.getElementById('statusIcon');
+      const icon = document.getElementById('icon');
+      statusIcon.className = `status-icon ${config.iconClass}`;
+      icon.textContent = config.icon;
+      
+      // Actualizar título
+      document.getElementById('statusTitle').textContent = config.title;
+      
+      // Actualizar mensaje
+      document.getElementById('statusMessage').innerHTML = `<p>${config.message}</p>`;
+      
+      // Actualizar botones
+      updateActionButtons(config, actionUrl, actionText);
+      
+      // Actualizar información adicional
+      document.getElementById('additionalInfo').innerHTML = `<p>${config.additionalInfo}</p>`;
+      
+      // Actualizar título de la página
+      document.title = `${config.title} - Delixmi`;
+    }
+    
+    // Función para actualizar los botones de acción
+    function updateActionButtons(config, customActionUrl, customActionText) {
+      const buttonsContainer = document.getElementById('actionButtons');
+      buttonsContainer.innerHTML = '';
+      
+      // Si hay una acción personalizada, agregarla
+      if (customActionUrl && customActionText) {
+        const customButton = createButton(customActionText, customActionUrl, true);
+        buttonsContainer.appendChild(customButton);
+      }
+      
+      // Agregar botones de configuración
+      config.buttons.forEach(buttonConfig => {
+        const button = createButton(buttonConfig.text, buttonConfig.href, buttonConfig.primary);
+        buttonsContainer.appendChild(button);
+      });
+    }
+    
+    // Función para crear un botón
+    function createButton(text, href, primary = false) {
+      const button = document.createElement('a');
+      button.href = href;
+      button.className = `action-button ${primary ? 'primary' : 'secondary'}`;
+      button.textContent = text;
+      return button;
+    }
+    
+    // Función para mostrar animación de carga
+    function showLoadingAnimation() {
+      const icon = document.getElementById('icon');
+      let dots = 0;
+      const interval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        icon.textContent = '⏳' + '.'.repeat(dots);
+      }, 500);
+      
+      return interval;
+    }
+    
+    // Función principal de inicialización
+    function init() {
+      const params = getUrlParams();
+      
+      // Mostrar animación de carga si es necesario
+      let loadingInterval = null;
+      if (params.status === 'loading') {
+        loadingInterval = showLoadingAnimation();
+      }
+      
+      // Simular un pequeño delay para mejor UX
+      setTimeout(() => {
+        if (loadingInterval) {
+          clearInterval(loadingInterval);
+        }
+        updatePageContent(params);
+      }, 1000);
+    }
+    
+    // Inicializar cuando el DOM esté listo
+    document.addEventListener('DOMContentLoaded', init);
+    
+    // Manejar errores de JavaScript
+    window.addEventListener('error', (event) => {
+      console.error('Error en la página de estado:', event.error);
+      updatePageContent({
+        status: 'error',
+        title: 'Error de Página',
+        message: 'Ha ocurrido un error inesperado. Por favor, intenta de nuevo.',
+        actionUrl: '/',
+        actionText: 'Ir al Inicio'
+      });
+    });
+  </script>
+</body>
+</html>

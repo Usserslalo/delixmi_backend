@@ -684,29 +684,7 @@ const verifyEmail = async (req, res) => {
     const { token } = req.query;
 
     if (!token) {
-      return res.status(400).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Error de Verificación - Delixmi</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-            .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-            .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #666; margin-bottom: 20px; }
-            .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="error">❌ Error de Verificación</h1>
-            <p class="message">Token de verificación no proporcionado.</p>
-            <a href="/" class="button">Volver al inicio</a>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.redirect('/status.html?status=error&title=Error de Verificación&message=Token de verificación no proporcionado.');
     }
 
     // Verificar el token JWT
@@ -715,82 +693,15 @@ const verifyEmail = async (req, res) => {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (jwtError) {
       if (jwtError.name === 'TokenExpiredError') {
-        return res.status(400).send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Token Expirado - Delixmi</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-              .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-              .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-              .message { color: #666; margin-bottom: 20px; }
-              .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 5px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1 class="error">⏰ Token Expirado</h1>
-              <p class="message">El enlace de verificación ha expirado. Por favor, solicita uno nuevo.</p>
-              <a href="/api/auth/resend-verification" class="button">Solicitar nuevo enlace</a>
-              <a href="/" class="button">Volver al inicio</a>
-            </div>
-          </body>
-          </html>
-        `);
+        return res.redirect('/status.html?status=expired&title=Enlace Expirado&message=El enlace de verificación ha expirado. Por favor, solicita uno nuevo.&actionUrl=/api/auth/resend-verification&actionText=Solicitar nuevo enlace');
       }
       
-      return res.status(400).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Token Inválido - Delixmi</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-            .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-            .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #666; margin-bottom: 20px; }
-            .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="error">❌ Token Inválido</h1>
-            <p class="message">El enlace de verificación no es válido.</p>
-            <a href="/" class="button">Volver al inicio</a>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.redirect('/status.html?status=error&title=Token Inválido&message=El enlace de verificación no es válido.');
     }
 
     // Verificar que sea un token de verificación de email
     if (decoded.type !== 'email_verification') {
-      return res.status(400).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Token Inválido - Delixmi</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-            .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-            .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #666; margin-bottom: 20px; }
-            .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="error">❌ Token Inválido</h1>
-            <p class="message">Este no es un token de verificación de email válido.</p>
-            <a href="/" class="button">Volver al inicio</a>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.redirect('/status.html?status=error&title=Token Inválido&message=Este no es un token de verificación de email válido.');
     }
 
     // Buscar al usuario
@@ -799,56 +710,12 @@ const verifyEmail = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Usuario No Encontrado - Delixmi</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-            .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-            .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #666; margin-bottom: 20px; }
-            .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="error">❌ Usuario No Encontrado</h1>
-            <p class="message">El usuario asociado a este enlace no existe.</p>
-            <a href="/" class="button">Volver al inicio</a>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.redirect('/status.html?status=error&title=Usuario No Encontrado&message=El usuario asociado a este enlace no existe.');
     }
 
     // Verificar si ya está verificado
     if (user.emailVerifiedAt) {
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Cuenta Ya Verificada - Delixmi</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-            .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-            .success { color: #27ae60; font-size: 24px; margin-bottom: 20px; }
-            .message { color: #666; margin-bottom: 20px; }
-            .button { background: #27ae60; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="success">✅ Cuenta Ya Verificada</h1>
-            <p class="message">Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.</p>
-            <a href="/api/auth/login" class="button">Iniciar Sesión</a>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.redirect('/status.html?status=already_verified&title=Cuenta Ya Verificada&message=Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.');
     }
 
     // Actualizar el usuario
@@ -860,55 +727,13 @@ const verifyEmail = async (req, res) => {
       }
     });
 
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>¡Cuenta Verificada! - Delixmi</title>
-        <style>
-          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-          .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-          .success { color: #27ae60; font-size: 24px; margin-bottom: 20px; }
-          .message { color: #666; margin-bottom: 20px; }
-          .button { background: #27ae60; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1 class="success">🎉 ¡Cuenta Verificada!</h1>
-          <p class="message">¡Tu cuenta ha sido verificada con éxito! Ya puedes iniciar sesión en la aplicación.</p>
-          <a href="/api/auth/login" class="button">Iniciar Sesión</a>
-        </div>
-      </body>
-      </html>
-    `);
+    console.log(`✅ Email verificado exitosamente para usuario: ${user.email} (ID: ${user.id})`);
+
+    res.redirect('/status.html?status=success&title=¡Cuenta Verificada!&message=Tu cuenta ha sido verificada con éxito. Ya puedes iniciar sesión en la aplicación.');
 
   } catch (error) {
     console.error('Error en verificación de email:', error);
-    res.status(500).send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Error del Servidor - Delixmi</title>
-        <style>
-          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-          .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
-          .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-          .message { color: #666; margin-bottom: 20px; }
-          .button { background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1 class="error">❌ Error del Servidor</h1>
-          <p class="message">Ha ocurrido un error interno. Por favor, intenta más tarde.</p>
-          <a href="/" class="button">Volver al inicio</a>
-        </div>
-      </body>
-      </html>
-    `);
+    res.redirect('/status.html?status=error&title=Error del Servidor&message=Ha ocurrido un error interno. Por favor, intenta más tarde.');
   }
 };
 
@@ -1374,10 +1199,7 @@ const resetPassword = async (req, res) => {
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     // Buscar usuario con el token hasheado y que no haya expirado
-    console.log('🔍 DEBUG: Buscando usuario en la base de datos...');
     const currentDate = new Date();
-    console.log('🔍 DEBUG: Fecha actual para comparación:', currentDate);
-    console.log('🔍 DEBUG: Fecha actual ISO:', currentDate.toISOString());
     
     const user = await prisma.user.findFirst({
       where: {
@@ -1395,69 +1217,6 @@ const resetPassword = async (req, res) => {
         passwordResetExpiresAt: true
       }
     });
-
-    console.log('🔍 DEBUG: Usuario encontrado:', user ? 'SÍ' : 'NO');
-    
-    if (user) {
-      console.log('🔍 DEBUG: Usuario ID:', user.id);
-      console.log('🔍 DEBUG: Usuario email:', user.email);
-      console.log('🔍 DEBUG: Usuario status:', user.status);
-      console.log('🔍 DEBUG: Token en BD:', user.passwordResetToken);
-      console.log('🔍 DEBUG: Expira en BD:', user.passwordResetExpiresAt);
-      console.log('🔍 DEBUG: Fecha actual:', new Date());
-      console.log('🔍 DEBUG: ¿Token expirado?', user.passwordResetExpiresAt < new Date() ? 'SÍ' : 'NO');
-    } else {
-      console.log('❌ DEBUG: No se encontró usuario con ese token o el token expiró');
-      
-      // Buscar si existe el token pero está expirado
-      const expiredUser = await prisma.user.findFirst({
-        where: {
-          passwordResetToken: hashedToken
-        },
-        select: {
-          id: true,
-          email: true,
-          passwordResetExpiresAt: true
-        }
-      });
-      
-      if (expiredUser) {
-        console.log('🔍 DEBUG: Token encontrado pero expirado para usuario:', expiredUser.email);
-        console.log('🔍 DEBUG: Token expiraba en:', expiredUser.passwordResetExpiresAt);
-        console.log('🔍 DEBUG: Token expiraba en ISO:', expiredUser.passwordResetExpiresAt.toISOString());
-        console.log('🔍 DEBUG: Fecha actual:', new Date());
-        console.log('🔍 DEBUG: Fecha actual ISO:', new Date().toISOString());
-        console.log('🔍 DEBUG: Diferencia en milisegundos:', new Date() - expiredUser.passwordResetExpiresAt);
-        console.log('🔍 DEBUG: Diferencia en minutos:', (new Date() - expiredUser.passwordResetExpiresAt) / (1000 * 60));
-      } else {
-        console.log('🔍 DEBUG: Token no encontrado en la base de datos');
-        
-        // Buscar todos los tokens de reset activos para debugging
-        const allResetTokens = await prisma.user.findMany({
-          where: {
-            passwordResetToken: {
-              not: null
-            }
-          },
-          select: {
-            id: true,
-            email: true,
-            passwordResetToken: true,
-            passwordResetExpiresAt: true
-          }
-        });
-        
-        console.log('🔍 DEBUG: Total de tokens de reset en la BD:', allResetTokens.length);
-        allResetTokens.forEach((tokenData, index) => {
-          console.log(`🔍 DEBUG: Token ${index + 1}:`, {
-            email: tokenData.email,
-            tokenHash: tokenData.passwordResetToken,
-            expiresAt: tokenData.passwordResetExpiresAt,
-            isExpired: tokenData.passwordResetExpiresAt < new Date()
-          });
-        });
-      }
-    }
 
     // Si no se encuentra el usuario, devolver error
     if (!user) {
@@ -1480,8 +1239,6 @@ const resetPassword = async (req, res) => {
         data: null
       });
     }
-
-    console.log('🔍 DEBUG: Validaciones pasadas, procediendo a actualizar contraseña...');
 
     // Hashear la nueva contraseña
     const saltRounds = 12;
