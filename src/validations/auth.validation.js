@@ -164,6 +164,28 @@ const changePasswordSchema = z.object({
     .max(128, 'La nueva contraseña no puede exceder 128 caracteres')
 });
 
+// Esquema para refresh token
+const refreshTokenSchema = z.object({
+  refreshToken: z
+    .string({
+      required_error: 'El refresh token es requerido',
+      invalid_type_error: 'El refresh token debe ser un texto'
+    })
+    .length(128, 'El refresh token debe tener exactamente 128 caracteres')
+    .regex(/^[a-f0-9]+$/i, 'El refresh token debe contener solo caracteres hexadecimales')
+});
+
+// Esquema para logout
+const logoutSchema = z.object({
+  refreshToken: z
+    .string({
+      required_error: 'El refresh token es requerido',
+      invalid_type_error: 'El refresh token debe ser un texto'
+    })
+    .length(128, 'El refresh token debe tener exactamente 128 caracteres')
+    .regex(/^[a-f0-9]+$/i, 'El refresh token debe contener solo caracteres hexadecimales')
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -171,6 +193,8 @@ module.exports = {
   resetPasswordSchema,
   resendVerificationSchema,
   updateProfileSchema,
-  changePasswordSchema
+  changePasswordSchema,
+  refreshTokenSchema,
+  logoutSchema
 };
 

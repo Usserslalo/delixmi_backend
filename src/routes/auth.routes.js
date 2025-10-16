@@ -5,7 +5,8 @@ const {
   getProfile, 
   updateProfile,
   changePassword,
-  logout, 
+  logout,
+  refreshToken, 
   verifyToken,
   verifyEmail,
   resendVerification,
@@ -22,7 +23,9 @@ const {
   resetPasswordSchema,
   resendVerificationSchema,
   updateProfileSchema,
-  changePasswordSchema
+  changePasswordSchema,
+  refreshTokenSchema,
+  logoutSchema
 } = require('../validations/auth.validation');
 
 const router = express.Router();
@@ -50,11 +53,18 @@ router.post('/login', loginLimiter, validate(loginSchema), login);
 router.get('/profile', authenticateToken, getProfile);
 
 /**
+ * @route   POST /api/auth/refresh-token
+ * @desc    Refrescar access token usando refresh token
+ * @access  Public (pero requiere refresh token válido)
+ */
+router.post('/refresh-token', validate(refreshTokenSchema), refreshToken);
+
+/**
  * @route   POST /api/auth/logout
  * @desc    Cerrar sesión
- * @access  Private
+ * @access  Public (pero requiere refresh token válido)
  */
-router.post('/logout', authenticateToken, logout);
+router.post('/logout', validate(logoutSchema), logout);
 
 /**
  * @route   GET /api/auth/verify

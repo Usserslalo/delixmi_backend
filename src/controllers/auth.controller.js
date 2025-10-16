@@ -211,7 +211,7 @@ const login = async (req, res) => {
       return ResponseService.internalError(res, 'Error de configuración: usuario sin roles asignados', 'NO_ROLES_ASSIGNED');
     }
 
-    // Generar JWT
+    // Generar Access Token (corta duración)
     const tokenPayload = {
       userId: user.id,
       roleId: primaryRole.id,
@@ -219,22 +219,42 @@ const login = async (req, res) => {
       email: user.email
     };
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       tokenPayload,
       process.env.JWT_SECRET,
       { 
-        expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
         issuer: 'delixmi-api',
         audience: 'delixmi-app'
       }
     );
+
+    // Generar Refresh Token (criptográficamente seguro)
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    
+    // Hashear el refresh token para almacenarlo en la base de datos
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 12);
+    
+    // Establecer fecha de expiración del refresh token (7 días por defecto)
+    const refreshTokenExpiresAt = new Date();
+    refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + (parseInt(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 7));
+    
+    // Guardar el refresh token hasheado en la base de datos
+    await prisma.refreshToken.create({
+      data: {
+        token: hashedRefreshToken,
+        userId: user.id,
+        expiresAt: refreshTokenExpiresAt
+      }
+    });
 
     // Respuesta exitosa
     return ResponseService.success(
       res,
       'Inicio de sesión exitoso',
       {
-        token,
+        accessToken,
+        refreshToken,
         user: {
           id: user.id,
           name: user.name,
@@ -254,7 +274,7 @@ const login = async (req, res) => {
             branchId: assignment.branchId
           }))
         },
-        expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m'
       }
     );
 
@@ -431,27 +451,201 @@ const changePassword = async (req, res) => {
 };
 
 /**
- * Controlador para cerrar sesión (opcional - principalmente para logging)
+ * Controlador para refrescar el access token usando refresh token
+ * POST /api/auth/refresh-token
+ */
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return ResponseService.badRequest(res, 'Refresh token requerido', 'REFRESH_TOKEN_REQUIRED');
+    }
+
+    // Buscar refresh tokens del usuario (necesitamos el userId del access token expirado)
+    const authHeader = req.headers['authorization'];
+    const accessToken = authHeader && authHeader.split(' ')[1];
+
+    if (!accessToken) {
+      return ResponseService.badRequest(res, 'Access token requerido para obtener userId', 'ACCESS_TOKEN_REQUIRED');
+    }
+
+    // Decodificar el access token expirado (sin verificar la expiración)
+    let decoded;
+    try {
+      decoded = jwt.decode(accessToken);
+      if (!decoded || !decoded.userId) {
+        return ResponseService.badRequest(res, 'Access token inválido', 'INVALID_ACCESS_TOKEN');
+      }
+    } catch (error) {
+      return ResponseService.badRequest(res, 'Access token inválido', 'INVALID_ACCESS_TOKEN');
+    }
+
+    // Buscar refresh tokens del usuario
+    const userRefreshTokens = await prisma.refreshToken.findMany({
+      where: {
+        userId: decoded.userId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    if (userRefreshTokens.length === 0) {
+      return ResponseService.forbidden(res, 'No hay refresh tokens válidos. Inicia sesión nuevamente.', 'NO_REFRESH_TOKENS');
+    }
+
+    // Verificar cada refresh token hasheado
+    let validRefreshToken = null;
+    for (const tokenRecord of userRefreshTokens) {
+      const isTokenValid = await bcrypt.compare(refreshToken, tokenRecord.token);
+      if (isTokenValid) {
+        validRefreshToken = tokenRecord;
+        break;
+      }
+    }
+
+    if (!validRefreshToken) {
+      return ResponseService.forbidden(res, 'Refresh token inválido. Inicia sesión nuevamente.', 'INVALID_REFRESH_TOKEN');
+    }
+
+    // Verificar que el refresh token no haya expirado
+    if (new Date() > validRefreshToken.expiresAt) {
+      // Limpiar tokens expirados
+      await prisma.refreshToken.deleteMany({
+        where: {
+          userId: decoded.userId,
+          expiresAt: {
+            lt: new Date()
+          }
+        }
+      });
+      return ResponseService.forbidden(res, 'Refresh token expirado. Inicia sesión nuevamente.', 'REFRESH_TOKEN_EXPIRED');
+    }
+
+    // Verificar que el usuario aún existe y está activo
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        status: true,
+        userRoleAssignments: {
+          select: {
+            roleId: true,
+            role: {
+              select: {
+                name: true,
+                displayName: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user || user.status !== 'active') {
+      return ResponseService.forbidden(res, 'Usuario no encontrado o inactivo. Inicia sesión nuevamente.', 'USER_INACTIVE');
+    }
+
+    const primaryRole = user.userRoleAssignments[0]?.role;
+    if (!primaryRole) {
+      return ResponseService.internalError(res, 'Error de configuración: usuario sin roles asignados', 'NO_ROLES_ASSIGNED');
+    }
+
+    // ROTACIÓN DE TOKENS: Eliminar el refresh token usado
+    await prisma.refreshToken.delete({
+      where: { id: validRefreshToken.id }
+    });
+
+    // Generar nuevo access token
+    const newTokenPayload = {
+      userId: user.id,
+      roleId: primaryRole.id,
+      roleName: primaryRole.name,
+      email: decoded.email
+    };
+
+    const newAccessToken = jwt.sign(
+      newTokenPayload,
+      process.env.JWT_SECRET,
+      { 
+        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+        issuer: 'delixmi-api',
+        audience: 'delixmi-app'
+      }
+    );
+
+    // Generar nuevo refresh token
+    const newRefreshToken = crypto.randomBytes(64).toString('hex');
+    const hashedNewRefreshToken = await bcrypt.hash(newRefreshToken, 12);
+    
+    const newRefreshTokenExpiresAt = new Date();
+    newRefreshTokenExpiresAt.setDate(newRefreshTokenExpiresAt.getDate() + (parseInt(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 7));
+
+    await prisma.refreshToken.create({
+      data: {
+        token: hashedNewRefreshToken,
+        userId: user.id,
+        expiresAt: newRefreshTokenExpiresAt
+      }
+    });
+
+    return ResponseService.success(
+      res,
+      'Tokens renovados exitosamente',
+      {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m'
+      }
+    );
+
+  } catch (error) {
+    console.error('Error en refresh token:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
+  }
+};
+
+/**
+ * Controlador para cerrar sesión
  * POST /api/auth/logout
  */
 const logout = async (req, res) => {
   try {
-    // En un sistema JWT stateless, el logout se maneja en el cliente
-    // eliminando el token. Aquí podemos registrar el evento si es necesario.
-    
-    res.json({
-      status: 'success',
-      message: 'Sesión cerrada exitosamente',
-      data: null
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return ResponseService.badRequest(res, 'Refresh token requerido', 'REFRESH_TOKEN_REQUIRED');
+    }
+
+    // Buscar y eliminar el refresh token
+    const userRefreshTokens = await prisma.refreshToken.findMany({
+      where: {
+        user: {
+          status: 'active'
+        }
+      }
     });
+
+    // Verificar cada refresh token hasheado y eliminar el que coincida
+    for (const tokenRecord of userRefreshTokens) {
+      const isTokenValid = await bcrypt.compare(refreshToken, tokenRecord.token);
+      if (isTokenValid) {
+        await prisma.refreshToken.delete({
+          where: { id: tokenRecord.id }
+        });
+        break;
+      }
+    }
+
+    return ResponseService.success(
+      res,
+      'Sesión cerrada exitosamente',
+      null
+    );
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR',
-      data: null
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
   }
 };
 
@@ -1333,6 +1527,7 @@ module.exports = {
   updateProfile,
   changePassword,
   logout,
+  refreshToken,
   verifyToken,
   verifyEmail,
   resendVerification,

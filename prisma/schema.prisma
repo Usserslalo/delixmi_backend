@@ -137,6 +137,7 @@ model User {
   ordersAsDriver     Order[] @relation("DriverOrders")
   driverProfile      DriverProfile?
   carts              Cart[]
+  refreshTokens      RefreshToken[]
 
   @@map("users")
 }
@@ -464,4 +465,17 @@ model CartItemModifier {
   modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
 
   @@map("cart_item_modifiers")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
 }
