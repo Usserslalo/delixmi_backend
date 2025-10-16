@@ -20,6 +20,10 @@ const {
 const { logger } = require('./config/logger');
 
 const app = express();
+
+// Configurar Express para confiar en el proxy (necesario para Render)
+app.set('trust proxy', 1);
+
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
