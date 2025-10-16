@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { sendVerificationEmail, sendResendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
 const { sendOtpSms, isValidPhoneNumber } = require('../config/sms');
+const ResponseService = require('../services/response.service');
 
 const prisma = new PrismaClient();
 
@@ -28,14 +29,10 @@ const register = async (req, res) => {
 
     if (existingUser) {
       const conflictField = existingUser.email === email ? 'email' : 'phone';
-      return res.status(409).json({
-        status: 'error',
-        message: conflictField === 'email' 
-          ? 'El correo electrónico ya está en uso' 
-          : 'El número de teléfono ya está en uso',
-        code: 'USER_EXISTS',
-        data: null
-      });
+      const message = conflictField === 'email' 
+        ? 'El correo electrónico ya está en uso' 
+        : 'El número de teléfono ya está en uso';
+      return ResponseService.conflict(res, message, null, 'USER_EXISTS');
     }
 
     // Hashear la contraseña
@@ -120,38 +117,35 @@ const register = async (req, res) => {
       console.log('📧 Email de verificación enviado:', emailResult.previewUrl);
       
       // Solo responder con éxito si el email se envió correctamente
-      res.status(201).json({
-        status: 'success',
-        message: 'Usuario registrado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.',
-        data: {
+      return ResponseService.success(
+        res, 
+        'Usuario registrado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.',
+        {
           user: newUser,
           emailSent: true
-        }
-      });
+        },
+        201
+      );
       
     } catch (emailError) {
       console.error('❌ Error al enviar email de verificación:', emailError);
       
       // Si el envío del email falla, devolver error 500 al cliente
-      return res.status(500).json({
-        status: 'error',
-        message: 'Usuario creado, pero no se pudo enviar el correo de verificación. Por favor, solicita un reenvío.',
-        code: 'EMAIL_SEND_ERROR',
-        data: {
+      return ResponseService.error(
+        res,
+        'Usuario creado, pero no se pudo enviar el correo de verificación. Por favor, solicita un reenvío.',
+        {
           userId: newUser.id,
           email: newUser.email
-        }
-      });
+        },
+        500,
+        'EMAIL_SEND_ERROR'
+      );
     }
 
   } catch (error) {
     console.error('Error en registro de usuario:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR',
-      data: null
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
   }
 };
 
@@ -196,45 +190,25 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Credenciales incorrectas',
-        code: 'INVALID_CREDENTIALS',
-        data: null
-      });
+      return ResponseService.unauthorized(res, 'Credenciales incorrectas', 'INVALID_CREDENTIALS');
     }
 
     // Verificar la contraseña
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Credenciales incorrectas',
-        code: 'INVALID_CREDENTIALS',
-        data: null
-      });
+      return ResponseService.unauthorized(res, 'Credenciales incorrectas', 'INVALID_CREDENTIALS');
     }
 
     // Verificar que el usuario esté activo
     if (user.status !== 'active') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Cuenta no verificada. Por favor, verifica tu correo electrónico.',
-        code: 'ACCOUNT_NOT_VERIFIED',
-        data: null
-      });
+      return ResponseService.forbidden(res, 'Cuenta no verificada. Por favor, verifica tu correo electrónico.', 'ACCOUNT_NOT_VERIFIED');
     }
 
     // Obtener el rol principal del usuario (el primero)
     const primaryRole = user.userRoleAssignments[0]?.role;
 
     if (!primaryRole) {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Error de configuración: usuario sin roles asignados',
-        code: 'NO_ROLES_ASSIGNED',
-        data: null
-      });
+      return ResponseService.internalError(res, 'Error de configuración: usuario sin roles asignados', 'NO_ROLES_ASSIGNED');
     }
 
     // Generar JWT
@@ -256,10 +230,10 @@ const login = async (req, res) => {
     );
 
     // Respuesta exitosa
-    res.json({
-      status: 'success',
-      message: 'Inicio de sesión exitoso',
-      data: {
+    return ResponseService.success(
+      res,
+      'Inicio de sesión exitoso',
+      {
         token,
         user: {
           id: user.id,
@@ -282,16 +256,11 @@ const login = async (req, res) => {
         },
         expiresIn: process.env.JWT_EXPIRES_IN || '24h'
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error en inicio de sesión:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR',
-      data: null
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
   }
 };
 
@@ -302,21 +271,16 @@ const login = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     // El usuario ya está disponible en req.user gracias al middleware
-    res.json({
-      status: 'success',
-      message: 'Perfil obtenido exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Perfil obtenido exitosamente',
+      {
         user: req.user
       }
-    });
+    );
   } catch (error) {
     console.error('Error al obtener perfil:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR',
-      data: null
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
   }
 };
 

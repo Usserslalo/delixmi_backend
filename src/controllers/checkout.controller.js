@@ -1,368 +1,89 @@
 const { validationResult } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
-const { MercadoPagoConfig, Preference } = require('mercadopago');
-const { v4: uuidv4 } = require('uuid');
-const { calculateDistance, calculateDeliveryFee } = require('../config/maps');
 const { getIo } = require('../config/socket');
 const { isWithinCoverage } = require('../services/geolocation.service');
+const PricingService = require('../services/pricing.service');
+const OrderService = require('../services/order.service');
+const MercadoPagoService = require('../services/mercadopago.service');
+const ResponseService = require('../services/response.service');
+const { logger } = require('../config/logger');
 
 const prisma = new PrismaClient();
 
-/**
- * Redondea un número a 2 decimales para cálculos monetarios
- * @param {number} num - Número a redondear
- * @returns {number} Número redondeado a 2 decimales
- */
-const roundToTwoDecimals = (num) => {
-  return Math.round(num * 100) / 100;
-};
-
-/**
- * Calcula los precios de una orden de manera centralizada
- * @param {Array} items - Items del pedido con productId, quantity, y opcionalmente priceAtAdd
- * @param {Array} products - Productos obtenidos de la base de datos
- * @param {Object} branch - Sucursal del restaurante
- * @param {Object} address - Dirección de entrega
- * @returns {Promise<Object>} Objeto con subtotal, deliveryFee, serviceFee, total y deliveryDetails
- */
-const calculateOrderPricing = async (items, products, branch, address) => {
-  // 1. Calcular subtotal
-  let subtotal = 0;
-  
-  for (const item of items) {
-    const product = products.find(p => p.id === item.productId);
-    if (!product) {
-      throw new Error(`Producto con ID ${item.productId} no encontrado`);
-    }
-    
-    // Usar priceAtAdd que incluye modificadores, o product.price como fallback
-    const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
-    const itemTotal = itemPrice * item.quantity;
-    subtotal += itemTotal;
-  }
-
-  // Redondear subtotal a 2 decimales
-  subtotal = roundToTwoDecimals(subtotal);
-
-  // 2. Calcular tarifa de envío dinámicamente basada en distancia
-  let deliveryFee = 25.00; // Valor por defecto en caso de error
-  let deliveryDetails = null;
-  let travelTimeMinutes = 0;
-
-  try {
-    // Obtener coordenadas de la dirección de entrega
-    const destinationCoords = {
-      latitude: Number(address.latitude),
-      longitude: Number(address.longitude)
-    };
-
-    // Obtener coordenadas de la sucursal
-    const originCoords = {
-      latitude: Number(branch.latitude),
-      longitude: Number(branch.longitude)
-    };
-
-    // Calcular distancia usando Google Maps
-    const distanceResult = await calculateDistance(originCoords, destinationCoords);
-    
-    // Calcular tarifa de envío basada en la distancia
-    const feeCalculation = calculateDeliveryFee(distanceResult.distance);
-    deliveryFee = feeCalculation.tarifaFinal;
-    travelTimeMinutes = distanceResult.duration;
-    
-    deliveryDetails = {
-      distance: distanceResult.distance,
-      duration: distanceResult.duration,
-      distanceText: distanceResult.distanceText,
-      durationText: distanceResult.durationText,
-      calculation: feeCalculation,
-      isDefault: distanceResult.isDefault || false
-    };
-
-    console.log('✅ Cálculo de tarifa de envío:', {
-      origin: `${originCoords.latitude}, ${originCoords.longitude}`,
-      destination: `${destinationCoords.latitude}, ${destinationCoords.longitude}`,
-      distance: distanceResult.distance,
-      deliveryFee: deliveryFee,
-      travelTimeMinutes: travelTimeMinutes,
-      isDefault: distanceResult.isDefault
-    });
-  } catch (error) {
-    console.error('❌ Error calculando tarifa de envío:', error);
-    console.warn('⚠️ Usando valores por defecto debido a error');
-    deliveryDetails = {
-      isDefault: true,
-      error: error.message
-    };
-  }
-
-  // Redondear deliveryFee a 2 decimales
-  deliveryFee = roundToTwoDecimals(deliveryFee);
-
-  // 3. Calcular cuota de servicio (5% del subtotal ya redondeado)
-  const serviceFee = roundToTwoDecimals(subtotal * 0.05);
-  
-  // 4. Calcular total (suma de componentes ya redondeados, y redondear el resultado)
-  const total = roundToTwoDecimals(subtotal + deliveryFee + serviceFee);
-
-  console.log('💰 Cálculo de precios centralizado (con redondeo):', {
-    subtotal: subtotal.toFixed(2),
-    deliveryFee: deliveryFee.toFixed(2),
-    serviceFee: serviceFee.toFixed(2),
-    total: total.toFixed(2),
-    itemsCount: items.length,
-    note: 'Todos los valores redondeados a 2 decimales'
-  });
-
-  return {
-    subtotal,
-    deliveryFee,
-    serviceFee,
-    total,
-    deliveryDetails,
-    travelTimeMinutes
-  };
-};
-
-/**
- * Calcula el tiempo estimado de entrega basado en tiempo de viaje y preparación
- * @param {number} travelTimeMinutes - Tiempo de viaje en minutos (desde Google Maps)
- * @param {number} itemCount - Número de productos en el pedido
- * @param {string} restaurantName - Nombre del restaurante (para logging)
- * @returns {Object} Objeto con información del tiempo estimado
- */
-const calculateEstimatedDeliveryTime = (travelTimeMinutes, itemCount, restaurantName) => {
-  // Tiempo base de preparación (15-25 minutos)
-  const basePreparationTime = 20; // 20 minutos como promedio
-  
-  // Ajuste basado en la cantidad de productos
-  // Más productos = más tiempo de preparación
-  let preparationTimeAdjustment = 0;
-  if (itemCount > 3) {
-    preparationTimeAdjustment = Math.ceil((itemCount - 3) * 2); // +2 minutos por producto adicional
-  }
-  
-  const totalPreparationTime = basePreparationTime + preparationTimeAdjustment;
-  
-  // Si no tenemos datos de viaje, usar tiempo por defecto
-  const effectiveTravelTime = travelTimeMinutes > 0 ? travelTimeMinutes : 15; // 15 min por defecto
-  
-  // Calcular rangos de tiempo
-  const minTotalTime = totalPreparationTime + effectiveTravelTime;
-  const maxTotalTime = minTotalTime + 10; // Agregar 10 minutos de buffer
-  
-  // Convertir a formato legible
-  const formatTimeRange = (min, max) => {
-    if (min === max) {
-      return `${min} min`;
-    }
-    return `${min}-${max} min`;
-  };
-  
-  const timeRange = formatTimeRange(minTotalTime, maxTotalTime);
-  
-  // Calcular tiempo estimado de entrega (timestamp)
-  const now = new Date();
-  const estimatedDeliveryTime = new Date(now.getTime() + (maxTotalTime * 60 * 1000));
-  
-  const result = {
-    timeRange: timeRange,
-    minMinutes: minTotalTime,
-    maxMinutes: maxTotalTime,
-    preparationTime: {
-      base: basePreparationTime,
-      adjustment: preparationTimeAdjustment,
-      total: totalPreparationTime
-    },
-    travelTime: effectiveTravelTime,
-    estimatedDeliveryAt: estimatedDeliveryTime.toISOString(),
-    breakdown: {
-      preparation: `${totalPreparationTime} min`,
-      travel: `${effectiveTravelTime} min`,
-      buffer: '10 min',
-      total: timeRange
-    }
-  };
-  
-  console.log(`🕐 Tiempo estimado calculado para ${restaurantName}:`, {
-    itemCount,
-    preparationTime: result.preparationTime,
-    travelTime: effectiveTravelTime,
-    timeRange: timeRange,
-    estimatedDeliveryAt: estimatedDeliveryTime.toLocaleString()
-  });
-  
-  return result;
-};
-
-// Configuración de Mercado Pago
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
-  options: { timeout: 5000 }
-});
-
-const preference = new Preference(client);
+// Las funciones de cálculo de precios y tiempo estimado ahora están en PricingService
+// La configuración de Mercado Pago ahora está en MercadoPagoService
 
 /**
  * Crea una preferencia de pago en Mercado Pago
+ * REFACTORIZADO: Ahora usa servicios dedicados siguiendo principios de Clean Code y SRP
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const createPreference = async (req, res) => {
   try {
-    // Verificar errores de validación
+    const requestId = req.id;
+    const userId = req.user.id;
+
+    logger.info('Iniciando creación de preferencia de pago', {
+      requestId,
+      meta: { userId }
+    });
+
+    // 1. Validar entrada básica
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
+      return ResponseService.validationError(
+        res, 
+        'Datos de entrada inválidos',
+        errors.array()
+      );
     }
 
     const { addressId, items, specialInstructions, useCart = false, restaurantId } = req.body;
-    const userId = req.user.id;
 
-    // 1. Validar que si useCart es true, restaurantId sea obligatorio
+    // Validaciones básicas
     if (useCart && !restaurantId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'El restaurantId es obligatorio cuando se usa el carrito (useCart: true)'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'El restaurantId es obligatorio cuando se usa el carrito (useCart: true)'
+      );
     }
 
-    // Validar que si no usa carrito, items sea obligatorio
     if (!useCart && (!items || items.length === 0)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Debe proporcionar items o usar el carrito (useCart: true con restaurantId)'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'Debe proporcionar items o usar el carrito (useCart: true con restaurantId)'
+      );
     }
 
     // 2. Verificar que la dirección pertenece al usuario
     const address = await prisma.address.findFirst({
-      where: {
-        id: addressId,
-        userId: userId
-      }
+      where: { id: addressId, userId: userId }
     });
 
     if (!address) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Dirección no encontrada o no pertenece al usuario'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Dirección no encontrada o no pertenece al usuario'
+      );
     }
 
-    // 3. VALIDACIÓN DE COBERTURA TEMPRANA
-    // Obtener el branchId antes de procesar los items
-    let branchIdForValidation = null;
-    
-    if (useCart && restaurantId) {
-      // Si usa carrito, obtener la primera sucursal del restaurante
-      const restaurantData = await prisma.restaurant.findUnique({
-        where: { id: restaurantId },
-        select: {
-          branches: {
-            where: { status: 'active' },
-            select: { id: true, latitude: true, longitude: true, deliveryRadius: true, name: true },
-            take: 1
-          }
-        }
-      });
-      
-      if (restaurantData?.branches?.[0]) {
-        branchIdForValidation = restaurantData.branches[0].id;
-      }
-    } else if (items && items.length > 0) {
-      // Si no usa carrito, obtener la sucursal del primer producto
-      const firstProduct = await prisma.product.findUnique({
-        where: { id: items[0].productId },
-        select: {
-          restaurant: {
-            select: {
-              branches: {
-                where: { status: 'active' },
-                select: { id: true, latitude: true, longitude: true, deliveryRadius: true, name: true },
-                take: 1
-              }
-            }
-          }
-        }
-      });
-      
-      if (firstProduct?.restaurant?.branches?.[0]) {
-        branchIdForValidation = firstProduct.restaurant.branches[0].id;
-      }
-    }
+    // 3. Obtener items del carrito o validar items directos
+    let itemsToProcess = [];
+    let products = [];
+    let branch = null;
 
-    // Validar cobertura si tenemos branchId
-    if (branchIdForValidation) {
-      const branch = await prisma.branch.findUnique({
-        where: { id: branchIdForValidation },
-        select: {
-          id: true,
-          name: true,
-          latitude: true,
-          longitude: true,
-          deliveryRadius: true,
-          restaurant: {
-            select: {
-              name: true
-            }
-          }
-        }
-      });
-
-      if (branch) {
-        const isCovered = isWithinCoverage(branch, address);
-        
-        if (!isCovered) {
-          console.log('❌ Dirección fuera del área de cobertura:', {
-            branchId: branch.id,
-            branchName: branch.name,
-            addressId: address.id,
-            addressAlias: address.alias
-          });
-          
-          return res.status(409).json({
-            status: 'error',
-            message: 'Lo sentimos, tu dirección está fuera del área de entrega de esta sucursal',
-            code: 'OUT_OF_COVERAGE_AREA',
-            details: {
-              restaurant: branch.restaurant.name,
-              branch: branch.name,
-              address: `${address.street} ${address.exteriorNumber}, ${address.neighborhood}, ${address.city}`,
-              deliveryRadius: `${Number(branch.deliveryRadius).toFixed(2)} km`,
-              suggestion: 'Por favor, elige otra dirección o restaurante más cercano'
-            }
-          });
-        }
-        
-        console.log('✅ Dirección dentro del área de cobertura');
-      }
-    }
-
-    // 4. Si useCart es true, obtener items del carrito
-    let cartItems = [];
     if (useCart) {
+      // Obtener items del carrito
       const cart = await prisma.cart.findUnique({
         where: {
-          userId_restaurantId: {
-            userId: userId,
-            restaurantId: restaurantId
-          }
+          userId_restaurantId: { userId: userId, restaurantId: restaurantId }
         },
         include: {
           items: {
             include: {
               product: {
-                select: {
-                  id: true,
-                  name: true,
-                  price: true,
-                  isAvailable: true
-                }
+                select: { id: true, name: true, price: true, isAvailable: true }
               }
             }
           }
@@ -370,353 +91,214 @@ const createPreference = async (req, res) => {
       });
 
       if (!cart || cart.items.length === 0) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Carrito vacío o no encontrado'
-        });
+        return ResponseService.badRequest(
+          res, 
+          'Carrito vacío o no encontrado'
+        );
       }
 
-      cartItems = cart.items.map(item => ({
+      itemsToProcess = cart.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
         priceAtAdd: item.priceAtAdd
       }));
+    } else {
+      itemsToProcess = items;
     }
 
-    // 5. Obtener información de los productos y verificar precios
-    const productIds = useCart ? cartItems.map(item => item.productId) : items.map(item => item.productId);
-    const products = await prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-        isAvailable: true
-      },
+    // 4. Obtener productos y validar disponibilidad
+    const productIds = itemsToProcess.map(item => item.productId);
+    products = await prisma.product.findMany({
+      where: { id: { in: productIds }, isAvailable: true },
       include: {
         restaurant: {
           select: {
-            id: true,
-            name: true,
-            commissionRate: true,
+            id: true, name: true, commissionRate: true,
             branches: {
-              where: {
-                status: 'active'
-              },
-              select: {
-                id: true,
-                name: true,
-                latitude: true,
-                longitude: true
-              },
-              take: 1 // Solo necesitamos la primera sucursal activa
+              where: { status: 'active' },
+              select: { id: true, name: true, latitude: true, longitude: true },
+              take: 1
             }
-          }
-        },
-        subcategory: {
-          select: {
-            name: true
           }
         }
       }
     });
 
-    // Verificar que todos los productos existen y están disponibles
     if (products.length !== productIds.length) {
       const foundIds = products.map(p => p.id);
       const missingIds = productIds.filter(id => !foundIds.includes(id));
-      
-      return res.status(400).json({
-        status: 'error',
-        message: 'Algunos productos no están disponibles',
-        missingProducts: missingIds
-      });
+      return ResponseService.badRequest(
+        res, 
+        'Algunos productos no están disponibles',
+        { missingProducts: missingIds }
+      );
     }
 
-    // 6. Obtener la sucursal para cálculos
+    // 5. Obtener sucursal y validar cobertura
     const firstProduct = products[0];
     if (!firstProduct.restaurant.branches || firstProduct.restaurant.branches.length === 0) {
-      console.error('❌ No se encontró sucursal activa para el restaurante');
-      return res.status(500).json({
-        status: 'error',
-        message: 'No se encontró una sucursal activa para este restaurante'
-      });
+      return ResponseService.internalError(
+        res, 
+        'No se encontró una sucursal activa para este restaurante'
+      );
     }
 
-    const branch = firstProduct.restaurant.branches[0];
-    const itemsToProcess = useCart ? cartItems : items;
+    branch = firstProduct.restaurant.branches[0];
 
-    // 7. CALCULAR PRECIOS USANDO LA FUNCIÓN CENTRALIZADA
-    const pricing = await calculateOrderPricing(itemsToProcess, products, branch, address);
-    const { subtotal, deliveryFee, serviceFee, total, deliveryDetails, travelTimeMinutes } = pricing;
+    // Validar cobertura
+    const isCovered = isWithinCoverage(branch, address);
+    if (!isCovered) {
+      return ResponseService.conflict(
+        res, 
+        'Lo sentimos, tu dirección está fuera del área de entrega de esta sucursal',
+        {
+          restaurant: firstProduct.restaurant.name,
+          branch: branch.name,
+          address: `${address.street} ${address.exteriorNumber}, ${address.neighborhood}, ${address.city}`,
+          deliveryRadius: `${Number(branch.deliveryRadius).toFixed(2)} km`,
+          suggestion: 'Por favor, elige otra dirección o restaurante más cercano'
+        },
+        'OUT_OF_COVERAGE_AREA'
+      );
+    }
+
+    // 6. Validar horario de la sucursal
+    const validationResult = await OrderService.validateOrderProcessing(branch.id, requestId);
+    if (!validationResult.isValid) {
+      return ResponseService.conflict(
+        res, 
+        validationResult.reason,
+        validationResult.details
+      );
+    }
+
+    // 7. Calcular precios usando PricingService
+    const pricingDetails = await PricingService.calculateOrderPricing(
+      itemsToProcess, 
+      products, 
+      branch, 
+      address, 
+      requestId
+    );
+
+    // Validar precios calculados
+    if (!PricingService.validatePricing(pricingDetails, requestId)) {
+      return ResponseService.internalError(
+        res, 
+        'Error en el cálculo de precios'
+      );
+    }
 
     // 8. Calcular tiempo estimado de entrega
-    const estimatedDeliveryTime = calculateEstimatedDeliveryTime(
-      travelTimeMinutes || 0, 
+    const estimatedDeliveryTime = PricingService.calculateEstimatedDeliveryTime(
+      pricingDetails.travelTimeMinutes || 0, 
       itemsToProcess.length,
-      firstProduct.restaurant.name
+      firstProduct.restaurant.name,
+      requestId
     );
 
     // Agregar tiempo estimado a deliveryDetails
-    if (deliveryDetails) {
-      deliveryDetails.estimatedDeliveryTime = estimatedDeliveryTime;
+    if (pricingDetails.deliveryDetails) {
+      pricingDetails.deliveryDetails.estimatedDeliveryTime = estimatedDeliveryTime;
     }
 
-    // 9. Construir items para Mercado Pago
-    const mpItems = [];
-    for (const item of itemsToProcess) {
-      const product = products.find(p => p.id === item.productId);
-      const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
+    // 9. Crear orden en la base de datos usando OrderService
+    const createdOrder = await OrderService.createOrderInDatabase(
+      itemsToProcess,
+      pricingDetails,
+      userId,
+      branch.id,
+      addressId,
+      'mercadopago',
+      specialInstructions,
+      requestId
+    );
 
-      mpItems.push({
+    // 10. Preparar items para Mercado Pago
+    const mpItems = itemsToProcess.map(item => {
+            const product = products.find(p => p.id === item.productId);
+      const itemPrice = item.priceAtAdd ? Number(item.priceAtAdd) : Number(product.price);
+            return {
         title: product.name,
         description: product.description || `Producto de ${product.restaurant.name}`,
-        quantity: item.quantity,
-        currency_id: 'MXN',
-        unit_price: itemPrice
-      });
-    }
-
-    // 10. Agregar tarifas de envío y servicio como items adicionales para Mercado Pago
-    if (deliveryFee > 0) {
-      mpItems.push({
-        title: 'Costo de envío',
-        description: 'Tarifa de entrega a domicilio',
-        quantity: 1,
-        currency_id: 'MXN',
-        unit_price: Number(deliveryFee)
-      });
-    }
-
-    if (serviceFee > 0) {
-      mpItems.push({
-        title: 'Cuota de servicio',
-        description: 'Tarifa de servicio de la plataforma',
-        quantity: 1,
-        currency_id: 'MXN',
-        unit_price: Number(serviceFee)
-      });
-    }
-
-    console.log('🛒 Items finales para Mercado Pago:', {
-      totalItems: mpItems.length,
-      items: mpItems.map(item => ({
-        title: item.title,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total: item.quantity * item.unit_price
-      })),
-      totalCalculated: mpItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0)
-    });
-
-    // 11. Generar external_reference único
-    const externalReference = `delixmi_${uuidv4()}`;
-
-    // 12. Crear objeto preference para Mercado Pago
-    const preferenceData = {
-      items: mpItems,
-      payer: {
-        name: req.user.name,
-        surname: req.user.lastname,
-        email: req.user.email
-      },
-      back_urls: {
-        success: "delixmi://payment/success",
-        failure: "delixmi://payment/failure", 
-        pending: "delixmi://payment/pending"
-      },
-      auto_return: "approved",
-      notification_url: `${process.env.FRONTEND_URL}/api/webhooks/mercadopago`,
-      external_reference: externalReference,
-      payment_methods: {
-        excluded_payment_methods: [],
-        excluded_payment_types: [],
-        installments: 12
-      },
-      additional_info: `Pedido de Delixmi - ${itemsToProcess.length} productos`,
-      metadata: {
-        user_id: userId,
-        address_id: addressId,
-        subtotal: subtotal,
-        delivery_fee: deliveryFee,
-        service_fee: serviceFee,
-        total: total,
-        product_count: itemsToProcess.length,
-        delivery_details: deliveryDetails ? JSON.stringify(deliveryDetails) : null
-      }
-    };
-
-    // 13. Crear preferencia en Mercado Pago
-    const mpResponse = await preference.create({ body: preferenceData });
-
-    // 14. Obtener el branchId de la sucursal ya obtenida
-    const branchId = branch.id;
-    
-    console.log(`🔍 Branch seleccionado:`, {
-      branchId: branchId,
-      branchName: branch.name,
-      restaurantId: firstProduct.restaurant.id,
-      restaurantName: firstProduct.restaurant.name
-    });
-
-    // 15. Validación de horario de la sucursal
-    const currentDate = new Date();
-    const currentDayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
-    const currentTime = currentDate.toTimeString().slice(0, 8); // HH:MM:SS
-
-    console.log(`🔍 Validando horario de sucursal ${branchId} - Día: ${currentDayOfWeek}, Hora: ${currentTime}`);
-
-    // Consultar el horario de la sucursal para el día actual
-    const branchSchedule = await prisma.branchSchedule.findFirst({
-      where: {
-        branchId: branchId,
-        dayOfWeek: currentDayOfWeek
-      }
-    });
-
-    if (!branchSchedule) {
-      console.log(`❌ No se encontró horario para la sucursal ${branchId} en el día ${currentDayOfWeek}`);
-      return res.status(409).json({
-        status: 'error',
-        message: 'El restaurante está cerrado hoy'
-      });
-    }
-
-    if (branchSchedule.isClosed) {
-      console.log(`❌ Sucursal ${branchId} está cerrada hoy (isClosed: true)`);
-      return res.status(409).json({
-        status: 'error',
-        message: 'El restaurante está cerrado hoy'
-      });
-    }
-
-    // Validar que la hora actual esté dentro del horario de atención
-    const openingTime = branchSchedule.openingTime; // Ya es string HH:MM:SS
-    const closingTime = branchSchedule.closingTime; // Ya es string HH:MM:SS
-
-    console.log(`🕐 Horario de hoy: ${openingTime} a ${closingTime}, Hora actual: ${currentTime}`);
-
-    // Convertir tiempos a minutos para comparación correcta
-    const timeToMinutes = (timeString) => {
-      const [hours, minutes, seconds] = timeString.split(':').map(Number);
-      return hours * 60 + minutes + seconds / 60;
-    };
-
-    const currentMinutes = timeToMinutes(currentTime);
-    const openingMinutes = timeToMinutes(openingTime);
-    const closingMinutes = timeToMinutes(closingTime);
-
-    // Verificar si estamos en horario de 24 horas (00:00:00 a 23:59:59)
-    const is24Hours = openingMinutes === 0 && closingMinutes >= 1439; // 23:59 = 1439 minutos
-
-    if (!is24Hours && (currentMinutes < openingMinutes || currentMinutes > closingMinutes)) {
-      console.log(`❌ Hora actual ${currentTime} está fuera del horario de atención ${openingTime}-${closingTime}`);
-      return res.status(409).json({
-        status: 'error',
-        message: `El restaurante está cerrado en este momento. Horario de hoy: ${openingTime} a ${closingTime}`
-      });
-    }
-
-    console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
-
-    // 16. Crear la Order primero con todos sus datos
-    const createdOrder = await prisma.order.create({
-      data: {
-        customerId: userId,
-        branchId: branchId,
-        addressId: addressId,
-        subtotal: subtotal,
-        deliveryFee: deliveryFee,
-        total: total,
-        commissionRateSnapshot: firstProduct.restaurant.commissionRate || 10.00,
-        platformFee: serviceFee,
-        restaurantPayout: subtotal - (subtotal * (firstProduct.restaurant.commissionRate || 10.00) / 100),
-        paymentMethod: 'mercadopago',
-        paymentStatus: 'pending',
-        status: 'pending',
-        specialInstructions: specialInstructions || null,
-        orderItems: {
-          create: itemsToProcess.map(item => {
-            const product = products.find(p => p.id === item.productId);
-            return {
-              productId: item.productId,
               quantity: item.quantity,
-              pricePerUnit: Number(product.price)
-            };
-          })
-        }
-      },
-      include: {
-        orderItems: {
-          include: {
-            product: {
-              include: {
-                restaurant: true
-              }
-            }
-          }
-        },
-        customer: true,
-        address: true,
-        branch: {
-          include: {
-            restaurant: true
-          }
-        }
+        unit_price: itemPrice,
+        restaurantName: product.restaurant.name
+      };
+    });
+
+    // 11. Crear preferencia en Mercado Pago usando MercadoPagoService
+    const externalReference = MercadoPagoService.generateExternalReference();
+    const mpResponse = await MercadoPagoService.createPreference(
+      mpItems,
+      req.user,
+      pricingDetails,
+      externalReference,
+      requestId
+    );
+
+    // 12. Actualizar el payment con el external reference
+    await prisma.payment.updateMany({
+      where: { orderId: createdOrder.id },
+      data: { providerPaymentId: externalReference }
+    });
+
+    logger.info('Preferencia de pago creada exitosamente', {
+      requestId,
+      meta: {
+        orderId: createdOrder.id,
+        preferenceId: mpResponse.id,
+        externalReference,
+        total: pricingDetails.total
       }
     });
 
-    // 17. Crear el Payment usando el ID de la Order recién creada
-    await prisma.payment.create({
-      data: {
-        amount: total,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: externalReference, // External reference original
-        status: 'pending',
-        orderId: createdOrder.id
-      }
-    });
-
-    // 18. NO limpiar el carrito aquí - se limpiará cuando el webhook confirme el pago
-    if (useCart) {
-      console.log(`🛒 Carrito del restaurante ${restaurantId} se mantendrá hasta confirmación de pago`);
-    }
-
-    // 19. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Preferencia de pago creada exitosamente',
-      data: {
+    // 13. Respuesta exitosa
+    return ResponseService.success(
+      res,
+      'Preferencia de pago creada exitosamente',
+      {
         init_point: mpResponse.init_point,
         preference_id: mpResponse.id,
         external_reference: externalReference,
-        total: total,
-        subtotal: subtotal,
-        delivery_fee: deliveryFee,
-        service_fee: serviceFee,
-        delivery_details: deliveryDetails,
+        total: pricingDetails.total,
+        subtotal: pricingDetails.subtotal,
+        delivery_fee: pricingDetails.deliveryFee,
+        service_fee: pricingDetails.serviceFee,
+        delivery_details: pricingDetails.deliveryDetails,
         estimated_delivery_time: estimatedDeliveryTime,
         cart_used: useCart,
         cart_cleared: false,
         cart_clearing_note: "El carrito se limpiará cuando el pago sea confirmado"
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error creando preferencia de Mercado Pago:', error);
+    logger.error('Error creando preferencia de pago', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack
+      }
+    });
     
     // Manejar errores específicos de Mercado Pago
     if (error.response) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Error en Mercado Pago',
-        details: error.response.data
-      });
+      const errorDetails = MercadoPagoService.handleMercadoPagoError(error, req.id);
+      return ResponseService.error(
+        res, 
+        errorDetails.message, 
+        errorDetails.details, 
+        errorDetails.status, 
+        errorDetails.code
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -757,15 +339,16 @@ const getPaymentStatus = async (req, res) => {
     });
 
     if (!payment) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Pago no encontrado'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Pago no encontrado'
+      );
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
+    return ResponseService.success(
+      res,
+      'Estado del pago obtenido exitosamente',
+      {
         payment: {
           id: payment.id,
           amount: payment.amount,
@@ -793,15 +376,23 @@ const getPaymentStatus = async (req, res) => {
           address: payment.order.address
         }
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error obteniendo estado del pago:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    logger.error('Error obteniendo estado del pago', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        paymentId: req.params?.paymentId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 

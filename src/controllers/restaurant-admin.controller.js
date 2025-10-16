@@ -1,6 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const { getIo } = require('../config/socket');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
+const UserService = require('../services/user.service');
+const ResponseService = require('../services/response.service');
+const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
 
 const prisma = new PrismaClient();
 
@@ -102,33 +105,10 @@ const getRestaurantOrders = async (req, res) => {
     }
 
     // 1. Obtener información del usuario y verificar autorización
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante
@@ -137,13 +117,11 @@ const getRestaurantOrders = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: restaurantRoles,
-        current: userRoles
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Determinar el branch_id para filtrar pedidos
@@ -325,10 +303,10 @@ const getRestaurantOrders = async (req, res) => {
     }));
 
     // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Pedidos obtenidos exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Pedidos obtenidos exitosamente',
+      {
         orders: formattedOrders,
         pagination: {
           currentPage: pageNum,
@@ -343,15 +321,11 @@ const getRestaurantOrders = async (req, res) => {
           branchIds: branchIds
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error obteniendo pedidos del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -369,38 +343,14 @@ const updateOrderStatus = async (req, res) => {
     // Validar que orderId sea un número válido
     const orderIdNum = parseInt(orderId);
     if (isNaN(orderIdNum)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'ID de pedido inválido',
-        code: 'INVALID_ORDER_ID'
-      });
+      return ResponseService.badRequest(res, 'ID de pedido inválido', null, 'INVALID_ORDER_ID');
     }
 
     // 1. Obtener información del usuario y verificar autorización
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante
@@ -409,11 +359,11 @@ const updateOrderStatus = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Determinar los branch_ids permitidos para el usuario
@@ -444,11 +394,11 @@ const updateOrderStatus = async (req, res) => {
     }
 
     if (allowedBranchIds.length === 0) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontraron sucursales asignadas para este usuario',
-        code: 'NO_BRANCH_ASSIGNED'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'No se encontraron sucursales asignadas para este usuario',
+        'NO_BRANCH_ASSIGNED'
+      );
     }
 
     // 4. Buscar el pedido con autorización de seguridad
@@ -515,11 +465,11 @@ const updateOrderStatus = async (req, res) => {
     });
 
     if (!existingOrder) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Pedido no encontrado o no tienes permisos para modificarlo',
-        code: 'ORDER_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Pedido no encontrado o no tienes permisos para modificarlo',
+        'ORDER_NOT_FOUND'
+      );
     }
 
     // 5. Actualizar el estado del pedido
@@ -696,10 +646,10 @@ const updateOrderStatus = async (req, res) => {
     }
 
     // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Estado del pedido actualizado exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Estado del pedido actualizado exitosamente',
+      {
         order: formattedOrder,
         previousStatus: existingOrder.status,
         newStatus: status,
@@ -708,15 +658,11 @@ const updateOrderStatus = async (req, res) => {
           roles: userRoles
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error actualizando estado del pedido:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -735,44 +681,21 @@ const getRestaurantSubcategories = async (req, res) => {
     const pageSizeNum = parseInt(pageSize);
 
     if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
+      return ResponseService.badRequest(
+        res, 
+        'Parámetros de paginación inválidos',
+        {
           page: 'Debe ser un número mayor a 0',
           pageSize: 'Debe ser un número entre 1 y 100'
         }
-      });
+      );
     }
 
     // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante
@@ -781,13 +704,11 @@ const getRestaurantSubcategories = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: restaurantRoles,
-        current: userRoles
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Obtener el restaurant_id del usuario
@@ -820,11 +741,11 @@ const getRestaurantSubcategories = async (req, res) => {
       });
 
       if (!category) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Categoría no encontrada',
-          code: 'CATEGORY_NOT_FOUND'
-        });
+        return ResponseService.notFound(
+          res, 
+          'Categoría no encontrada',
+          'CATEGORY_NOT_FOUND'
+        );
       }
 
       whereClause.categoryId = categoryIdNum;
@@ -893,10 +814,10 @@ const getRestaurantSubcategories = async (req, res) => {
     }));
 
     // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Subcategorías obtenidas exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Subcategorías obtenidas exitosamente',
+      {
         subcategories: formattedSubcategories,
         pagination: {
           currentPage: pageNum,
@@ -911,15 +832,11 @@ const getRestaurantSubcategories = async (req, res) => {
           categoryId: categoryId ? parseInt(categoryId) : null
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error obteniendo subcategorías del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -934,30 +851,10 @@ const createSubcategory = async (req, res) => {
     const { categoryId, name, displayOrder = 0 } = req.body;
 
     // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
@@ -966,11 +863,11 @@ const createSubcategory = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Obtener el restaurant_id del usuario
@@ -979,11 +876,11 @@ const createSubcategory = async (req, res) => {
     );
 
     if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontró un restaurante asignado para este usuario',
-        code: 'NO_RESTAURANT_ASSIGNED'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'No se encontró un restaurante asignado para este usuario',
+        'NO_RESTAURANT_ASSIGNED'
+      );
     }
 
     const restaurantId = userRestaurantAssignment.restaurantId;
@@ -999,11 +896,11 @@ const createSubcategory = async (req, res) => {
     });
 
     if (!category) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Categoría no encontrada',
-        code: 'CATEGORY_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Categoría no encontrada',
+        'CATEGORY_NOT_FOUND'
+      );
     }
 
     // 5. Crear la subcategoría
@@ -1049,27 +946,28 @@ const createSubcategory = async (req, res) => {
       };
 
       // 7. Respuesta exitosa
-      res.status(201).json({
-        status: 'success',
-        message: 'Subcategoría creada exitosamente',
-        data: {
+      return ResponseService.success(
+        res,
+        'Subcategoría creada exitosamente',
+        {
           subcategory: formattedSubcategory
-        }
-      });
+        },
+        201
+      );
 
     } catch (error) {
       // Manejar error de restricción única (P2002)
       if (error.code === 'P2002') {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante',
-          code: 'DUPLICATE_SUBCATEGORY',
-          details: {
+        return ResponseService.conflict(
+          res,
+          'Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante',
+          {
             categoryId: categoryIdNum,
             categoryName: category.name,
             subcategoryName: name.trim()
-          }
-        });
+          },
+          'DUPLICATE_SUBCATEGORY'
+        );
       }
       
       // Re-lanzar el error para que sea manejado por el catch externo
@@ -1078,11 +976,7 @@ const createSubcategory = async (req, res) => {
 
   } catch (error) {
     console.error('Error creando subcategoría:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -1101,30 +995,10 @@ const updateSubcategory = async (req, res) => {
     const subcategoryIdNum = parseInt(subcategoryId);
 
     // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante
@@ -1133,11 +1007,11 @@ const updateSubcategory = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Obtener el restaurant_id del usuario
@@ -1337,30 +1211,10 @@ const deleteSubcategory = async (req, res) => {
     const subcategoryIdNum = parseInt(subcategoryId);
 
     // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante
@@ -1369,11 +1223,11 @@ const deleteSubcategory = async (req, res) => {
     const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
     if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Obtener el restaurant_id del usuario
@@ -1462,10 +1316,10 @@ const deleteSubcategory = async (req, res) => {
     });
 
     // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Subcategoría eliminada exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Subcategoría eliminada exitosamente',
+      {
         deletedSubcategory: {
           id: existingSubcategory.id,
           name: existingSubcategory.name,
@@ -1473,15 +1327,11 @@ const deleteSubcategory = async (req, res) => {
           restaurantName: existingSubcategory.restaurant.name
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error eliminando subcategoría:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -1500,44 +1350,21 @@ const getRestaurantProducts = async (req, res) => {
     const pageSizeNum = parseInt(pageSize);
 
     if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
+      return ResponseService.badRequest(
+        res, 
+        'Parámetros de paginación inválidos',
+        {
           page: 'Debe ser un número mayor a 0',
           pageSize: 'Debe ser un número entre 1 y 100'
         }
-      });
+      );
     }
 
     // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
@@ -1673,10 +1500,10 @@ const getRestaurantProducts = async (req, res) => {
     }));
 
     // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Productos obtenidos exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Productos obtenidos exitosamente',
+      {
         products: formattedProducts,
         pagination: {
           currentPage: pageNum,
@@ -1692,15 +1519,11 @@ const getRestaurantProducts = async (req, res) => {
           isAvailable: isAvailable !== undefined ? (isAvailable === 'true') : null
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error obteniendo productos del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -1735,38 +1558,18 @@ const createProduct = async (req, res) => {
     });
 
     if (!subcategory) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Subcategoría no encontrada',
-        code: 'SUBCATEGORY_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Subcategoría no encontrada',
+        'SUBCATEGORY_NOT_FOUND'
+      );
     }
 
     // 2. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 3. Verificar autorización: el usuario debe tener permisos sobre el restaurante de la subcategoría
@@ -1780,16 +1583,16 @@ const createProduct = async (req, res) => {
 
     // Si no es owner ni branch_manager del restaurante, denegar acceso
     if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para añadir productos a esta subcategoría',
-        code: 'FORBIDDEN',
-        details: {
+      return ResponseService.forbidden(
+        res, 
+        'No tienes permiso para añadir productos a esta subcategoría',
+        {
           subcategoryId: subcategoryIdNum,
           restaurantId: subcategory.restaurantId,
           restaurantName: subcategory.restaurant.name
-        }
-      });
+        },
+        'FORBIDDEN'
+      );
     }
 
     // 4. Validar modifierGroupIds si se proporcionan
@@ -1805,15 +1608,15 @@ const createProduct = async (req, res) => {
 
       if (validGroups.length !== modifierGroupIds.length) {
         const invalidIds = modifierGroupIds.filter(id => !validGroups.find(g => g.id === id));
-        return res.status(400).json({
-          status: 'error',
-          message: 'Algunos grupos de modificadores no pertenecen a este restaurante',
-          code: 'INVALID_MODIFIER_GROUPS',
-          details: {
+        return ResponseService.badRequest(
+          res, 
+          'Algunos grupos de modificadores no pertenecen a este restaurante',
+          {
             invalidGroupIds: invalidIds,
             restaurantId: subcategory.restaurantId
-          }
-        });
+          },
+          'INVALID_MODIFIER_GROUPS'
+        );
       }
     }
 
@@ -1933,21 +1736,18 @@ const createProduct = async (req, res) => {
     };
 
     // 8. Respuesta exitosa
-    res.status(201).json({
-      status: 'success',
-      message: 'Producto creado exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Producto creado exitosamente',
+      {
         product: formattedProduct
-      }
-    });
+      },
+      201
+    );
 
   } catch (error) {
     console.error('Error creando producto:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -2260,22 +2060,18 @@ const updateProduct = async (req, res) => {
     };
 
     // 10. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Producto actualizado exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Producto actualizado exitosamente',
+      {
         product: formattedProduct,
         updatedFields: Object.keys(updateData).concat(modifierGroupIds !== undefined ? ['modifierGroupIds'] : [])
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error actualizando producto:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -2431,10 +2227,10 @@ const deleteProduct = async (req, res) => {
     });
 
     // 7. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Producto eliminado exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Producto eliminado exitosamente',
+      {
         deletedProduct: {
           id: existingProduct.id,
           name: existingProduct.name,
@@ -2444,16 +2240,11 @@ const deleteProduct = async (req, res) => {
           deletedAt: new Date().toISOString()
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error eliminando producto:', error);
-
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -2467,33 +2258,10 @@ const getRestaurantProfile = async (req, res) => {
     const userId = req.user.id;
 
     // 1. Obtener información del usuario y verificar que es owner
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
     // 2. Verificar que el usuario tiene rol de owner
@@ -2609,93 +2377,33 @@ const getRestaurantProfile = async (req, res) => {
     };
 
     // 6. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Perfil del restaurante obtenido exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Perfil del restaurante obtenido exitosamente',
+      {
         restaurant: formattedRestaurant
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error obteniendo perfil del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
 /**
  * Actualiza la información del restaurante del dueño autenticado
+ * REFACTORIZADO: Ahora usa middleware de control de acceso
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const updateRestaurantProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+    const restaurantId = req.params.restaurantId;
     const { name, description, logoUrl, coverPhotoUrl } = req.body;
 
-    // 1. Obtener información del usuario y verificar que es owner
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tiene rol de owner
-    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
-      assignment => assignment.role.name === 'owner'
-    );
-
-    if (ownerAssignments.length === 0) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requiere rol de owner',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del owner
-    const ownerAssignment = ownerAssignments.find(
-      assignment => assignment.restaurantId !== null
-    );
-
-    if (!ownerAssignment || !ownerAssignment.restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontró un restaurante asignado para este owner',
-        code: 'NO_RESTAURANT_ASSIGNED'
-      });
-    }
-
-    const restaurantId = ownerAssignment.restaurantId;
-
-    // 4. Verificar que el restaurante existe
+    // 1. Verificar que el restaurante existe
     const existingRestaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -2709,14 +2417,14 @@ const updateRestaurantProfile = async (req, res) => {
     });
 
     if (!existingRestaurant) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Restaurante no encontrado',
-        code: 'RESTAURANT_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Restaurante no encontrado',
+        'RESTAURANT_NOT_FOUND'
+      );
     }
 
-    // 5. Preparar los datos de actualización (solo campos enviados)
+    // 2. Preparar los datos de actualización (solo campos enviados)
     const updateData = {};
     
     if (name !== undefined) {
@@ -2737,14 +2445,14 @@ const updateRestaurantProfile = async (req, res) => {
 
     // Si no hay campos para actualizar
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se proporcionaron campos para actualizar',
-        code: 'NO_FIELDS_TO_UPDATE'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'No se proporcionaron campos para actualizar',
+        'NO_FIELDS_TO_UPDATE'
+      );
     }
 
-    // 6. Actualizar el restaurante
+    // 3. Actualizar el restaurante
     const updatedRestaurant = await prisma.restaurant.update({
       where: { id: restaurantId },
       data: {
@@ -2788,7 +2496,7 @@ const updateRestaurantProfile = async (req, res) => {
       }
     });
 
-    // 7. Formatear respuesta
+    // 4. Formatear respuesta
     const formattedRestaurant = {
       id: updatedRestaurant.id,
       name: updatedRestaurant.name,
@@ -2821,38 +2529,36 @@ const updateRestaurantProfile = async (req, res) => {
       updatedAt: updatedRestaurant.updatedAt
     };
 
-    // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Información del restaurante actualizada exitosamente',
-      data: {
+    // 5. Respuesta exitosa
+    return ResponseService.success(
+      res,
+      'Información del restaurante actualizada exitosamente',
+      {
         restaurant: formattedRestaurant,
         updatedFields: Object.keys(updateData),
         updatedBy: {
           userId: userId,
-          userName: `${userWithRoles.name} ${userWithRoles.lastname}`
+          userName: `${req.user.name} ${req.user.lastname}`
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error actualizando información del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
 /**
  * Crear una nueva sucursal para el restaurante del dueño autenticado
+ * REFACTORIZADO: Ahora usa middleware de control de acceso
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const createBranch = async (req, res) => {
   try {
     const userId = req.user.id;
+    const restaurantId = req.params.restaurantId;
     const { 
       name, 
       address, 
@@ -2863,64 +2569,6 @@ const createBranch = async (req, res) => {
       closingTime, 
       usesPlatformDrivers 
     } = req.body;
-
-    // 1. Obtener información del usuario y verificar que es owner
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tiene rol de owner
-    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
-      assignment => assignment.role.name === 'owner'
-    );
-
-    if (ownerAssignments.length === 0) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requiere rol de owner',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del owner
-    const ownerAssignment = ownerAssignments.find(
-      assignment => assignment.restaurantId !== null
-    );
-
-    if (!ownerAssignment || !ownerAssignment.restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontró un restaurante asignado para este owner',
-        code: 'NO_RESTAURANT_ASSIGNED'
-      });
-    }
-
-    const restaurantId = ownerAssignment.restaurantId;
 
     // 4. Verificar que el restaurante existe y está activo
     const existingRestaurant = await prisma.restaurant.findUnique({
@@ -2933,19 +2581,19 @@ const createBranch = async (req, res) => {
     });
 
     if (!existingRestaurant) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Restaurante no encontrado',
-        code: 'RESTAURANT_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Restaurante no encontrado',
+        'RESTAURANT_NOT_FOUND'
+      );
     }
 
     if (existingRestaurant.status !== 'active') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se pueden crear sucursales para un restaurante inactivo',
-        code: 'RESTAURANT_INACTIVE'
-      });
+      return ResponseService.forbidden(
+        res, 
+        'No se pueden crear sucursales para un restaurante inactivo',
+        'RESTAURANT_INACTIVE'
+      );
     }
 
     // 5. Verificar que no existe otra sucursal con el mismo nombre en el restaurante
@@ -2962,17 +2610,17 @@ const createBranch = async (req, res) => {
     });
 
     if (existingBranch) {
-      return res.status(409).json({
-        status: 'error',
-        message: 'Ya existe una sucursal con este nombre en el restaurante',
-        code: 'BRANCH_NAME_EXISTS',
-        details: {
+      return ResponseService.conflict(
+        res, 
+        'Ya existe una sucursal con este nombre en el restaurante',
+        {
           existingBranch: {
             id: existingBranch.id,
             name: existingBranch.name
           }
-        }
-      });
+        },
+        'BRANCH_NAME_EXISTS'
+      );
     }
 
     // 6. Preparar los datos para crear la sucursal
@@ -3095,24 +2743,24 @@ const getRestaurantBranches = async (req, res) => {
     const pageSizeNum = parseInt(pageSize);
     
     if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
+      return ResponseService.badRequest(
+        res, 
+        'Parámetros de paginación inválidos',
+        {
           page: 'Debe ser un número mayor a 0',
           pageSize: 'Debe ser un número entre 1 y 100'
         }
-      });
+      );
     }
 
     // Validar status si se proporciona
     const validStatuses = ['active', 'inactive'];
     if (status && !validStatuses.includes(status)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Estado de sucursal inválido',
-        validStatuses: validStatuses
-      });
+      return ResponseService.badRequest(
+        res, 
+        'Estado de sucursal inválido',
+        { validStatuses: validStatuses }
+      );
     }
 
     // 1. Obtener información del usuario y verificar que es owner
@@ -3260,10 +2908,10 @@ const getRestaurantBranches = async (req, res) => {
     }));
 
     // 10. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Sucursales obtenidas exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Sucursales obtenidas exitosamente',
+      {
         branches: formattedBranches,
         restaurant: {
           id: existingRestaurant.id,
@@ -3286,15 +2934,11 @@ const getRestaurantBranches = async (req, res) => {
           userName: `${userWithRoles.name} ${userWithRoles.lastname}`
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error obteniendo sucursales del restaurante:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -3555,10 +3199,10 @@ const updateBranch = async (req, res) => {
     };
 
     // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Sucursal actualizada exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Sucursal actualizada exitosamente',
+      {
         branch: formattedBranch,
         updatedFields: Object.keys(updateData),
         updatedBy: {
@@ -3566,33 +3210,29 @@ const updateBranch = async (req, res) => {
           userName: `${userWithRoles.name} ${userWithRoles.lastname}`
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error actualizando sucursal:', error);
     
     // Manejar errores específicos de Prisma
     if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        code: 'BRANCH_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Sucursal no encontrada',
+        'BRANCH_NOT_FOUND'
+      );
     }
 
     if (error.code === 'P2002') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'Ya existe una sucursal con este nombre en el restaurante',
-        code: 'DUPLICATE_BRANCH_NAME'
-      });
+      return ResponseService.conflict(
+        res, 
+        'Ya existe una sucursal con este nombre en el restaurante',
+        'DUPLICATE_BRANCH_NAME'
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -3748,10 +3388,10 @@ const deleteBranch = async (req, res) => {
     });
 
     // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Sucursal eliminada exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Sucursal eliminada exitosamente',
+      {
         deletedBranch: {
           id: branchIdNum,
           name: existingBranch.name,
@@ -3767,36 +3407,32 @@ const deleteBranch = async (req, res) => {
         },
         deletedAt: new Date().toISOString()
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error eliminando sucursal:', error);
     
     // Manejar errores específicos de Prisma
     if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        code: 'BRANCH_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Sucursal no encontrada',
+        'BRANCH_NOT_FOUND'
+      );
     }
 
     if (error.code === 'P2003') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar la sucursal porque tiene relaciones activas',
-        code: 'BRANCH_HAS_ACTIVE_RELATIONS',
-        details: {
+      return ResponseService.conflict(
+        res, 
+        'No se puede eliminar la sucursal porque tiene relaciones activas',
+        {
           suggestion: 'Considera desactivar la sucursal en lugar de eliminarla'
-        }
-      });
+        },
+        'BRANCH_HAS_ACTIVE_RELATIONS'
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -3939,10 +3575,10 @@ const getBranchSchedule = async (req, res) => {
       isClosed: schedule.isClosed
     }));
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Horario de sucursal obtenido exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Horario de sucursal obtenido exitosamente',
+      {
         branch: {
           id: branch.id,
           name: branch.name,
@@ -3953,27 +3589,23 @@ const getBranchSchedule = async (req, res) => {
         },
         schedules: formattedSchedules
       }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Error obteniendo horario de sucursal:', error);
 
     if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        details: {
+      return ResponseService.notFound(
+        res, 
+        'Sucursal no encontrada',
+        {
           branchId: req.params.branchId,
           suggestion: 'Verifica que el ID de la sucursal sea correcto'
         }
-      });
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -4162,10 +3794,10 @@ const updateBranchSchedule = async (req, res) => {
       isClosed: schedule.isClosed
     }));
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Horario de sucursal actualizado exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Horario de sucursal actualizado exitosamente',
+      {
         branch: {
           id: branch.id,
           name: branch.name,
@@ -4176,37 +3808,33 @@ const updateBranchSchedule = async (req, res) => {
         },
         schedules: formattedSchedules
       }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Error actualizando horario de sucursal:', error);
 
     if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        details: {
+      return ResponseService.notFound(
+        res, 
+        'Sucursal no encontrada',
+        {
           branchId: req.params.branchId,
           suggestion: 'Verifica que el ID de la sucursal sea correcto'
         }
-      });
+      );
     }
 
     if (error.code === 'P2002') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Conflicto de datos',
-        details: {
+      return ResponseService.badRequest(
+        res, 
+        'Conflicto de datos',
+        {
           suggestion: 'Ya existe un horario para este día de la semana en esta sucursal'
         }
-      });
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -4499,10 +4127,10 @@ const rejectOrder = async (req, res) => {
     console.log(`📡 Notificación de rechazo enviada a la sala '${customerRoom}'`);
 
     // 11. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Pedido rechazado exitosamente y reembolso procesado',
-      data: {
+    return ResponseService.success(
+      res,
+      'Pedido rechazado exitosamente y reembolso procesado',
+      {
         order: {
           id: updatedOrder.id,
           status: updatedOrder.status,
@@ -4530,27 +4158,23 @@ const rejectOrder = async (req, res) => {
           amount: refundResult.amount
         }
       }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Error rechazando pedido:', error);
 
     if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Pedido no encontrado',
-        details: {
+      return ResponseService.notFound(
+        res, 
+        'Pedido no encontrado',
+        {
           orderId: req.params.orderId,
           suggestion: 'Verifica que el ID del pedido sea correcto'
         }
-      });
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
@@ -4665,24 +4289,20 @@ const deactivateProductsByTag = async (req, res) => {
     });
 
     // 5. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: `Se desactivaron ${result.count} productos que contienen la etiqueta "${tag}"`,
-      data: {
+    return ResponseService.success(
+      res,
+      `Se desactivaron ${result.count} productos que contienen la etiqueta "${tag}"`,
+      {
         tag: tag,
         productsUpdated: result.count,
         restaurantId: restaurantId,
         updatedAt: new Date().toISOString()
       }
-    });
+    );
 
   } catch (error) {
     console.error('Error desactivando productos por etiqueta:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 

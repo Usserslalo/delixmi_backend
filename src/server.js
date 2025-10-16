@@ -1,9 +1,23 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const { testConnection, disconnect } = require('./config/database');
 const { initializeSocket } = require('./config/socket');
+const { 
+  errorHandler, 
+  notFoundHandler, 
+  zodErrorHandler, 
+  rateLimitErrorHandler, 
+  corsErrorHandler 
+} = require('./middleware/error.middleware');
+const { 
+  requestIdMiddleware, 
+  requestLoggingMiddleware, 
+  errorRequestIdMiddleware 
+} = require('./middleware/requestId.middleware');
+const { logger } = require('./config/logger');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -47,8 +61,43 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight requests por 24 horas
 };
 
+// Configuración de Helmet para headers de seguridad
+const helmetOptions = {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", "https://api.mercadopago.com", "https://maps.googleapis.com"],
+      frameSrc: ["'self'", "https://www.mercadopago.com"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Deshabilitado para compatibilidad con APIs externas
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permittedCrossDomainPolicies: false
+};
+
 // Middleware básico
+app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
+
+// Middleware de Request ID (debe ir temprano en la cadena)
+app.use(requestIdMiddleware);
+
+// Middleware de logging de peticiones HTTP
+app.use(requestLoggingMiddleware);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -195,20 +244,41 @@ app.get('/', (req, res) => {
   });
 });
 
-// Manejo de errores 404
-app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Endpoint no encontrado',
-    path: req.originalUrl
-  });
-});
+// Middlewares de manejo de errores (DEBEN ir al final, después de todas las rutas)
+// 0. Asegurar Request ID en errores
+app.use(errorRequestIdMiddleware);
+
+// 1. Manejo de errores de CORS
+app.use(corsErrorHandler);
+
+// 2. Manejo de errores de rate limiting
+app.use(rateLimitErrorHandler);
+
+// 3. Manejo de errores de validación Zod
+app.use(zodErrorHandler);
+
+// 4. Manejo de rutas no encontradas (404)
+app.use(notFoundHandler);
+
+// 5. Middleware global de manejo de errores (DEBE ser el último)
+app.use(errorHandler);
 
 // Inicializar Socket.io
 initializeSocket(httpServer);
 
 // Iniciar servidor
 httpServer.listen(PORT, () => {
+  logger.info('Servidor iniciado exitosamente', {
+    meta: {
+      port: PORT,
+      url: `http://localhost:${PORT}`,
+      healthCheck: `http://localhost:${PORT}/health`,
+      socketIo: `http://localhost:${PORT}`,
+      environment: process.env.NODE_ENV || 'development'
+    }
+  });
+  
+  // También mantener logs en consola para desarrollo
   console.log(`🚀 Servidor iniciado en puerto ${PORT}`);
   console.log(`📍 URL: http://localhost:${PORT}`);
   console.log(`🔍 Health check: http://localhost:${PORT}/health`);
@@ -217,18 +287,22 @@ httpServer.listen(PORT, () => {
 
 // Manejo de cierre graceful
 process.on('SIGINT', async () => {
+  logger.info('Señal SIGINT recibida, cerrando servidor...');
   console.log('\n🛑 Cerrando servidor...');
   await disconnect();
   httpServer.close(() => {
+    logger.info('Servidor cerrado correctamente');
     console.log('✅ Servidor cerrado correctamente');
     process.exit(0);
   });
 });
 
 process.on('SIGTERM', async () => {
+  logger.info('Señal SIGTERM recibida, cerrando servidor...');
   console.log('\n🛑 Cerrando servidor...');
   await disconnect();
   httpServer.close(() => {
+    logger.info('Servidor cerrado correctamente');
     console.log('✅ Servidor cerrado correctamente');
     process.exit(0);
   });

@@ -1,18 +1,28 @@
 const { PrismaClient } = require('@prisma/client');
 const { validationResult } = require('express-validator');
+const ResponseService = require('../services/response.service');
+const { logger } = require('../config/logger');
 
 const prisma = new PrismaClient();
 
 /**
  * Obtener el carrito del usuario autenticado
+ * OPTIMIZACIÓN: Una sola consulta con include anidado para evitar N+1
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const getCart = async (req, res) => {
   try {
     const userId = req.user.id;
+    const requestId = req.id;
 
-    // Buscar todos los carritos del usuario
+    logger.info('Consultando carrito del usuario', {
+      requestId,
+      meta: { userId }
+    });
+
+    // CONSULTA OPTIMIZADA: Una sola consulta con todos los includes necesarios
+    // Esto evita el problema N+1 al cargar todos los datos relacionados en una sola consulta
     const carts = await prisma.cart.findMany({
       where: {
         userId: userId
@@ -72,6 +82,15 @@ const getCart = async (req, res) => {
       }
     });
 
+    logger.info('Consulta de carrito completada', {
+      requestId,
+      meta: { 
+        userId, 
+        cartsFound: carts.length,
+        totalItems: carts.reduce((sum, cart) => sum + cart.items.length, 0)
+      }
+    });
+
     // Calcular totales para cada carrito
     const cartsWithTotals = carts.map(cart => {
       const subtotal = cart.items.reduce((sum, item) => {
@@ -116,10 +135,20 @@ const getCart = async (req, res) => {
     const grandTotal = cartsWithTotals.reduce((sum, cart) => sum + cart.totals.total, 0);
     const totalItems = cartsWithTotals.reduce((sum, cart) => sum + cart.totalQuantity, 0);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Carrito obtenido exitosamente',
-      data: {
+    logger.info('Carrito procesado exitosamente', {
+      requestId,
+      meta: { 
+        userId,
+        totalCarts: cartsWithTotals.length,
+        totalItems: totalItems,
+        grandTotal: grandTotal
+      }
+    });
+
+    return ResponseService.success(
+      res,
+      'Carrito obtenido exitosamente',
+      {
         carts: cartsWithTotals,
         summary: {
           totalCarts: cartsWithTotals.length,
@@ -128,15 +157,22 @@ const getCart = async (req, res) => {
         },
         retrievedAt: new Date().toISOString()
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error obteniendo carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error obteniendo carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -186,27 +222,27 @@ const addToCart = async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Producto no encontrado',
-        code: 'PRODUCT_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Producto no encontrado',
+        'PRODUCT_NOT_FOUND'
+      );
     }
 
     if (!product.isAvailable) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'El producto no está disponible',
-        code: 'PRODUCT_UNAVAILABLE'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'El producto no está disponible',
+        'PRODUCT_UNAVAILABLE'
+      );
     }
 
     if (product.restaurant.status !== 'active') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'El restaurante no está activo',
-        code: 'RESTAURANT_INACTIVE'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'El restaurante no está activo',
+        'RESTAURANT_INACTIVE'
+      );
     }
 
     // 2. Obtener grupos de modificadores asociados al producto
@@ -608,12 +644,12 @@ const addToCart = async (req, res) => {
     // 12. Calcular subtotal
     const subtotal = Number(cartItem.priceAtAdd) * cartItem.quantity;
 
-    return res.status(action === 'item_added' ? 201 : 200).json({
-      status: 'success',
-      message: action === 'item_added' 
+    return ResponseService.success(
+      res,
+      action === 'item_added' 
         ? 'Producto agregado al carrito exitosamente'
         : 'Cantidad actualizada en el carrito',
-      data: {
+      {
         cartItem: {
           id: cartItem.id,
           product: cartItem.product,
@@ -628,16 +664,25 @@ const addToCart = async (req, res) => {
           }))
         },
         action: action
-      }
-    });
+      },
+      action === 'item_added' ? 201 : 200
+    );
 
   } catch (error) {
-    console.error('Error agregando al carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error agregando al carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        productId: req.body?.productId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -682,19 +727,19 @@ const updateCartItem = async (req, res) => {
     });
 
     if (!cartItem) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Item del carrito no encontrado',
-        code: 'CART_ITEM_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Item del carrito no encontrado',
+        'CART_ITEM_NOT_FOUND'
+      );
     }
 
     if (!cartItem.product.isAvailable) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'El producto ya no está disponible',
-        code: 'PRODUCT_UNAVAILABLE'
-      });
+      return ResponseService.badRequest(
+        res, 
+        'El producto ya no está disponible',
+        'PRODUCT_UNAVAILABLE'
+      );
     }
 
     // Si la cantidad es 0, eliminar el item
@@ -703,14 +748,14 @@ const updateCartItem = async (req, res) => {
         where: { id: parseInt(itemId) }
       });
 
-      return res.status(200).json({
-        status: 'success',
-        message: 'Producto eliminado del carrito',
-        data: {
+      return ResponseService.success(
+        res,
+        'Producto eliminado del carrito',
+        {
           action: 'item_removed',
           itemId: parseInt(itemId)
         }
-      });
+      );
     }
 
     // Actualizar cantidad
@@ -731,10 +776,10 @@ const updateCartItem = async (req, res) => {
       }
     });
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Cantidad actualizada exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Cantidad actualizada exitosamente',
+      {
         cartItem: {
           id: updatedItem.id,
           product: updatedItem.product,
@@ -744,15 +789,23 @@ const updateCartItem = async (req, res) => {
         },
         action: 'quantity_updated'
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error actualizando item del carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error actualizando item del carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        itemId: req.params?.itemId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -784,11 +837,11 @@ const removeFromCart = async (req, res) => {
     });
 
     if (!cartItem) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Item del carrito no encontrado',
-        code: 'CART_ITEM_NOT_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'Item del carrito no encontrado',
+        'CART_ITEM_NOT_FOUND'
+      );
     }
 
     // Eliminar el item
@@ -796,25 +849,33 @@ const removeFromCart = async (req, res) => {
       where: { id: parseInt(itemId) }
     });
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Producto eliminado del carrito exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Producto eliminado del carrito exitosamente',
+      {
         removedItem: {
           id: parseInt(itemId),
           productName: cartItem.product.name
         },
         action: 'item_removed'
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error eliminando del carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error eliminando del carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        itemId: req.params?.itemId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -857,11 +918,11 @@ const clearCart = async (req, res) => {
     });
 
     if (cartsToDelete.length === 0) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'No se encontraron carritos para limpiar',
-        code: 'NO_CARTS_FOUND'
-      });
+      return ResponseService.notFound(
+        res, 
+        'No se encontraron carritos para limpiar',
+        'NO_CARTS_FOUND'
+      );
     }
 
     // Eliminar carritos (los items se eliminan por cascade)
@@ -872,12 +933,12 @@ const clearCart = async (req, res) => {
     // Preparar respuesta
     const deletedItems = cartsToDelete.reduce((total, cart) => total + cart.items.length, 0);
 
-    res.status(200).json({
-      status: 'success',
-      message: restaurantId 
+    return ResponseService.success(
+      res,
+      restaurantId 
         ? 'Carrito del restaurante limpiado exitosamente'
         : 'Todos los carritos limpiados exitosamente',
-      data: {
+      {
         deletedCarts: cartsToDelete.length,
         deletedItems: deletedItems,
         restaurants: cartsToDelete.map(cart => ({
@@ -886,15 +947,23 @@ const clearCart = async (req, res) => {
         })),
         action: 'cart_cleared'
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error limpiando carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error limpiando carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        restaurantId: req.query?.restaurantId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -945,10 +1014,10 @@ const getCartSummary = async (req, res) => {
     const estimatedDeliveryFee = totalQuantity > 0 ? 25.00 : 0;
     const estimatedTotal = grandTotal + estimatedDeliveryFee;
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Resumen del carrito obtenido exitosamente',
-      data: {
+    return ResponseService.success(
+      res,
+      'Resumen del carrito obtenido exitosamente',
+      {
         summary: {
           totalCarts: carts.length,
           activeRestaurants: activeRestaurants,
@@ -960,15 +1029,22 @@ const getCartSummary = async (req, res) => {
         },
         retrievedAt: new Date().toISOString()
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error obteniendo resumen del carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error obteniendo resumen del carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
@@ -1098,10 +1174,10 @@ const validateCart = async (req, res) => {
       validationResults.push(cartValidation);
     });
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Validación del carrito completada',
-      data: {
+    return ResponseService.success(
+      res,
+      'Validación del carrito completada',
+      {
         isValid: isValid,
         validationResults: validationResults,
         summary: {
@@ -1112,15 +1188,23 @@ const validateCart = async (req, res) => {
         },
         validatedAt: new Date().toISOString()
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error validando carrito:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    logger.error('Error validando carrito', {
+      requestId: req.id,
+      meta: {
+        userId: req.user?.id,
+        restaurantId: req.body?.restaurantId,
+        error: error.message,
+        stack: error.stack
+      }
     });
+    
+    return ResponseService.internalError(
+      res, 
+      'Error interno del servidor'
+    );
   }
 };
 
