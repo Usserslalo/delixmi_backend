@@ -168,6 +168,9 @@ model Restaurant {
   category       String?  @db.VarChar(50)
   logoUrl        String?  @map("logo_url") @db.VarChar(255)
   coverPhotoUrl  String?  @map("cover_photo_url") @db.VarChar(255)
+  phone          String?  @db.VarChar(20)
+  email          String?  @db.VarChar(150)
+  address        String?  @db.Text
   commissionRate Decimal  @default(10.00) @map("commission_rate") @db.Decimal(5, 2)
   rating         Float?   @default(0.0)
   status         RestaurantStatus @default(pending_approval)

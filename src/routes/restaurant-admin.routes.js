@@ -43,6 +43,9 @@ router.get(
  * @body    description (opcional) - Descripción del restaurante
  * @body    logoUrl (opcional) - URL del logo del restaurante
  * @body    coverPhotoUrl (opcional) - URL de la foto de portada del restaurante
+ * @body    phone (opcional) - Teléfono del restaurante
+ * @body    email (opcional) - Email del restaurante
+ * @body    address (opcional) - Dirección del restaurante
  */
 router.patch(
   '/profile',
@@ -71,7 +74,26 @@ router.patch(
       .isLength({ max: 255 })
       .withMessage('La URL de la foto de portada no puede exceder 255 caracteres')
       .isURL({ require_tld: false })
-      .withMessage('La URL de la foto de portada debe ser una URL válida')
+      .withMessage('La URL de la foto de portada debe ser una URL válida'),
+    body('phone')
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 20 })
+      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
+      .matches(/^[\+]?[\d\s\-\(\)]+$/)
+      .withMessage('El formato del teléfono no es válido'),
+    body('email')
+      .optional()
+      .trim()
+      .isEmail()
+      .withMessage('El email debe ser un formato válido')
+      .isLength({ max: 150 })
+      .withMessage('El email no puede exceder 150 caracteres'),
+    body('address')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('La dirección no puede exceder 500 caracteres')
   ],
   (req, res, next) => {
     // Verificar errores de validación
@@ -1127,29 +1149,29 @@ router.delete(
 // ========================================
 
 /**
- * @route   POST /api/restaurant/uploads/logo
+ * @route   POST /api/restaurant/upload-logo
  * @desc    Subir logo del restaurante
- * @access  Private (Owner, Branch Manager)
- * @body    image - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ * @access  Private (Owner Only)
+ * @body    logo - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
  */
 router.post(
-  '/uploads/logo',
-  requireRole(['owner', 'branch_manager']),
-  upload.single('image'),
+  '/upload-logo',
+  requireRole(['owner']),
+  upload.single('logo'),
   handleMulterError,
   uploadRestaurantLogo
 );
 
 /**
- * @route   POST /api/restaurant/uploads/cover
+ * @route   POST /api/restaurant/upload-cover
  * @desc    Subir foto de portada del restaurante
- * @access  Private (Owner, Branch Manager)
- * @body    image - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ * @access  Private (Owner Only)
+ * @body    cover - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
  */
 router.post(
-  '/uploads/cover',
-  requireRole(['owner', 'branch_manager']),
-  uploadCover.single('image'),
+  '/upload-cover',
+  requireRole(['owner']),
+  uploadCover.single('cover'),
   handleMulterError,
   uploadRestaurantCover
 );

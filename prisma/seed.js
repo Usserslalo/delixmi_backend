@@ -433,6 +433,9 @@ async function main() {
         description: 'Las mejores pizzas artesanales de la región, con ingredientes frescos y locales.',
         logoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop',
         coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
+        phone: '+52 771 123 4567',
+        email: 'contacto@pizzeriadeana.com',
+        address: 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
         commissionRate: 12.50,
         status: 'active'
       }
@@ -447,6 +450,9 @@ async function main() {
         description: 'Auténtico sushi japonés preparado por maestros sushiman con ingredientes frescos importados de Japón.',
         logoUrl: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400&h=400&fit=crop',
         coverPhotoUrl: 'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?w=1200&h=400&fit=crop',
+        phone: '+52 771 456 7890',
+        email: 'contacto@sushimasterkenji.com',
+        address: 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
         commissionRate: 15.00,
         status: 'active'
       }

@@ -2401,7 +2401,7 @@ const updateRestaurantProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const restaurantId = req.params.restaurantId;
-    const { name, description, logoUrl, coverPhotoUrl } = req.body;
+    const { name, description, logoUrl, coverPhotoUrl, phone, email, address } = req.body;
 
     // 1. Verificar que el restaurante existe
     const existingRestaurant = await prisma.restaurant.findUnique({
@@ -2441,6 +2441,18 @@ const updateRestaurantProfile = async (req, res) => {
     
     if (coverPhotoUrl !== undefined) {
       updateData.coverPhotoUrl = coverPhotoUrl.trim();
+    }
+    
+    if (phone !== undefined) {
+      updateData.phone = phone.trim();
+    }
+    
+    if (email !== undefined) {
+      updateData.email = email.trim();
+    }
+    
+    if (address !== undefined) {
+      updateData.address = address.trim();
     }
 
     // Si no hay campos para actualizar
