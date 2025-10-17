@@ -1,10 +1,12 @@
 /**
- * DELIXMI - Script de Verificación de Estado
- * Maneja la lógica de la página de estado de verificación
+ * DELIXMI - Script de Página de Estado
+ * Maneja únicamente la interfaz de usuario de la página de estado
  * Compatible con Content Security Policy (CSP)
+ * 
+ * NOTA: Toda la lógica de verificación se maneja en el servidor (controlador)
  */
 
-// Configuración de estados
+// Configuración de estados para la interfaz
 const statusConfig = {
   success: {
     icon: '✅',
@@ -181,9 +183,11 @@ function showLoadingAnimation() {
 
 /**
  * Función principal de inicialización
+ * Solo maneja la interfaz - toda la lógica de verificación está en el servidor
  */
 function init() {
   try {
+    // Obtener parámetros de la URL (enviados por el servidor)
     const params = getUrlParams();
     
     // Mostrar animación de carga si es necesario
@@ -192,19 +196,19 @@ function init() {
       loadingInterval = showLoadingAnimation();
     }
     
-    // Simular un pequeño delay para mejor UX
-    setTimeout(() => {
-      if (loadingInterval) {
-        clearInterval(loadingInterval);
-      }
-      updatePageContent(params);
-    }, 1000);
+    // Actualizar la interfaz inmediatamente (sin delay)
+    // El servidor ya procesó todo y envió los parámetros correctos
+    if (loadingInterval) {
+      clearInterval(loadingInterval);
+    }
+    updatePageContent(params);
+    
   } catch (error) {
-    console.error('Error en inicialización:', error);
+    console.error('Error en inicialización de interfaz:', error);
     // Mostrar estado de error por defecto
     updatePageContent({
       status: 'error',
-      title: 'Error de Inicialización',
+      title: 'Error de Interfaz',
       message: 'Ha ocurrido un error al cargar la página.',
       actionUrl: '/',
       actionText: 'Ir al Inicio'

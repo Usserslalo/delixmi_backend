@@ -678,62 +678,90 @@ const verifyToken = async (req, res) => {
 /**
  * Controlador para verificar email
  * GET /api/auth/verify-email
+ * Centraliza toda la lógica de verificación en el servidor
  */
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
 
+    // Validar que se proporcionó el token
     if (!token) {
       return res.redirect('/status.html?status=error&title=Error de Verificación&message=Token de verificación no proporcionado.');
     }
 
-    // Verificar el token JWT
-    let decoded;
+    // Verificar el token JWT y procesar la verificación
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Decodificar y verificar el token JWT
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Verificar que sea un token de verificación de email
+      if (decoded.type !== 'email_verification') {
+        return res.redirect('/status.html?status=error&title=Token Inválido&message=Este no es un token de verificación de email válido.');
+      }
+
+      // Buscar al usuario en la base de datos
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          emailVerifiedAt: true,
+          status: true
+        }
+      });
+
+      // Verificar que el usuario existe
+      if (!user) {
+        return res.redirect('/status.html?status=error&title=Usuario No Encontrado&message=El usuario asociado a este enlace no existe.');
+      }
+
+      // Verificar si ya está verificado
+      if (user.emailVerifiedAt) {
+        return res.redirect('/status.html?status=already_verified&title=Cuenta Ya Verificada&message=Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.');
+      }
+
+      // Actualizar el usuario: marcar como verificado y activar cuenta
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerifiedAt: new Date(),
+          status: 'active'
+        }
+      });
+
+      // Log de éxito para auditoría
+      console.log(`✅ Email verificado exitosamente:`, {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        verifiedAt: new Date().toISOString()
+      });
+
+      // Redirigir a página de éxito
+      return res.redirect('/status.html?status=success&title=¡Cuenta Verificada!&message=Tu cuenta ha sido verificada con éxito. Ya puedes iniciar sesión.');
+
     } catch (jwtError) {
+      // Manejar errores específicos del JWT
       if (jwtError.name === 'TokenExpiredError') {
-        return res.redirect('/status.html?status=expired&title=Enlace Expirado&message=El enlace de verificación ha expirado. Por favor, solicita uno nuevo.&actionUrl=/api/auth/resend-verification&actionText=Solicitar nuevo enlace');
+        console.log(`⏰ Token expirado para verificación de email: ${token.substring(0, 20)}...`);
+        return res.redirect('/status.html?status=error&title=Enlace Expirado&message=El enlace de verificación ha expirado. Por favor, solicita uno nuevo.');
       }
       
-      return res.redirect('/status.html?status=error&title=Token Inválido&message=El enlace de verificación no es válido.');
-    }
-
-    // Verificar que sea un token de verificación de email
-    if (decoded.type !== 'email_verification') {
-      return res.redirect('/status.html?status=error&title=Token Inválido&message=Este no es un token de verificación de email válido.');
-    }
-
-    // Buscar al usuario
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
-    });
-
-    if (!user) {
-      return res.redirect('/status.html?status=error&title=Usuario No Encontrado&message=El usuario asociado a este enlace no existe.');
-    }
-
-    // Verificar si ya está verificado
-    if (user.emailVerifiedAt) {
-      return res.redirect('/status.html?status=already_verified&title=Cuenta Ya Verificada&message=Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.');
-    }
-
-    // Actualizar el usuario
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerifiedAt: new Date(),
-        status: 'active'
+      if (jwtError.name === 'JsonWebTokenError') {
+        console.log(`❌ Token JWT inválido para verificación: ${token.substring(0, 20)}...`);
+        return res.redirect('/status.html?status=error&title=Token Inválido&message=El enlace de verificación no es válido.');
       }
-    });
 
-    console.log(`✅ Email verificado exitosamente para usuario: ${user.email} (ID: ${user.id})`);
-
-    res.redirect('/status.html?status=success&title=¡Cuenta Verificada!&message=Tu cuenta ha sido verificada con éxito. Ya puedes iniciar sesión en la aplicación.');
+      // Otros errores de JWT
+      console.error('❌ Error de JWT en verificación:', jwtError);
+      return res.redirect('/status.html?status=error&title=Error de Verificación&message=El enlace es inválido o ya ha sido utilizado.');
+    }
 
   } catch (error) {
-    console.error('Error en verificación de email:', error);
-    res.redirect('/status.html?status=error&title=Error del Servidor&message=Ha ocurrido un error interno. Por favor, intenta más tarde.');
+    // Manejar errores generales del servidor
+    console.error('❌ Error interno en verificación de email:', error);
+    return res.redirect('/status.html?status=error&title=Error del Servidor&message=Ha ocurrido un error interno. Por favor, intenta más tarde.');
   }
 };
 
