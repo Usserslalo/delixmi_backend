@@ -73,7 +73,7 @@ const helmetOptions = {
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "/js/"],
       connectSrc: ["'self'", "https://api.mercadopago.com", "https://maps.googleapis.com"],
       frameSrc: ["'self'", "https://www.mercadopago.com"],
       objectSrc: ["'none'"],
