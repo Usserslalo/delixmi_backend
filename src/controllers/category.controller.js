@@ -6,6 +6,126 @@ const { logger } = require('../config/logger');
 const prisma = new PrismaClient();
 
 /**
+ * Función auxiliar para obtener emoji basado en el nombre de la categoría
+ * @param {string} categoryName - Nombre de la categoría
+ * @returns {string} Emoji correspondiente
+ */
+const getCategoryEmoji = (categoryName) => {
+  const emojiMap = {
+    // Comida mexicana
+    'Mexicana': '🌮',
+    'Tacos': '🌮',
+    'Mexican Food': '🌮',
+    
+    // Pizza
+    'Pizza': '🍕',
+    'Pizzas': '🍕',
+    'Pizzería': '🍕',
+    
+    // Hamburguesas
+    'Hamburguesas': '🍔',
+    'Burgers': '🍔',
+    'Hamburgers': '🍔',
+    
+    // Comida china
+    'China': '🥡',
+    'Chinese': '🥡',
+    'Comida China': '🥡',
+    
+    // Sushi
+    'Sushi': '🍣',
+    'Japanese': '🍣',
+    'Japonesa': '🍣',
+    
+    // Pollo
+    'Pollo': '🍗',
+    'Chicken': '🍗',
+    'Pollo Frito': '🍗',
+    
+    // Comida italiana
+    'Italiana': '🍝',
+    'Italian': '🍝',
+    'Pasta': '🍝',
+    
+    // Mariscos
+    'Mariscos': '🦐',
+    'Seafood': '🦐',
+    'Pescado': '🐟',
+    
+    // Vegetariana
+    'Vegetariana': '🥗',
+    'Vegetarian': '🥗',
+    'Vegana': '🌱',
+    'Vegan': '🌱',
+    
+    // Postres
+    'Postres': '🍰',
+    'Desserts': '🍰',
+    'Dulces': '🍭',
+    
+    // Bebidas
+    'Bebidas': '🥤',
+    'Drinks': '🥤',
+    'Café': '☕',
+    'Coffee': '☕',
+    
+    // Desayunos
+    'Desayunos': '🥞',
+    'Breakfast': '🥞',
+    
+    // Comida rápida
+    'Rápida': '⚡',
+    'Fast Food': '⚡',
+    'Comida Rápida': '⚡',
+    
+    // Buffet
+    'Buffet': '🍽️',
+    'All You Can Eat': '🍽️',
+    
+    // Barbacoa
+    'Barbacoa': '🥩',
+    'BBQ': '🥩',
+    'Asados': '🥩',
+    
+    // Sandwich
+    'Sandwich': '🥪',
+    'Sandwiches': '🥪',
+    
+    // Comida india
+    'India': '🍛',
+    'Indian': '🍛',
+    
+    // Comida tailandesa
+    'Tailandesa': '🍜',
+    'Thai': '🍜',
+    
+    // Comida coreana
+    'Coreana': '🍲',
+    'Korean': '🍲',
+    
+    // Comida árabe
+    'Árabe': '🥙',
+    'Arabic': '🥙',
+    'Mediterránea': '🥙',
+    
+    // Por defecto
+    'default': '🍽️'
+  };
+
+  // Buscar emoji por coincidencia exacta o parcial
+  const lowerCategoryName = categoryName.toLowerCase();
+  
+  for (const [key, emoji] of Object.entries(emojiMap)) {
+    if (lowerCategoryName.includes(key.toLowerCase()) || 
+        categoryName.toLowerCase().includes(key.toLowerCase())) {
+      return emoji;
+    }
+  }
+  
+  return emojiMap.default;
+};
+
+/**
  * Controlador para obtener todas las categorías disponibles
  * Implementa caché en memoria para optimizar consultas frecuentes
  * @param {Object} req - Request object
@@ -71,6 +191,16 @@ const getCategories = async (req, res) => {
           name: 'asc'
         }
       });
+
+      // Agregar emojis a las categorías (mapeo basado en el nombre)
+      categories = categories.map(category => ({
+        ...category,
+        emoji: getCategoryEmoji(category.name),
+        // Información adicional para el frontend
+        displayName: category.name,
+        isActive: true, // Por defecto todas están activas
+        restaurantCount: category.subcategories.length
+      }));
 
       // Almacenar en caché por 1 hora (3600 segundos)
       const cacheStored = cacheService.set(cacheKey, categories, 3600);
@@ -200,6 +330,17 @@ const getCategoryById = async (req, res) => {
           }
         }
       });
+
+      if (category) {
+        // Agregar emoji y metadatos adicionales
+        category = {
+          ...category,
+          emoji: getCategoryEmoji(category.name),
+          displayName: category.name,
+          isActive: true,
+          restaurantCount: category.subcategories.length
+        };
+      }
 
       if (!category) {
         return ResponseService.notFound(

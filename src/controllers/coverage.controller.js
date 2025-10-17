@@ -1,5 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const { validateCoverageForBranches } = require('../services/geolocation.service');
+const cacheService = require('../services/cache.service');
+const ResponseService = require('../services/response.service');
+const { logger } = require('../config/logger');
 
 const prisma = new PrismaClient();
 
@@ -210,7 +213,196 @@ const checkAddressCoverage = async (req, res) => {
   }
 };
 
+/**
+ * Verifica cobertura por coordenadas (más eficiente para el frontend)
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const checkCoverageByCoordinates = async (req, res) => {
+  try {
+    const { lat, lng } = req.query;
+    const requestId = req.id;
+
+    logger.info('Verificando cobertura por coordenadas', {
+      requestId,
+      meta: { lat, lng }
+    });
+
+    // Validar coordenadas
+    if (!lat || !lng) {
+      return ResponseService.badRequest(
+        res,
+        'Las coordenadas lat y lng son requeridas'
+      );
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return ResponseService.badRequest(
+        res,
+        'Las coordenadas deben ser números válidos'
+      );
+    }
+
+    if (latitude < -90 || latitude > 90) {
+      return ResponseService.badRequest(
+        res,
+        'La latitud debe estar entre -90 y 90'
+      );
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      return ResponseService.badRequest(
+        res,
+        'La longitud debe estar entre -180 y 180'
+      );
+    }
+
+    // Generar clave de caché basada en coordenadas (redondeadas para agrupar áreas cercanas)
+    const cacheKey = `coverage:${Math.round(latitude * 1000) / 1000}:${Math.round(longitude * 1000) / 1000}`;
+    
+    // Intentar obtener del caché
+    let coverageData = cacheService.get(cacheKey);
+    let cacheHit = false;
+
+    if (coverageData) {
+      cacheHit = true;
+      logger.info('Cache HIT - Cobertura obtenida del caché', {
+        requestId,
+        meta: { cacheKey, cacheStats: cacheService.getStats() }
+      });
+    } else {
+      logger.info('Cache MISS - Consultando base de datos', {
+        requestId,
+        meta: { cacheKey }
+      });
+
+      // Obtener sucursales activas con información del restaurante
+      const branches = await prisma.branch.findMany({
+        where: {
+          status: 'active',
+          restaurant: {
+            status: 'active'
+          }
+        },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          phone: true,
+          latitude: true,
+          longitude: true,
+          deliveryRadius: true,
+          deliveryFee: true,
+          estimatedDeliveryMin: true,
+          estimatedDeliveryMax: true,
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              logoUrl: true,
+              coverPhotoUrl: true,
+              category: true,
+              rating: true
+            }
+          }
+        }
+      });
+
+      // Crear objeto de dirección para validación
+      const userAddress = {
+        latitude: latitude,
+        longitude: longitude
+      };
+
+      // Validar cobertura
+      const branchesWithCoverage = validateCoverageForBranches(branches, userAddress);
+
+      // Separar sucursales con y sin cobertura
+      const coveredBranches = branchesWithCoverage.filter(b => b.isCovered);
+      const notCoveredBranches = branchesWithCoverage.filter(b => !b.isCovered);
+
+      // Formatear respuesta
+      coverageData = {
+        coordinates: {
+          latitude: latitude,
+          longitude: longitude
+        },
+        hasCoverage: coveredBranches.length > 0,
+        totalRestaurants: new Set(branches.map(b => b.restaurant.id)).size,
+        coveredRestaurants: new Set(coveredBranches.map(b => b.restaurant.id)).size,
+        totalBranches: branches.length,
+        coveredBranches: coveredBranches.length,
+        coveragePercentage: branches.length > 0 ? 
+          Math.round((coveredBranches.length / branches.length) * 100) : 0,
+        recommendedRestaurants: coveredBranches
+          .slice(0, 10) // Top 10 restaurantes con cobertura
+          .map(branch => ({
+            restaurantId: branch.restaurant.id,
+            restaurantName: branch.restaurant.name,
+            category: branch.restaurant.category,
+            rating: Number(branch.restaurant.rating) || 0,
+            logoUrl: branch.restaurant.logoUrl,
+            coverPhotoUrl: branch.restaurant.coverPhotoUrl,
+            branchId: branch.id,
+            branchName: branch.name,
+            distance: branch.distance,
+            deliveryFee: Number(branch.deliveryFee),
+            deliveryTime: `${branch.estimatedDeliveryMin}-${branch.estimatedDeliveryMax} min`,
+            isCovered: true
+          }))
+          .sort((a, b) => a.distance - b.distance), // Ordenar por distancia
+        validatedAt: new Date().toISOString()
+      };
+
+      // Almacenar en caché por 10 minutos (600 segundos)
+      const cacheStored = cacheService.set(cacheKey, coverageData, 600);
+      
+      if (cacheStored) {
+        logger.info('Cobertura almacenada en caché exitosamente', {
+          requestId,
+          meta: { cacheKey, ttl: '600 segundos (10 minutos)' }
+        });
+      }
+    }
+
+    // Respuesta exitosa
+    return ResponseService.success(
+      res,
+      'Verificación de cobertura completada exitosamente',
+      {
+        ...coverageData,
+        cache: {
+          hit: cacheHit,
+          key: cacheKey,
+          stats: cacheService.getStats()
+        }
+      }
+    );
+
+  } catch (error) {
+    logger.error('Error verificando cobertura por coordenadas', {
+      requestId: req.id,
+      meta: {
+        lat: req.query.lat,
+        lng: req.query.lng,
+        error: error.message,
+        stack: error.stack
+      }
+    });
+    
+    return ResponseService.internalError(
+      res,
+      'Error interno del servidor al verificar cobertura'
+    );
+  }
+};
+
 module.exports = {
-  checkAddressCoverage
+  checkAddressCoverage,
+  checkCoverageByCoordinates
 };
 

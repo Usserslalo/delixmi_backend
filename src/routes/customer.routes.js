@@ -2,7 +2,7 @@ const express = require('express');
 const { param, query, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { getDriverLocationForOrder, getCustomerOrders, getCustomerOrderDetails, createCustomerAddress, getCustomerAddresses, updateCustomerAddress, deleteCustomerAddress } = require('../controllers/customer.controller');
-const { checkAddressCoverage } = require('../controllers/coverage.controller');
+const { checkAddressCoverage, checkCoverageByCoordinates } = require('../controllers/coverage.controller');
 
 const router = express.Router();
 
@@ -38,6 +38,43 @@ router.post(
     next();
   },
   checkAddressCoverage
+);
+
+/**
+ * @route   GET /api/customer/check-coverage
+ * @desc    Verificar cobertura por coordenadas (más eficiente)
+ * @access  Private (Customer Only)
+ * @query   lat - Latitud de la ubicación
+ * @query   lng - Longitud de la ubicación
+ */
+router.get(
+  '/check-coverage',
+  requireRole(['customer']),
+  [
+    query('lat')
+      .notEmpty()
+      .withMessage('La latitud es requerida')
+      .isFloat({ min: -90, max: 90 })
+      .withMessage('La latitud debe ser un número decimal entre -90 y 90'),
+    query('lng')
+      .notEmpty()
+      .withMessage('La longitud es requerida')
+      .isFloat({ min: -180, max: 180 })
+      .withMessage('La longitud debe ser un número decimal entre -180 y 180')
+  ],
+  (req, res, next) => {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de entrada inválidos',
+        errors: errors.array()
+      });
+    }
+    next();
+  },
+  checkCoverageByCoordinates
 );
 
 /**

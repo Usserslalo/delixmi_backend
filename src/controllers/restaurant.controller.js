@@ -193,6 +193,8 @@ const getRestaurants = async (req, res) => {
           logoUrl: true,
           coverPhotoUrl: true,
           rating: true,
+          createdAt: true,
+          updatedAt: true,
           branches: {
             where: {
               status: 'active'
@@ -226,7 +228,8 @@ const getRestaurants = async (req, res) => {
         skip: skip,
         take: pageSize,
         orderBy: {
-          createdAt: 'desc'
+          // Mejorar ordenamiento: restaurantes abiertos primero, luego por rating
+          rating: 'desc'
         }
       }),
       prisma.restaurant.count({
@@ -279,29 +282,62 @@ const getRestaurants = async (req, res) => {
         }
       }
       
+      // Calcular metadatos adicionales
+      const deliveryTime = branchesWithIsOpen.length > 0 ? 
+        Math.round((branchesWithIsOpen[0].estimatedDeliveryMin + branchesWithIsOpen[0].estimatedDeliveryMax) / 2) : 30;
+      
+      const minDeliveryFee = branchesWithIsOpen.length > 0 ? 
+        Math.min(...branchesWithIsOpen.map(b => Number(b.deliveryFee))) : 25;
+
       return {
         ...restaurant,
         rating: restaurant.rating ? Number(restaurant.rating) : 0,
         isOpen: restaurantIsOpen,
         branches: branchesWithIsOpen,
-        minDistance: minDistance // Distancia a la sucursal más cercana
+        minDistance: minDistance, // Distancia a la sucursal más cercana
+        // Metadatos adicionales para el frontend
+        deliveryTime: deliveryTime,
+        minDeliveryFee: minDeliveryFee,
+        isPromoted: false, // TODO: Implementar sistema de promociones
+        estimatedWaitTime: 15, // TODO: Calcular basado en órdenes activas
+        minOrderAmount: 0, // TODO: Configurar por restaurante
+        paymentMethods: ['efectivo', 'tarjeta'], // TODO: Obtener de configuración
+        deliveryZones: branchesWithIsOpen.map(b => b.address.split(',')[1]?.trim() || 'Zona de cobertura') // TODO: Mejorar
       };
     });
 
-    // Si se proporcionaron coordenadas, ordenar por distancia mínima
+    // Ordenar restaurantes: abiertos primero, luego por distancia/rating
     let sortedRestaurants = processedRestaurants;
+    
     if (userLat !== null && userLng !== null) {
+      // Con coordenadas: ordenar por estado (abierto/cerrado), luego por distancia
       sortedRestaurants = processedRestaurants.sort((a, b) => {
-        // Restaurantes sin distancia van al final
+        // 1. Restaurantes abiertos primero
+        if (a.isOpen && !b.isOpen) return -1;
+        if (!a.isOpen && b.isOpen) return 1;
+        
+        // 2. Si ambos tienen el mismo estado, ordenar por distancia
         if (a.minDistance === null && b.minDistance === null) return 0;
         if (a.minDistance === null) return 1;
         if (b.minDistance === null) return -1;
         
-        // Ordenar por distancia ascendente (más cercano primero)
+        // 3. Ordenar por distancia ascendente (más cercano primero)
         return a.minDistance - b.minDistance;
       });
 
-      console.log(`📍 Restaurantes ordenados por proximidad a (${userLat}, ${userLng})`);
+      console.log(`📍 Restaurantes ordenados por estado y proximidad a (${userLat}, ${userLng})`);
+    } else {
+      // Sin coordenadas: ordenar por estado (abierto/cerrado), luego por rating
+      sortedRestaurants = processedRestaurants.sort((a, b) => {
+        // 1. Restaurantes abiertos primero
+        if (a.isOpen && !b.isOpen) return -1;
+        if (!a.isOpen && b.isOpen) return 1;
+        
+        // 2. Si ambos tienen el mismo estado, ordenar por rating descendente
+        return b.rating - a.rating;
+      });
+
+      console.log(`⭐ Restaurantes ordenados por estado y rating`);
     }
 
     // Estructurar respuesta

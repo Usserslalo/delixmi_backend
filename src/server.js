@@ -150,6 +150,7 @@ const adminRoutes = require('./routes/admin.routes');
 const cartRoutes = require('./routes/cart.routes');
 const categoryRoutes = require('./routes/category.routes');
 const geocodingRoutes = require('./routes/geocoding.routes');
+const homeRoutes = require('./routes/home.routes');
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -163,6 +164,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/geocoding', geocodingRoutes);
+app.use('/api/home', homeRoutes);
 
 // Ruta específica para la página de reset password
 app.get('/reset-password', (req, res) => {
@@ -227,7 +229,9 @@ app.get('/', (req, res) => {
         createAddress: 'POST /api/customer/addresses',
         updateAddress: 'PATCH /api/customer/addresses/:addressId',
         deleteAddress: 'DELETE /api/customer/addresses/:addressId',
-        driverLocation: 'GET /api/customer/orders/:orderId/location'
+        driverLocation: 'GET /api/customer/orders/:orderId/location',
+        checkCoverageByAddress: 'POST /api/customer/check-coverage',
+        checkCoverageByCoordinates: 'GET /api/customer/check-coverage?lat=&lng='
       },
       cart: {
         getCart: 'GET /api/cart',
@@ -243,6 +247,9 @@ app.get('/', (req, res) => {
       },
       geocoding: {
         reverseGeocode: 'POST /api/geocoding/reverse'
+      },
+      home: {
+        dashboard: 'GET /api/home/dashboard'
       }
     }
   });
