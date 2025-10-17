@@ -686,7 +686,7 @@ const verifyEmail = async (req, res) => {
 
     // Validar que se proporcionó el token
     if (!token) {
-      return res.redirect('/status.html?status=error&title=Error de Verificación&message=Token de verificación no proporcionado.');
+      return ResponseService.badRequest(res, 'Token de verificación no proporcionado', 'TOKEN_REQUIRED');
     }
 
     // Verificar el token JWT y procesar la verificación
@@ -696,7 +696,7 @@ const verifyEmail = async (req, res) => {
 
       // Verificar que sea un token de verificación de email
       if (decoded.type !== 'email_verification') {
-        return res.redirect('/status.html?status=error&title=Token Inválido&message=Este no es un token de verificación de email válido.');
+        return ResponseService.badRequest(res, 'Este no es un token de verificación de email válido', 'INVALID_TOKEN_TYPE');
       }
 
       // Buscar al usuario en la base de datos
@@ -713,12 +713,21 @@ const verifyEmail = async (req, res) => {
 
       // Verificar que el usuario existe
       if (!user) {
-        return res.redirect('/status.html?status=error&title=Usuario No Encontrado&message=El usuario asociado a este enlace no existe.');
+        return ResponseService.notFound(res, 'El usuario asociado a este enlace no existe', 'USER_NOT_FOUND');
       }
 
       // Verificar si ya está verificado
       if (user.emailVerifiedAt) {
-        return res.redirect('/status.html?status=already_verified&title=Cuenta Ya Verificada&message=Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.');
+        return ResponseService.success(res, 'Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.', {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            status: user.status,
+            emailVerifiedAt: user.emailVerifiedAt
+          },
+          alreadyVerified: true
+        });
       }
 
       // Actualizar el usuario: marcar como verificado y activar cuenta
@@ -727,6 +736,13 @@ const verifyEmail = async (req, res) => {
         data: {
           emailVerifiedAt: new Date(),
           status: 'active'
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          status: true,
+          emailVerifiedAt: true
         }
       });
 
@@ -738,30 +754,33 @@ const verifyEmail = async (req, res) => {
         verifiedAt: new Date().toISOString()
       });
 
-      // Redirigir a página de éxito
-      return res.redirect('/status.html?status=success&title=¡Cuenta Verificada!&message=Tu cuenta ha sido verificada con éxito. Ya puedes iniciar sesión.');
+      // Devolver respuesta de éxito
+      return ResponseService.success(res, 'Tu cuenta ha sido verificada con éxito. Ya puedes iniciar sesión.', {
+        user: updatedUser,
+        verified: true
+      });
 
     } catch (jwtError) {
       // Manejar errores específicos del JWT
       if (jwtError.name === 'TokenExpiredError') {
         console.log(`⏰ Token expirado para verificación de email: ${token.substring(0, 20)}...`);
-        return res.redirect('/status.html?status=error&title=Enlace Expirado&message=El enlace de verificación ha expirado. Por favor, solicita uno nuevo.');
+        return ResponseService.badRequest(res, 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.', 'TOKEN_EXPIRED');
       }
       
       if (jwtError.name === 'JsonWebTokenError') {
         console.log(`❌ Token JWT inválido para verificación: ${token.substring(0, 20)}...`);
-        return res.redirect('/status.html?status=error&title=Token Inválido&message=El enlace de verificación no es válido.');
+        return ResponseService.badRequest(res, 'El enlace de verificación no es válido.', 'INVALID_TOKEN');
       }
 
       // Otros errores de JWT
       console.error('❌ Error de JWT en verificación:', jwtError);
-      return res.redirect('/status.html?status=error&title=Error de Verificación&message=El enlace es inválido o ya ha sido utilizado.');
+      return ResponseService.badRequest(res, 'El enlace es inválido o ya ha sido utilizado.', 'INVALID_TOKEN');
     }
 
   } catch (error) {
     // Manejar errores generales del servidor
     console.error('❌ Error interno en verificación de email:', error);
-    return res.redirect('/status.html?status=error&title=Error del Servidor&message=Ha ocurrido un error interno. Por favor, intenta más tarde.');
+    return ResponseService.internalError(res, 'Ha ocurrido un error interno. Por favor, intenta más tarde.', 'INTERNAL_ERROR');
   }
 };
 

@@ -227,15 +227,66 @@
                 
                 console.log('📡 Respuesta del backend:', response.status);
                 
+                const data = await response.json();
+                console.log('📄 Datos de respuesta:', data);
+                
                 if (response.ok) {
                     console.log('✅ Email verificado exitosamente');
-                    // Mostrar mensaje de éxito después de un breve delay
+                    
+                    // Verificar si ya estaba verificado
+                    if (data.data && data.data.alreadyVerified) {
+                        // Mostrar mensaje de que ya estaba verificado
+                        setTimeout(() => {
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('success').style.display = 'block';
+                            // Actualizar el mensaje de éxito
+                            const successElement = document.getElementById('success');
+                            successElement.innerHTML = `
+                                <h3>ℹ️ ¡Cuenta ya verificada!</h3>
+                                <p>Tu cuenta ya estaba verificada anteriormente. Puedes:</p>
+                                <ul>
+                                    <li>Iniciar sesión en la aplicación</li>
+                                    <li>Realizar pedidos de comida</li>
+                                    <li>Gestionar tu perfil</li>
+                                    <li>Disfrutar de todas las funcionalidades</li>
+                                </ul>
+                            `;
+                        }, 1000);
+                    } else {
+                        // Mostrar mensaje de éxito normal
+                        setTimeout(() => {
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('success').style.display = 'block';
+                        }, 1000);
+                    }
+                } else {
+                    // Manejar errores específicos
+                    let errorMessage = 'Error desconocido';
+                    if (data.message) {
+                        errorMessage = data.message;
+                    }
+                    
+                    console.error('❌ Error verificando email:', errorMessage);
+                    
+                    // Mostrar error después de un breve delay
                     setTimeout(() => {
                         document.getElementById('loading').style.display = 'none';
-                        document.getElementById('success').style.display = 'block';
-                    }, 2000);
-                } else {
-                    throw new Error(`Error del servidor: ${response.status}`);
+                        document.getElementById('error').style.display = 'block';
+                        
+                        // Actualizar el mensaje de error con la información específica
+                        const errorElement = document.getElementById('error');
+                        errorElement.innerHTML = `
+                            <h3>❌ Error: ${errorMessage}</h3>
+                            <p>El enlace de verificación no es válido o ha expirado.</p>
+                            <p><strong>Posibles causas:</strong></p>
+                            <ul>
+                                <li>El enlace ha expirado (válido por 1 hora)</li>
+                                <li>El enlace ya fue utilizado</li>
+                                <li>El enlace está malformado</li>
+                            </ul>
+                            <p><strong>Solución:</strong> Solicita un nuevo enlace de verificación desde la aplicación.</p>
+                        `;
+                    }, 1000);
                 }
             } catch (error) {
                 console.error('❌ Error verificando email:', error);
@@ -243,7 +294,7 @@
                 setTimeout(() => {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('error').style.display = 'block';
-                }, 2000);
+                }, 1000);
             }
         }
         

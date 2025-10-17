@@ -108,16 +108,6 @@ app.use(express.urlencoded({ extended: true }));
 // Servir archivos estáticos desde la carpeta public
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Ruta específica para la página de reset password
-app.get('/reset-password', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/reset-password.html'));
-});
-
-// Ruta específica para la página de verificación de email
-app.get('/verify-email', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/verify-email.html'));
-});
-
 // Ruta de prueba de conexión
 app.get('/health', async (req, res) => {
   try {
@@ -174,6 +164,16 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/geocoding', geocodingRoutes);
 
+// Ruta específica para la página de reset password
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/reset-password.html'));
+});
+
+// Ruta específica para la página de verificación de email
+app.get('/email-verification', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/verify-email.html'));
+});
+
 // Ruta de prueba básica
 app.get('/', (req, res) => {
   res.json({
@@ -182,7 +182,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       resetPassword: '/reset-password',
-      verifyEmail: '/verify-email',
+      verifyEmail: '/email-verification',
       auth: {
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',

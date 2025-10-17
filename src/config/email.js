@@ -44,7 +44,7 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
     const transporter = await createTransporter();
     
     // Generar enlace web de verificación
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/email-verification?token=${verificationToken}`;
     
     console.log('🔗 URL de verificación generada para:', email);
     
@@ -91,7 +91,7 @@ const sendResendVerificationEmail = async (email, name, verificationToken) => {
   try {
     const transporter = await createTransporter();
     
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/email-verification?token=${verificationToken}`;
     
     // Preparar datos para la plantilla
     const templateData = {
