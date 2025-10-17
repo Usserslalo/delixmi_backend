@@ -325,19 +325,27 @@ const checkCoverageByCoordinates = async (req, res) => {
       const coveredBranches = branchesWithCoverage.filter(b => b.isCovered);
       const notCoveredBranches = branchesWithCoverage.filter(b => !b.isCovered);
 
-      // Formatear respuesta
+      // Formatear respuesta (MANTENER COMPATIBILIDAD CON FRONTEND)
+      const coveragePercentage = branches.length > 0 ? 
+        ((coveredBranches.length / branches.length) * 100).toFixed(2) : "0.00"; // STRING como espera el frontend
+
       coverageData = {
+        // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+        hasCoverage: coveredBranches.length > 0,
+        coveragePercentage: coveragePercentage, // ✅ STRING como espera el frontend
+        stats: {
+          totalRestaurants: new Set(branches.map(b => b.restaurant.id)).size,
+          coveredBranches: coveredBranches.length,
+          totalBranches: branches.length,
+          coveragePercentage: coveragePercentage
+        },
+        // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
         coordinates: {
           latitude: latitude,
           longitude: longitude
         },
-        hasCoverage: coveredBranches.length > 0,
         totalRestaurants: new Set(branches.map(b => b.restaurant.id)).size,
         coveredRestaurants: new Set(coveredBranches.map(b => b.restaurant.id)).size,
-        totalBranches: branches.length,
-        coveredBranches: coveredBranches.length,
-        coveragePercentage: branches.length > 0 ? 
-          Math.round((coveredBranches.length / branches.length) * 100) : 0,
         recommendedRestaurants: coveredBranches
           .slice(0, 10) // Top 10 restaurantes con cobertura
           .map(branch => ({

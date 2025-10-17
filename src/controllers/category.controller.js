@@ -192,14 +192,16 @@ const getCategories = async (req, res) => {
         }
       });
 
-      // Agregar emojis a las categorías (mapeo basado en el nombre)
+      // Agregar emojis a las categorías (MANTENER CAMPOS ORIGINALES)
       categories = categories.map(category => ({
         ...category,
-        emoji: getCategoryEmoji(category.name),
-        // Información adicional para el frontend
-        displayName: category.name,
-        isActive: true, // Por defecto todas están activas
-        restaurantCount: category.subcategories.length
+        // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+        name: category.name,              // ✅ Campo existente en frontend
+        emoji: getCategoryEmoji(category.name), // ✅ Campo existente en frontend
+        isActive: true,                   // ✅ Campo existente en frontend
+        // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
+        displayName: category.name,       // 🆕 Campo nuevo (alias de name)
+        restaurantCount: category.subcategories.length // 🆕 Campo nuevo
       }));
 
       // Almacenar en caché por 1 hora (3600 segundos)
@@ -332,13 +334,16 @@ const getCategoryById = async (req, res) => {
       });
 
       if (category) {
-        // Agregar emoji y metadatos adicionales
+        // Agregar emoji y metadatos (MANTENER CAMPOS ORIGINALES)
         category = {
           ...category,
-          emoji: getCategoryEmoji(category.name),
-          displayName: category.name,
-          isActive: true,
-          restaurantCount: category.subcategories.length
+          // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+          name: category.name,              // ✅ Campo existente en frontend
+          emoji: getCategoryEmoji(category.name), // ✅ Campo existente en frontend
+          isActive: true,                   // ✅ Campo existente en frontend
+          // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
+          displayName: category.name,       // 🆕 Campo nuevo (alias de name)
+          restaurantCount: category.subcategories.length // 🆕 Campo nuevo
         };
       }
 

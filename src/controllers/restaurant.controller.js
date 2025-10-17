@@ -282,10 +282,13 @@ const getRestaurants = async (req, res) => {
         }
       }
       
-      // Calcular metadatos adicionales
+      // Calcular metadatos adicionales (MANTENER CAMPOS ORIGINALES)
       const deliveryTime = branchesWithIsOpen.length > 0 ? 
         Math.round((branchesWithIsOpen[0].estimatedDeliveryMin + branchesWithIsOpen[0].estimatedDeliveryMax) / 2) : 30;
       
+      const deliveryFee = branchesWithIsOpen.length > 0 ? 
+        Number(branchesWithIsOpen[0].deliveryFee) : 25; // MANTENER CAMPO ORIGINAL
+
       const minDeliveryFee = branchesWithIsOpen.length > 0 ? 
         Math.min(...branchesWithIsOpen.map(b => Number(b.deliveryFee))) : 25;
 
@@ -294,15 +297,17 @@ const getRestaurants = async (req, res) => {
         rating: restaurant.rating ? Number(restaurant.rating) : 0,
         isOpen: restaurantIsOpen,
         branches: branchesWithIsOpen,
-        minDistance: minDistance, // Distancia a la sucursal más cercana
-        // Metadatos adicionales para el frontend
-        deliveryTime: deliveryTime,
-        minDeliveryFee: minDeliveryFee,
-        isPromoted: false, // TODO: Implementar sistema de promociones
-        estimatedWaitTime: 15, // TODO: Calcular basado en órdenes activas
-        minOrderAmount: 0, // TODO: Configurar por restaurante
-        paymentMethods: ['efectivo', 'tarjeta'], // TODO: Obtener de configuración
-        deliveryZones: branchesWithIsOpen.map(b => b.address.split(',')[1]?.trim() || 'Zona de cobertura') // TODO: Mejorar
+        minDistance: minDistance,
+        // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+        deliveryTime: deliveryTime,        // ✅ Campo existente en frontend
+        deliveryFee: deliveryFee,          // ✅ Campo existente en frontend
+        // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
+        minDeliveryFee: minDeliveryFee,    // 🆕 Campo nuevo
+        isPromoted: false,                 // 🆕 Campo nuevo
+        estimatedWaitTime: 15,             // 🆕 Campo nuevo
+        minOrderAmount: 0,                 // 🆕 Campo nuevo
+        paymentMethods: ['efectivo', 'tarjeta'], // 🆕 Campo nuevo
+        deliveryZones: branchesWithIsOpen.map(b => b.address.split(',')[1]?.trim() || 'Zona de cobertura') // 🆕 Campo nuevo
       };
     });
 

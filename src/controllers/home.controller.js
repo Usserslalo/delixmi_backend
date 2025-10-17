@@ -444,12 +444,23 @@ const checkCoverageForAddress = async (address, restaurants) => {
     });
   });
 
+  // MANTENER COMPATIBILIDAD CON FRONTEND
+  const coveragePercentage = totalRestaurants > 0 ? 
+    ((coveredRestaurants / totalRestaurants) * 100).toFixed(2) : "0.00"; // STRING como espera el frontend
+
   return {
+    // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+    hasCoverage: coveredRestaurants > 0,
+    coveragePercentage: coveragePercentage, // ✅ STRING como espera el frontend
+    stats: {
+      totalRestaurants: totalRestaurants,
+      coveredBranches: coveredRestaurants,
+      totalBranches: totalRestaurants,
+      coveragePercentage: coveragePercentage
+    },
+    // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
     addressId: address.id,
     addressAlias: address.alias,
-    hasCoverage: coveredRestaurants > 0,
-    coveragePercentage: totalRestaurants > 0 ? 
-      Math.round((coveredRestaurants / totalRestaurants) * 100) : 0,
     coveredRestaurants: coveredRestaurants,
     totalRestaurants: totalRestaurants,
     details: coverageDetails
@@ -505,23 +516,32 @@ const processRestaurantsForDashboard = async (restaurants, userLat, userLng) => 
       }
     }
 
+    // Calcular metadatos (MANTENER CAMPOS ORIGINALES)
+    const deliveryTime = processedBranches.length > 0 ? 
+      Math.round((processedBranches[0].estimatedDeliveryMin + processedBranches[0].estimatedDeliveryMax) / 2) : 30;
+    
+    const deliveryFee = processedBranches.length > 0 ? 
+      Number(processedBranches[0].deliveryFee) : 25; // MANTENER CAMPO ORIGINAL
+
+    const minDeliveryFee = processedBranches.length > 0 ? 
+      Math.min(...processedBranches.map(b => Number(b.deliveryFee))) : 25;
+
     return {
       ...restaurant,
       rating: restaurant.rating ? Number(restaurant.rating) : 0,
       isOpen: restaurantIsOpen,
       branches: processedBranches,
       minDistance: minDistance,
-      // Metadatos adicionales para el frontend
-      deliveryTime: processedBranches.length > 0 ? 
-        Math.round((processedBranches[0].estimatedDeliveryMin + processedBranches[0].estimatedDeliveryMax) / 2) : 30,
-      minDeliveryFee: processedBranches.length > 0 ? 
-        Math.min(...processedBranches.map(b => Number(b.deliveryFee))) : 25,
-      // Información adicional útil
-      isPromoted: false, // TODO: Implementar sistema de promociones
-      estimatedWaitTime: 15, // TODO: Calcular basado en órdenes activas
-      minOrderAmount: 0, // TODO: Configurar por restaurante
-      paymentMethods: ['efectivo', 'tarjeta'], // TODO: Obtener de configuración
-      deliveryZones: processedBranches.map(b => b.neighborhood || 'Zona de cobertura') // TODO: Mejorar
+      // CAMPOS ORIGINALES (MANTENER COMPATIBILIDAD)
+      deliveryTime: deliveryTime,        // ✅ Campo existente en frontend
+      deliveryFee: deliveryFee,          // ✅ Campo existente en frontend
+      // CAMPOS NUEVOS (OPCIONALES - NO ROMPEN COMPATIBILIDAD)
+      minDeliveryFee: minDeliveryFee,    // 🆕 Campo nuevo
+      isPromoted: false,                 // 🆕 Campo nuevo
+      estimatedWaitTime: 15,             // 🆕 Campo nuevo
+      minOrderAmount: 0,                 // 🆕 Campo nuevo
+      paymentMethods: ['efectivo', 'tarjeta'], // 🆕 Campo nuevo
+      deliveryZones: processedBranches.map(b => b.address.split(',')[1]?.trim() || 'Zona de cobertura') // 🆕 Campo nuevo
     };
   });
 };
