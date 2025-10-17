@@ -11,7 +11,8 @@ const {
   verifyEmail,
   resendVerification,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getVerificationToken
 } = require('../controllers/auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { loginLimiter, forgotPasswordLimiter } = require('../middleware/rateLimit.middleware');
@@ -115,5 +116,12 @@ router.put('/profile', authenticateToken, validate(updateProfileSchema), updateP
  * @access  Private
  */
 router.put('/change-password', authenticateToken, validate(changePasswordSchema), changePassword);
+
+/**
+ * @route   GET /api/auth/get-verification-token/:userId
+ * @desc    Obtener token de verificación para testing (temporal)
+ * @access  Public (solo para testing)
+ */
+router.get('/get-verification-token/:userId', getVerificationToken);
 
 module.exports = router;

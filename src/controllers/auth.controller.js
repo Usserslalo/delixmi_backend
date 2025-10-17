@@ -1324,6 +1324,61 @@ const resetPassword = async (req, res) => {
   }
 };
 
+/**
+ * Controlador temporal para obtener token de verificación (solo para testing)
+ * GET /api/auth/get-verification-token/:userId
+ */
+const getVerificationToken = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Solo permitir en desarrollo o con una clave especial
+    if (process.env.NODE_ENV === 'production' && !req.headers['x-test-key']) {
+      return ResponseService.forbidden(res, 'Endpoint no disponible en producción', 'NOT_AVAILABLE');
+    }
+    
+    // Buscar al usuario
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        status: true,
+        emailVerifiedAt: true
+      }
+    });
+    
+    if (!user) {
+      return ResponseService.notFound(res, 'Usuario no encontrado', 'USER_NOT_FOUND');
+    }
+    
+    // Generar token de verificación
+    const verificationToken = jwt.sign(
+      { 
+        userId: user.id,
+        type: 'email_verification'
+      },
+      process.env.JWT_SECRET,
+      { 
+        expiresIn: '1h',
+        issuer: 'delixmi-api',
+        audience: 'delixmi-app'
+      }
+    );
+    
+    return ResponseService.success(res, 'Token de verificación generado', {
+      user,
+      token: verificationToken,
+      verificationUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/email-verification?token=${verificationToken}`
+    });
+    
+  } catch (error) {
+    console.error('Error al generar token de verificación:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor', 'INTERNAL_ERROR');
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1338,5 +1393,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   sendPhoneVerification,
-  verifyPhone
+  verifyPhone,
+  getVerificationToken
 };
