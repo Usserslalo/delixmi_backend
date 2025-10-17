@@ -104,7 +104,8 @@ Content-Type: multipart/form-data
 ```
 
 **✅ Body:**
-- Campo: `logo` (archivo)
+- Campo: `image` (archivo) - Para rutas legacy
+- Campo: `logo` (archivo) - Para rutas nuevas
 - Formatos: JPG, JPEG, PNG
 - Tamaño máximo: 5MB
 - Dimensiones recomendadas: 400x400px
@@ -134,7 +135,8 @@ Content-Type: multipart/form-data
 ```
 
 **✅ Body:**
-- Campo: `cover` (archivo)
+- Campo: `image` (archivo) - Para rutas legacy
+- Campo: `cover` (archivo) - Para rutas nuevas
 - Formatos: JPG, JPEG, PNG
 - Tamaño máximo: 5MB
 - Dimensiones recomendadas: 1200x400px
