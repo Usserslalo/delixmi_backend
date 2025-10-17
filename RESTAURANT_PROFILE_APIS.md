@@ -97,6 +97,8 @@ Headers:
 ### **3. 🖼️ Subir Logo del Restaurante**
 ```bash
 POST /api/restaurant/upload-logo
+# O también funciona con:
+POST /api/restaurant/uploads/logo
 Headers: Authorization: Bearer <token>
 Content-Type: multipart/form-data
 ```
@@ -125,6 +127,8 @@ Content-Type: multipart/form-data
 ### **4. 📸 Subir Portada del Restaurante**
 ```bash
 POST /api/restaurant/upload-cover
+# O también funciona con:
+POST /api/restaurant/uploads/cover
 Headers: Authorization: Bearer <token>
 Content-Type: multipart/form-data
 ```

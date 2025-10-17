@@ -2400,10 +2400,44 @@ const getRestaurantProfile = async (req, res) => {
 const updateRestaurantProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const restaurantId = req.params.restaurantId;
     const { name, description, logoUrl, coverPhotoUrl, phone, email, address } = req.body;
 
-    // 1. Verificar que el restaurante existe
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de owner',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este owner',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Verificar que el restaurante existe
     const existingRestaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -2424,7 +2458,7 @@ const updateRestaurantProfile = async (req, res) => {
       );
     }
 
-    // 2. Preparar los datos de actualización (solo campos enviados)
+    // 5. Preparar los datos de actualización (solo campos enviados)
     const updateData = {};
     
     if (name !== undefined) {
@@ -2464,7 +2498,7 @@ const updateRestaurantProfile = async (req, res) => {
       );
     }
 
-    // 3. Actualizar el restaurante
+    // 6. Actualizar el restaurante
     const updatedRestaurant = await prisma.restaurant.update({
       where: { id: restaurantId },
       data: {
@@ -2508,7 +2542,7 @@ const updateRestaurantProfile = async (req, res) => {
       }
     });
 
-    // 4. Formatear respuesta
+    // 7. Formatear respuesta
     const formattedRestaurant = {
       id: updatedRestaurant.id,
       name: updatedRestaurant.name,

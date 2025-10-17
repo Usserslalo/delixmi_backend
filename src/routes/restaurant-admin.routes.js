@@ -1163,6 +1163,20 @@ router.post(
 );
 
 /**
+ * @route   POST /api/restaurant/uploads/logo
+ * @desc    Subir logo del restaurante (ruta legacy)
+ * @access  Private (Owner Only)
+ * @body    logo - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ */
+router.post(
+  '/uploads/logo',
+  requireRole(['owner']),
+  upload.single('logo'),
+  handleMulterError,
+  uploadRestaurantLogo
+);
+
+/**
  * @route   POST /api/restaurant/upload-cover
  * @desc    Subir foto de portada del restaurante
  * @access  Private (Owner Only)
@@ -1170,6 +1184,20 @@ router.post(
  */
 router.post(
   '/upload-cover',
+  requireRole(['owner']),
+  uploadCover.single('cover'),
+  handleMulterError,
+  uploadRestaurantCover
+);
+
+/**
+ * @route   POST /api/restaurant/uploads/cover
+ * @desc    Subir foto de portada del restaurante (ruta legacy)
+ * @access  Private (Owner Only)
+ * @body    cover - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ */
+router.post(
+  '/uploads/cover',
   requireRole(['owner']),
   uploadCover.single('cover'),
   handleMulterError,
