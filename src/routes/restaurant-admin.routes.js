@@ -5,8 +5,8 @@ const { validate } = require('../middleware/validate.middleware');
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
-const { uploadRestaurantLogo, uploadRestaurantCover } = require('../controllers/upload.controller');
-const { upload, uploadCover, handleMulterError } = require('../config/multer');
+const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
+const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
 
 const router = express.Router();
 
@@ -620,6 +620,20 @@ router.delete('/subcategories/:subcategoryId',
     next();
   },
   deleteSubcategory
+);
+
+/**
+ * @route   POST /api/restaurant/products/upload-image
+ * @desc    Subir imagen de producto
+ * @access  Private (Owner, Branch Manager Only)
+ * @body    image - Archivo de imagen (JPG, JPEG, PNG, máximo 5MB)
+ */
+router.post(
+  '/products/upload-image',
+  requireRole(['owner', 'branch_manager']),
+  uploadProduct.single('image'),
+  handleMulterError,
+  uploadProductImage
 );
 
 /**

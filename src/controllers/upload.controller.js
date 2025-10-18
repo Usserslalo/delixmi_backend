@@ -213,7 +213,59 @@ const uploadRestaurantCover = async (req, res) => {
   }
 };
 
+/**
+ * Controlador para subir imagen de producto
+ * POST /api/restaurant/products/upload-image
+ */
+const uploadProductImage = async (req, res) => {
+  try {
+    // Verificar que se subió un archivo
+    if (!req.file) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No se proporcionó ningún archivo',
+        code: 'NO_FILE_PROVIDED'
+      });
+    }
+
+    // Construir la URL pública del archivo de manera robusta
+    const baseUrl = getBaseUrl(req);
+    const fileUrl = `${baseUrl}/uploads/products/${req.file.filename}`;
+
+    // Log para debugging
+    console.log(`✅ Imagen de producto subida exitosamente:`, {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      url: fileUrl,
+      baseUrl: baseUrl
+    });
+
+    // Respuesta exitosa
+    res.status(200).json({
+      status: 'success',
+      message: 'Imagen de producto subida exitosamente',
+      data: {
+        imageUrl: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      }
+    });
+
+  } catch (error) {
+    console.error('Error subiendo imagen de producto:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
 module.exports = {
   uploadRestaurantLogo,
-  uploadRestaurantCover
+  uploadRestaurantCover,
+  uploadProductImage
 };

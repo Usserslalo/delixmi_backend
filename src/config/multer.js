@@ -43,6 +43,23 @@ const coverStorage = multer.diskStorage({
   }
 });
 
+// Configuración de almacenamiento en disco para imágenes de productos
+const productStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../../public/uploads/products');
+    ensureDirectoryExists(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    // Generar nombre único: timestamp + número aleatorio + extensión original
+    const timestamp = Date.now();
+    const randomNumber = Math.round(Math.random() * 10000);
+    const extension = path.extname(file.originalname);
+    const filename = `product_${timestamp}_${randomNumber}${extension}`;
+    cb(null, filename);
+  }
+});
+
 // Filtro de archivos para aceptar solo imágenes
 const fileFilter = (req, file, cb) => {
   // Verificar el tipo MIME
@@ -74,6 +91,16 @@ const upload = multer({
 // Configuración de multer para fotos de portada
 const uploadCover = multer({
   storage: coverStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // Límite de 5MB
+    files: 1 // Solo un archivo por vez
+  }
+});
+
+// Configuración de multer para imágenes de productos
+const uploadProduct = multer({
+  storage: productStorage,
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // Límite de 5MB
@@ -115,5 +142,6 @@ const handleMulterError = (error, req, res, next) => {
 module.exports = {
   upload,
   uploadCover,
+  uploadProduct,
   handleMulterError
 };
