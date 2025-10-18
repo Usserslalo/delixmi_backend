@@ -4380,3 +4380,404 @@ El repositorio maneja toda la lógica de negocio, filtrado, paginación y format
 7. **🔄 Ordenamiento Consistente:** Subcategorías ordenadas por `displayOrder` ascendente
 8. **💡 Consultas Paralelas:** Uso de `Promise.all()` para optimizar rendimiento
 9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+---
+
+### **GET /api/restaurant/modifier-groups** - Listar Grupos de Modificadores
+
+**Descripción:** Obtiene la lista completa de grupos de modificadores del restaurante con sus opciones anidadas, ordenados por fecha de creación. Este endpoint proporciona la estructura completa para el manejo de modificadores (tamaños, extras, exclusiones, etc.).
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-groups`
+
+**Método:** `GET`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateQuery(groupQuerySchema)`: Valida y transforma los query parameters usando Zod (placeholder preparado para futuras extensiones)
+
+#### **Esquema de Validación Zod:**
+
+**groupQuerySchema** (Placeholder para Query Parameters):
+```javascript
+/**
+ * Esquema de validación para query parameters del listado de grupos de modificadores
+ * (placeholder para futura extensión si se necesitan filtros)
+ */
+const groupQuerySchema = z.object({});
+```
+
+**Nota:** Actualmente no requiere query parameters, pero el esquema está preparado para futuras extensiones como filtros por tipo de modificador, búsquedas por nombre, etc.
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const getModifierGroups = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      return ResponseService.forbidden(
+        res, 
+        'No tienes permiso para ver grupos de modificadores',
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Obtener filtros validados de req.query (ya validados por Zod)
+    const filters = req.query;
+
+    // 5. Llamar al repositorio para obtener grupos de modificadores
+    const result = await ModifierRepository.getGroups(restaurantId, filters);
+
+    // 6. Respuesta exitosa
+    return ResponseService.success(
+      res,
+      'Grupos de modificadores obtenidos exitosamente',
+      result
+    );
+
+  } catch (error) {
+    console.error('Error obteniendo grupos de modificadores:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 55 líneas vs 115+ líneas anteriores (52% reducción)
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **UserService Estandarizado:** Uso consistente de `UserService.getUserWithRoles()`
+- **ResponseService Estándar:** Uso de `ResponseService.success()` para respuestas uniformes
+- **Futuro-Proof:** Preparado para filtros con esquema Zod placeholder
+
+#### **Lógica del ModifierRepository.getGroups():**
+
+El repositorio maneja toda la lógica de consulta, formateo y optimización de datos:
+
+1. **Consulta Completa con Relaciones Anidadas:**
+   ```javascript
+   // 1. Obtener todos los grupos de modificadores del restaurante
+   const modifierGroups = await prisma.modifierGroup.findMany({
+     where: {
+       restaurantId: restaurantId
+     },
+     include: {
+       options: {
+         select: {
+           id: true,
+           name: true,
+           price: true,
+           createdAt: true,
+           updatedAt: true
+         },
+         orderBy: {
+           createdAt: 'asc'
+         }
+       }
+     },
+     orderBy: {
+       createdAt: 'asc'
+     }
+   });
+   ```
+
+2. **Formateo de Datos con Estructura Anidada:**
+   ```javascript
+   // 2. Formatear respuesta
+   const formattedGroups = modifierGroups.map(group => ({
+     id: group.id,
+     name: group.name,
+     minSelection: group.minSelection,
+     maxSelection: group.maxSelection,
+     restaurantId: group.restaurantId,
+     options: group.options.map(option => ({
+       id: option.id,
+       name: option.name,
+       price: Number(option.price),
+       createdAt: option.createdAt,
+       updatedAt: option.updatedAt
+     })),
+     createdAt: group.createdAt,
+     updatedAt: group.updatedAt
+   }));
+   ```
+
+3. **Respuesta Estructurada con Metadatos:**
+   ```javascript
+   // 3. Retornar resultado con total
+   return {
+     modifierGroups: formattedGroups,
+     total: formattedGroups.length
+   };
+   ```
+
+**Características del Repositorio:**
+- **📊 Include Optimizado:** Consulta con `include` para opciones anidadas y `select` específico
+- **⚡ Ordenamiento Inteligente:** Grupos ordenados por `createdAt` y opciones también ordenadas
+- **💱 Conversión de Tipos:** Precios convertidos de `Decimal` a `Number` para JavaScript
+- **📈 Metadatos Incluidos:** Total de grupos para información adicional
+- **🎯 Filtros Preparados:** Parámetro `filters` listo para futuras extensiones
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Grupos de modificadores obtenidos exitosamente",
+    "timestamp": "2025-10-18T21:29:57.871Z",
+    "data": {
+        "modifierGroups": [
+            {
+                "id": 1,
+                "name": "Tamaño",
+                "minSelection": 1,
+                "maxSelection": 1,
+                "restaurantId": 1,
+                "options": [
+                    {
+                        "id": 1,
+                        "name": "Personal (6 pulgadas)",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:47.705Z",
+                        "updatedAt": "2025-10-18T18:17:47.705Z"
+                    },
+                    {
+                        "id": 2,
+                        "name": "Mediana (10 pulgadas)",
+                        "price": 25,
+                        "createdAt": "2025-10-18T18:17:47.705Z",
+                        "updatedAt": "2025-10-18T18:17:47.705Z"
+                    },
+                    {
+                        "id": 3,
+                        "name": "Grande (12 pulgadas)",
+                        "price": 45,
+                        "createdAt": "2025-10-18T18:17:47.705Z",
+                        "updatedAt": "2025-10-18T18:17:47.705Z"
+                    },
+                    {
+                        "id": 4,
+                        "name": "Familiar (16 pulgadas)",
+                        "price": 70,
+                        "createdAt": "2025-10-18T18:17:47.705Z",
+                        "updatedAt": "2025-10-18T18:17:47.705Z"
+                    }
+                ],
+                "createdAt": "2025-10-18T18:17:46.306Z",
+                "updatedAt": "2025-10-18T18:17:46.306Z"
+            },
+            {
+                "id": 2,
+                "name": "Extras",
+                "minSelection": 0,
+                "maxSelection": 5,
+                "restaurantId": 1,
+                "options": [
+                    {
+                        "id": 5,
+                        "name": "Extra Queso",
+                        "price": 15,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    },
+                    {
+                        "id": 6,
+                        "name": "Extra Pepperoni",
+                        "price": 20,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    },
+                    {
+                        "id": 7,
+                        "name": "Extra Champiñones",
+                        "price": 12,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    },
+                    {
+                        "id": 8,
+                        "name": "Extra Aceitunas",
+                        "price": 10,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    },
+                    {
+                        "id": 9,
+                        "name": "Extra Jalapeños",
+                        "price": 8,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    },
+                    {
+                        "id": 10,
+                        "name": "Extra Cebolla",
+                        "price": 8,
+                        "createdAt": "2025-10-18T18:17:47.958Z",
+                        "updatedAt": "2025-10-18T18:17:47.958Z"
+                    }
+                ],
+                "createdAt": "2025-10-18T18:17:46.687Z",
+                "updatedAt": "2025-10-18T18:17:46.687Z"
+            },
+            {
+                "id": 3,
+                "name": "Sin Ingredientes",
+                "minSelection": 0,
+                "maxSelection": 3,
+                "restaurantId": 1,
+                "options": [
+                    {
+                        "id": 11,
+                        "name": "Sin Cebolla",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:48.211Z",
+                        "updatedAt": "2025-10-18T18:17:48.211Z"
+                    },
+                    {
+                        "id": 12,
+                        "name": "Sin Aceitunas",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:48.211Z",
+                        "updatedAt": "2025-10-18T18:17:48.211Z"
+                    },
+                    {
+                        "id": 13,
+                        "name": "Sin Jalapeños",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:48.211Z",
+                        "updatedAt": "2025-10-18T18:17:48.211Z"
+                    },
+                    {
+                        "id": 14,
+                        "name": "Sin Champiñones",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:48.211Z",
+                        "updatedAt": "2025-10-18T18:17:48.211Z"
+                    },
+                    {
+                        "id": 15,
+                        "name": "Sin Queso",
+                        "price": 0,
+                        "createdAt": "2025-10-18T18:17:48.211Z",
+                        "updatedAt": "2025-10-18T18:17:48.211Z"
+                    }
+                ],
+                "createdAt": "2025-10-18T18:17:46.940Z",
+                "updatedAt": "2025-10-18T18:17:46.940Z"
+            }
+        ],
+        "total": 3
+    }
+}
+```
+
+**Estructura de la Respuesta:**
+
+1. **📋 `modifierGroups` Array:** Lista de grupos de modificadores con información completa:
+   - `id`: Identificador único del grupo
+   - `name`: Nombre del grupo (ej. "Tamaño", "Extras", "Sin Ingredientes")
+   - `minSelection`: Selección mínima requerida (0-10)
+   - `maxSelection`: Selección máxima permitida (1-10)
+   - `restaurantId`: ID del restaurante propietario
+   - `options`: Array de opciones anidadas con:
+     - `id`: Identificador único de la opción
+     - `name`: Nombre de la opción (ej. "Personal (6 pulgadas)", "Extra Queso")
+     - `price`: Precio como número JavaScript (convertido de Decimal)
+     - `createdAt`/`updatedAt`: Timestamps de creación y actualización
+   - `createdAt`/`updatedAt`: Timestamps del grupo
+
+2. **📊 `total` Number:** Cantidad total de grupos de modificadores del restaurante
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Query Parameters - Futuro):**
+```json
+{
+  "status": "error",
+  "message": "Parámetros de consulta inválidos",
+  "code": "VALIDATION_ERROR",
+  "errors": [
+    {
+      "field": "filterType",
+      "message": "Tipo de filtro inválido",
+      "code": "invalid_string"
+    }
+  ],
+  "data": null
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para ver grupos de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `ModifierRepository.getGroups()`
+2. **Validación Zod Preparada:** `validateQuery(groupQuerySchema)` placeholder listo para futuras extensiones
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔗 Relaciones Anidadas:** Include optimizado para obtener opciones dentro de grupos
+5. **📊 Ordenamiento Inteligente:** Grupos y opciones ordenados por fecha de creación
+6. **💱 Conversión de Tipos:** Precios convertidos automáticamente de Decimal a Number
+7. **🎯 Estructura Jerárquica:** Respuesta organizada con grupos y sus opciones anidadas
+8. **📈 Metadatos Útiles:** Total de grupos para información adicional
+9. **🚀 Futuro-Proof:** Estructura preparada para filtros y funcionalidades adicionales
+10. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
