@@ -1021,6 +1021,26 @@ const getRestaurantProducts = async (req, res) => {
               id: true,
               name: true
             }
+          },
+          modifierGroups: {
+            include: {
+              modifierGroup: {
+                include: {
+                  options: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      createdAt: true,
+                      updatedAt: true
+                    },
+                    orderBy: {
+                      createdAt: 'asc'
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         orderBy: [
@@ -1061,6 +1081,22 @@ const getRestaurantProducts = async (req, res) => {
         id: product.restaurant.id,
         name: product.restaurant.name
       },
+      modifierGroups: product.modifierGroups.map(pm => ({
+        id: pm.modifierGroup.id,
+        name: pm.modifierGroup.name,
+        minSelection: pm.modifierGroup.minSelection,
+        maxSelection: pm.modifierGroup.maxSelection,
+        restaurantId: pm.modifierGroup.restaurantId,
+        options: pm.modifierGroup.options.map(option => ({
+          id: option.id,
+          name: option.name,
+          price: Number(option.price),
+          createdAt: option.createdAt,
+          updatedAt: option.updatedAt
+        })),
+        createdAt: pm.modifierGroup.createdAt,
+        updatedAt: pm.modifierGroup.updatedAt
+      })),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt
     }));

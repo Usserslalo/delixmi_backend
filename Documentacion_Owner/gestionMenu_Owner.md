@@ -4921,7 +4921,27 @@ const getRestaurantProducts = async (req, res) => {
               category: { select: { id: true, name: true } }
             }
           },
-          restaurant: { select: { id: true, name: true } }
+          restaurant: { select: { id: true, name: true } },
+          modifierGroups: {
+            include: {
+              modifierGroup: {
+                include: {
+                  options: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      createdAt: true,
+                      updatedAt: true
+                    },
+                    orderBy: {
+                      createdAt: 'asc'
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
         orderBy: [
           { subcategory: { displayOrder: 'asc' } },
@@ -4958,6 +4978,22 @@ const getRestaurantProducts = async (req, res) => {
         id: product.restaurant.id,
         name: product.restaurant.name
       },
+      modifierGroups: product.modifierGroups.map(pm => ({
+        id: pm.modifierGroup.id,
+        name: pm.modifierGroup.name,
+        minSelection: pm.modifierGroup.minSelection,
+        maxSelection: pm.modifierGroup.maxSelection,
+        restaurantId: pm.modifierGroup.restaurantId,
+        options: pm.modifierGroup.options.map(option => ({
+          id: option.id,
+          name: option.name,
+          price: Number(option.price),
+          createdAt: option.createdAt,
+          updatedAt: option.updatedAt
+        })),
+        createdAt: pm.modifierGroup.createdAt,
+        updatedAt: pm.modifierGroup.updatedAt
+      })),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt
     }));
@@ -4991,7 +5027,7 @@ const getRestaurantProducts = async (req, res) => {
 - **Filtrado Inteligente:** Validación de pertenencia de subcategorías al restaurante
 - **Paginación Completa:** Con metadatos detallados de navegación
 - **Ordenamiento Jerárquico:** Por `displayOrder` de subcategoría y nombre de producto
-- **Include Optimizado:** Relaciones con subcategoría, categoría y restaurante
+- **Include Completo:** Relaciones con subcategoría, categoría, restaurante **Y modifierGroups con opciones**
 - **Conversión de Tipos:** Precios convertidos de Decimal a Number
 
 #### **Response Exitosa (200 OK):**
@@ -5023,6 +5059,51 @@ const getRestaurantProducts = async (req, res) => {
                     "id": 1,
                     "name": "Pizzería de Ana"
                 },
+                "modifierGroups": [
+                    {
+                        "id": 1,
+                        "name": "Tamaño",
+                        "minSelection": 1,
+                        "maxSelection": 1,
+                        "restaurantId": 1,
+                        "options": [
+                            {
+                                "id": 1,
+                                "name": "Personal (6 pulgadas)",
+                                "price": 0,
+                                "createdAt": "2025-10-18T18:17:47.705Z",
+                                "updatedAt": "2025-10-18T18:17:47.705Z"
+                            },
+                            {
+                                "id": 2,
+                                "name": "Mediana (10 pulgadas)",
+                                "price": 25,
+                                "createdAt": "2025-10-18T18:17:47.705Z",
+                                "updatedAt": "2025-10-18T18:17:47.705Z"
+                            }
+                        ],
+                        "createdAt": "2025-10-18T18:17:46.306Z",
+                        "updatedAt": "2025-10-18T18:17:46.306Z"
+                    },
+                    {
+                        "id": 2,
+                        "name": "Extras",
+                        "minSelection": 0,
+                        "maxSelection": 5,
+                        "restaurantId": 1,
+                        "options": [
+                            {
+                                "id": 5,
+                                "name": "Extra Queso",
+                                "price": 15,
+                                "createdAt": "2025-10-18T18:17:47.958Z",
+                                "updatedAt": "2025-10-18T18:17:47.958Z"
+                            }
+                        ],
+                        "createdAt": "2025-10-18T18:17:46.687Z",
+                        "updatedAt": "2025-10-18T18:17:46.687Z"
+                    }
+                ],
                 "createdAt": "2025-10-18T18:17:47.705Z",
                 "updatedAt": "2025-10-18T21:30:15.234Z"
             },
@@ -5046,6 +5127,26 @@ const getRestaurantProducts = async (req, res) => {
                     "id": 1,
                     "name": "Pizzería de Ana"
                 },
+                "modifierGroups": [
+                    {
+                        "id": 1,
+                        "name": "Tamaño",
+                        "minSelection": 1,
+                        "maxSelection": 1,
+                        "restaurantId": 1,
+                        "options": [
+                            {
+                                "id": 3,
+                                "name": "Grande (12 pulgadas)",
+                                "price": 45,
+                                "createdAt": "2025-10-18T18:17:47.705Z",
+                                "updatedAt": "2025-10-18T18:17:47.705Z"
+                            }
+                        ],
+                        "createdAt": "2025-10-18T18:17:46.306Z",
+                        "updatedAt": "2025-10-18T18:17:46.306Z"
+                    }
+                ],
                 "createdAt": "2025-10-18T18:18:20.456Z",
                 "updatedAt": "2025-10-18T20:15:30.789Z"
             }
@@ -5080,7 +5181,15 @@ const getRestaurantProducts = async (req, res) => {
      - `id`, `name`, `displayOrder`: Datos básicos de subcategoría
      - `category`: Objeto con `id` y `name` de la categoría padre
    - `restaurant`: Información del restaurante con `id` y `name`
-   - `createdAt`/`updatedAt`: Timestamps
+   - **`modifierGroups` Array:** Grupos de modificadores asociados al producto:
+     - `id`, `name`: Identificador y nombre del grupo
+     - `minSelection`, `maxSelection`: Configuración de selección
+     - `restaurantId`: ID del restaurante propietario
+     - **`options` Array:** Opciones disponibles en el grupo:
+       - `id`, `name`, `price`: Información básica de la opción
+       - `createdAt`/`updatedAt`: Timestamps
+     - `createdAt`/`updatedAt`: Timestamps del grupo
+   - `createdAt`/`updatedAt`: Timestamps del producto
 
 2. **📊 `pagination` Object:** Metadatos de paginación:
    - `currentPage`: Página actual
@@ -5173,7 +5282,7 @@ const getRestaurantProducts = async (req, res) => {
 2. **🔍 Filtrado Inteligente:** Validación de pertenencia antes de aplicar filtros
 3. **📊 Paginación Completa:** Con metadatos detallados para navegación
 4. **🔄 Ordenamiento Jerárquico:** Por subcategoría (`displayOrder`) y nombre de producto
-5. **📈 Include Optimizado:** Relaciones con subcategoría, categoría y restaurante
+5. **📈 Include Completo:** Relaciones con subcategoría, categoría, restaurante **Y modifierGroups con opciones anidadas**
 6. **💱 Conversión de Tipos:** Precios convertidos automáticamente de Decimal a Number
 7. **🛡️ Validación de Seguridad:** Verificación de pertenencia de subcategorías al restaurante del usuario
 8. **📋 Respuesta Estructurada:** Con filtros aplicados y metadatos de paginación
