@@ -500,7 +500,6 @@ class ProductRepository {
         order: {
           select: {
             id: true,
-            orderNumber: true,
             status: true,
             createdAt: true,
             customer: {
@@ -527,7 +526,6 @@ class ProductRepository {
           productName: existingProduct.name,
           orders: activeOrderItems.map(item => ({
             orderId: item.order.id,
-            orderNumber: item.order.orderNumber,
             status: item.order.status,
             customerName: item.order.customer?.name || 'Cliente no disponible',
             date: item.order.createdAt
@@ -613,7 +611,6 @@ class ProductRepository {
         order: {
           select: {
             id: true,
-            orderNumber: true,
             status: true,
             createdAt: true,
             customer: {
