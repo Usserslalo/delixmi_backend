@@ -1672,271 +1672,21 @@ const updateProduct = async (req, res) => {
   try {
     const userId = req.user.id;
     const { productId } = req.params;
-    const { subcategoryId, name, description, imageUrl, price, isAvailable, modifierGroupIds } = req.body;
+    const { modifierGroupIds = undefined, ...productData } = req.body;
 
-    // Convertir productId a número
-    const productIdNum = parseInt(productId);
-
-    // 1. Buscar el producto existente
-    const existingProduct = await prisma.product.findUnique({
-      where: { id: productIdNum },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        imageUrl: true,
-        price: true,
-        isAvailable: true,
-        restaurantId: true,
-        subcategoryId: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
-        }
-      }
-    });
-
-    if (!existingProduct) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Producto no encontrado',
-        code: 'PRODUCT_NOT_FOUND'
-      });
-    }
-
-    // 2. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 3. Verificar autorización: el usuario debe tener permisos sobre el restaurante del producto
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId === existingProduct.restaurantId
+    // Actualizar el producto usando el repositorio con toda la lógica de negocio
+    const updatedProduct = await ProductRepository.update(
+      productId, 
+      productData, 
+      modifierGroupIds, 
+      userId, 
+      req.id
     );
 
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId === existingProduct.restaurantId
-    );
+    // Obtener grupos de modificadores asociados para formatear la respuesta
+    const associatedModifierGroups = await ProductRepository.getAssociatedModifierGroups(updatedProduct.id);
 
-    // Si no es owner ni branch_manager del restaurante, denegar acceso
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para editar este producto',
-        code: 'FORBIDDEN',
-        details: {
-          productId: productIdNum,
-          restaurantId: existingProduct.restaurantId,
-          restaurantName: existingProduct.restaurant.name
-        }
-      });
-    }
-
-    // 4. Si se está cambiando la subcategoría, verificar que pertenezca al mismo restaurante
-    if (subcategoryId !== undefined) {
-      const subcategoryIdNum = parseInt(subcategoryId);
-      
-      const newSubcategory = await prisma.subcategory.findUnique({
-        where: { id: subcategoryIdNum },
-        select: {
-          id: true,
-          restaurantId: true,
-          name: true
-        }
-      });
-
-      if (!newSubcategory) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Subcategoría no encontrada',
-          code: 'SUBCATEGORY_NOT_FOUND'
-        });
-      }
-
-      // Verificar que la nueva subcategoría pertenezca al mismo restaurante
-      if (newSubcategory.restaurantId !== existingProduct.restaurantId) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'La subcategoría debe pertenecer al mismo restaurante del producto',
-          code: 'INVALID_SUBCATEGORY',
-          details: {
-            productRestaurantId: existingProduct.restaurantId,
-            subcategoryRestaurantId: newSubcategory.restaurantId
-          }
-        });
-      }
-    }
-
-    // 5. Validar modifierGroupIds si se proporcionan
-    if (modifierGroupIds !== undefined) {
-      if (modifierGroupIds && modifierGroupIds.length > 0) {
-        // Verificar que todos los grupos pertenezcan al restaurante del producto
-        const validGroups = await prisma.modifierGroup.findMany({
-          where: {
-            id: { in: modifierGroupIds },
-            restaurantId: existingProduct.restaurantId
-          },
-          select: { id: true }
-        });
-
-        if (validGroups.length !== modifierGroupIds.length) {
-          const invalidIds = modifierGroupIds.filter(id => !validGroups.find(g => g.id === id));
-          return res.status(400).json({
-            status: 'error',
-            message: 'Algunos grupos de modificadores no pertenecen a este restaurante',
-            code: 'INVALID_MODIFIER_GROUPS',
-            details: {
-              invalidGroupIds: invalidIds,
-              restaurantId: existingProduct.restaurantId
-            }
-          });
-        }
-      }
-    }
-
-    // 6. Preparar los datos de actualización (solo campos enviados)
-    const updateData = {};
-    
-    if (subcategoryId !== undefined) {
-      updateData.subcategoryId = parseInt(subcategoryId);
-    }
-    
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    
-    if (description !== undefined) {
-      updateData.description = description ? description.trim() : null;
-    }
-    
-    if (imageUrl !== undefined) {
-      updateData.imageUrl = imageUrl ? imageUrl.trim() : null;
-    }
-    
-    if (price !== undefined) {
-      updateData.price = parseFloat(price);
-    }
-    
-    if (isAvailable !== undefined) {
-      updateData.isAvailable = isAvailable;
-    }
-
-    // Si no hay campos para actualizar (incluyendo modifierGroupIds)
-    if (Object.keys(updateData).length === 0 && modifierGroupIds === undefined) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se proporcionaron campos para actualizar',
-        code: 'NO_FIELDS_TO_UPDATE'
-      });
-    }
-
-    // 7. Actualizar el producto con transacción para incluir asociaciones de modificadores
-    const result = await prisma.$transaction(async (tx) => {
-      // Actualizar el producto
-      const updatedProduct = await tx.product.update({
-        where: { id: productIdNum },
-        data: updateData,
-        include: {
-          subcategory: {
-            select: {
-              id: true,
-              name: true,
-              category: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          restaurant: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      // Actualizar asociaciones con grupos de modificadores si se proporcionan
-      if (modifierGroupIds !== undefined) {
-        // Eliminar asociaciones existentes
-        await tx.productModifier.deleteMany({
-          where: { productId: productIdNum }
-        });
-
-        // Crear nuevas asociaciones si se proporcionan grupos
-        if (modifierGroupIds && modifierGroupIds.length > 0) {
-          await tx.productModifier.createMany({
-            data: modifierGroupIds.map(groupId => ({
-              productId: productIdNum,
-              modifierGroupId: groupId
-            }))
-          });
-        }
-      }
-
-      return updatedProduct;
-    });
-
-    const updatedProduct = result;
-
-    // 8. Obtener grupos de modificadores asociados
-    const associatedModifierGroups = await prisma.modifierGroup.findMany({
-      where: {
-        products: {
-          some: {
-            productId: updatedProduct.id
-          }
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        minSelection: true,
-        maxSelection: true,
-        options: {
-          select: {
-            id: true,
-            name: true,
-            price: true
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'asc'
-      }
-    });
-
-    // 9. Formatear respuesta
+    // Formatear respuesta completa
     const formattedProduct = {
       id: updatedProduct.id,
       name: updatedProduct.name,
@@ -1971,18 +1721,33 @@ const updateProduct = async (req, res) => {
       updatedAt: updatedProduct.updatedAt
     };
 
-    // 10. Respuesta exitosa
+    // Preparar lista de campos actualizados
+    const updatedFields = Object.keys(productData);
+    if (modifierGroupIds !== undefined) {
+      updatedFields.push('modifierGroupIds');
+    }
+
+    // Respuesta exitosa
     return ResponseService.success(
       res,
       'Producto actualizado exitosamente',
       {
         product: formattedProduct,
-        updatedFields: Object.keys(updateData).concat(modifierGroupIds !== undefined ? ['modifierGroupIds'] : [])
+        updatedFields: updatedFields
       }
     );
 
   } catch (error) {
-    console.error('Error actualizando producto:', error);
+    // Manejo de errores específicos del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.details, error.code);
+      }
+    }
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
