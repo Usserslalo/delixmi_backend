@@ -190,150 +190,28 @@ const updateModifierGroup = async (req, res) => {
  */
 const deleteModifierGroup = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { groupId } = req.params;
+    const userId = req.user.id;
 
-    // Convertir groupId a número
-    const groupIdNum = parseInt(groupId);
+    const result = await ModifierRepository.deleteGroup(groupId, userId, req.id);
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para eliminar grupos de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
-
-    // 4. Verificar que el grupo existe y pertenece al restaurante del usuario
-    const existingGroup = await prisma.modifierGroup.findFirst({
-      where: {
-        id: groupIdNum,
-        restaurantId: restaurantId
-      },
-      include: {
-        options: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        products: {
-          select: {
-            product: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!existingGroup) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Grupo de modificadores no encontrado',
-        code: 'MODIFIER_GROUP_NOT_FOUND'
-      });
-    }
-
-    // 5. Verificar si el grupo tiene opciones asociadas
-    if (existingGroup.options.length > 0) {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar el grupo porque tiene opciones asociadas. Elimina primero las opciones.',
-        code: 'GROUP_HAS_OPTIONS',
-        details: {
-          optionsCount: existingGroup.options.length,
-          options: existingGroup.options.map(option => ({
-            id: option.id,
-            name: option.name
-          }))
-        }
-      });
-    }
-
-    // 6. Verificar si el grupo está asociado a productos
-    if (existingGroup.products.length > 0) {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar el grupo porque está asociado a productos. Desasocia primero los productos.',
-        code: 'GROUP_ASSOCIATED_TO_PRODUCTS',
-        details: {
-          productsCount: existingGroup.products.length,
-          products: existingGroup.products.map(pm => ({
-            id: pm.product.id,
-            name: pm.product.name
-          }))
-        }
-      });
-    }
-
-    // 7. Eliminar el grupo de modificadores
-    await prisma.modifierGroup.delete({
-      where: { id: groupIdNum }
-    });
-
-    // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Grupo de modificadores eliminado exitosamente',
-      data: {
-        deletedGroup: {
-          id: existingGroup.id,
-          name: existingGroup.name,
-          deletedAt: new Date().toISOString()
-        }
-      }
-    });
+    return ResponseService.success(res, 'Grupo de modificadores eliminado exitosamente', result);
 
   } catch (error) {
     console.error('Error eliminando grupo de modificadores:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 

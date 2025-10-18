@@ -2309,3 +2309,300 @@ El repositorio maneja toda la lógica de negocio:
 5. **Manejo de Errores:** Centralizado con códigos específicos (400, 403, 404)
 6. **Autorización:** Verifica roles de restaurante y extracción correcta del `restaurantId`
 7. **Respuesta Formateada:** Entrega datos completos del grupo creado incluyendo campos de auditoría
+
+---
+
+### **PATCH /api/restaurant/modifier-groups/:groupId** - Actualizar Grupo de Modificadores
+
+**Descripción:** Actualiza un grupo de modificadores existente del restaurante. Permite modificar el nombre y las reglas de selección (minSelection/maxSelection) manteniendo la integridad de los datos y las asociaciones existentes.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-groups/:groupId`
+
+**Método:** `PATCH`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(groupParamsSchema)`: Valida y transforma el parámetro `groupId` de la URL
+- `validate(updateGroupSchema)`: Valida y transforma los datos del body usando Zod
+
+#### **Esquemas de Validación Zod:**
+
+**groupParamsSchema** (Validación de Parámetros URL):
+```javascript
+const groupParamsSchema = z.object({
+  groupId: z
+    .string({ required_error: 'El ID del grupo es requerido' })
+    .regex(/^\d+$/, 'El ID del grupo debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID del grupo debe ser mayor que 0')
+});
+```
+
+**updateGroupSchema** (Validación del Body):
+```javascript
+const updateGroupSchema = z.object({
+  name: z
+    .string({ message: 'El nombre debe ser una cadena de texto' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim())
+    .optional(),
+  minSelection: z
+    .number({ message: 'La selección mínima debe ser un número' })
+    .int({ message: 'La selección mínima debe ser un número entero' })
+    .min(0, 'La selección mínima debe ser mayor o igual a 0')
+    .max(10, 'La selección mínima debe ser menor o igual a 10')
+    .optional(),
+  maxSelection: z
+    .number({ message: 'La selección máxima debe ser un número' })
+    .int({ message: 'La selección máxima debe ser un número entero' })
+    .min(1, 'La selección máxima debe ser mayor o igual a 1')
+    .max(10, 'La selección máxima debe ser menor o igual a 10')
+    .optional()
+}).strict();
+```
+
+**🔧 Validación Dinámica:** A diferencia del create, el update requiere validación de negocio adicional en el repositorio para verificar `minSelection <= maxSelection` considerando tanto los valores nuevos como los existentes.
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const updateModifierGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const result = await ModifierRepository.updateGroup(groupId, req.body, userId, req.id);
+
+    return ResponseService.success(res, 'Grupo de modificadores actualizado exitosamente', result);
+
+  } catch (error) {
+    console.error('Error actualizando grupo de modificadores:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 20 líneas vs 165 líneas anteriores
+- **Delegación Total:** Toda la lógica delegada al repositorio
+- **Manejo Robusto:** Captura y procesa todos los errores específicos del repositorio
+
+#### **Lógica del ModifierRepository.updateGroup():**
+
+El repositorio maneja toda la lógica de negocio compleja:
+
+1. **Validación de Usuario y Autorización:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Validación de Pertenencia del Grupo:**
+   ```javascript
+   // Verifica que el grupo existe y pertenece al restaurante del usuario
+   const existingGroup = await prisma.modifierGroup.findFirst({
+     where: { id: groupIdNum, restaurantId: restaurantId }
+   });
+   ```
+
+3. **Preparación Inteligente de Datos:**
+   ```javascript
+   // Solo actualiza campos enviados (no campos undefined)
+   const updateData = {};
+   if (name !== undefined) updateData.name = name.trim();
+   if (minSelection !== undefined) updateData.minSelection = parseInt(minSelection);
+   if (maxSelection !== undefined) updateData.maxSelection = parseInt(maxSelection);
+   ```
+
+4. **Validación de Negocio Dinámica:**
+   ```javascript
+   // Considera valores nuevos Y existentes para validación
+   const finalMinSelection = updateData.minSelection !== undefined ? 
+     updateData.minSelection : existingGroup.minSelection;
+   const finalMaxSelection = updateData.maxSelection !== undefined ? 
+     updateData.maxSelection : existingGroup.maxSelection;
+   
+   if (finalMinSelection > finalMaxSelection) {
+     throw { status: 400, message: 'La selección mínima no puede ser mayor que la selección máxima' };
+   }
+   ```
+
+5. **Actualización y Formateo:**
+   ```javascript
+   // Actualiza con include de opciones y formatea respuesta
+   const updatedGroup = await prisma.modifierGroup.update({
+     where: { id: groupIdNum },
+     data: updateData,
+     include: { options: { /* campos completos */ } }
+   });
+   ```
+
+#### **Request Body:**
+
+```json
+{
+  "name": "Tamaño de Bebida (Actualizado con Zod)",
+  "maxSelection": 2
+}
+```
+
+**Campos (Todos Opcionales):**
+- `name` (string, opcional): Nuevo nombre del grupo (1-100 caracteres)
+- `minSelection` (number, opcional): Nuevo número mínimo de selecciones (0-10)
+- `maxSelection` (number, opcional): Nuevo número máximo de selecciones (1-10)
+
+**🎯 Comportamiento Inteligente:** Solo los campos enviados se actualizan. Los campos no enviados mantienen sus valores actuales.
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+  "status": "success",
+  "message": "Grupo de modificadores actualizado exitosamente",
+  "timestamp": "2025-10-18T20:34:13.314Z",
+  "data": {
+    "modifierGroup": {
+      "id": 6,
+      "name": "Tamaño de Bebida (Actualizado con Zod)",
+      "minSelection": 1,
+      "maxSelection": 2,
+      "restaurantId": 1,
+      "options": [],
+      "createdAt": "2025-10-18T19:59:39.002Z",
+      "updatedAt": "2025-10-18T20:34:12.835Z"
+    },
+    "updatedFields": [
+      "name",
+      "maxSelection"
+    ]
+  }
+}
+```
+
+**Características de la Respuesta:**
+- **Grupo Completo:** Incluye todos los campos actualizados y asociaciones
+- **Campo `updatedFields`:** Lista exacta de los campos que fueron modificados
+- **Timestamp Automático:** `updatedAt` actualizado automáticamente por Prisma
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Parámetros URL):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["groupId"],
+      "message": "El ID del grupo debe ser un número"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Validación Zod (Body):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["name"],
+      "message": "El nombre debe tener máximo 100 caracteres"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Sin Campos para Actualizar:**
+```json
+{
+  "status": "error",
+  "message": "No se proporcionaron campos para actualizar",
+  "code": "NO_FIELDS_TO_UPDATE"
+}
+```
+
+**400 Bad Request - Validación de Negocio (Rango Inválido):**
+```json
+{
+  "status": "error",
+  "message": "La selección mínima no puede ser mayor que la selección máxima",
+  "code": "INVALID_SELECTION_RANGE"
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para actualizar grupos de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Grupo No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Grupo de modificadores no encontrado",
+  "code": "MODIFIER_GROUP_NOT_FOUND"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Avanzado:** Lógica completa centralizada en `ModifierRepository.updateGroup()`
+2. **Validación Dual:** Zod para entrada + validación de negocio en repositorio
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **Validación Inteligente:** Lógica que considera tanto valores nuevos como existentes para coherencia
+5. **Actualización Selectiva:** Solo modifica campos enviados, preserva valores existentes
+6. **Verificación de Autorización:** Garantiza que el grupo pertenezca al restaurante del usuario
+7. **Respuesta Detallada:** Proporciona tanto el objeto actualizado como la lista de campos modificados

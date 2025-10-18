@@ -740,22 +740,7 @@ router.patch(
 router.delete(
   '/modifier-groups/:groupId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('groupId')
-      .isInt({ min: 1 })
-      .withMessage('El ID del grupo debe ser un número entero positivo')
-  ],
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(groupParamsSchema),
   deleteModifierGroup
 );
 

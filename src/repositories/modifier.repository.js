@@ -262,7 +262,126 @@ class ModifierRepository {
    * @returns {Promise<Object>} Información del grupo eliminado
    */
   static async deleteGroup(groupId, userId, requestId) {
-    // TODO: Implementar lógica completa
+    const groupIdNum = parseInt(groupId);
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para eliminar grupos de modificadores',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      };
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      throw {
+        status: 403,
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      };
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Verificar que el grupo existe y pertenece al restaurante del usuario
+    const existingGroup = await prisma.modifierGroup.findFirst({
+      where: {
+        id: groupIdNum,
+        restaurantId: restaurantId
+      },
+      include: {
+        options: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        products: {
+          select: {
+            product: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!existingGroup) {
+      throw {
+        status: 404,
+        message: 'Grupo de modificadores no encontrado',
+        code: 'MODIFIER_GROUP_NOT_FOUND'
+      };
+    }
+
+    // 5. VALIDACIÓN CRÍTICA 1A: Verificar si el grupo tiene opciones asociadas
+    if (existingGroup.options.length > 0) {
+      throw {
+        status: 409,
+        message: 'No se puede eliminar el grupo porque tiene opciones asociadas. Elimina primero las opciones.',
+        code: 'GROUP_HAS_OPTIONS',
+        details: {
+          optionsCount: existingGroup.options.length,
+          options: existingGroup.options.map(option => ({
+            id: option.id,
+            name: option.name
+          }))
+        }
+      };
+    }
+
+    // 6. VALIDACIÓN CRÍTICA 1B: Verificar si el grupo está asociado a productos
+    if (existingGroup.products.length > 0) {
+      throw {
+        status: 409,
+        message: 'No se puede eliminar el grupo porque está asociado a productos. Desasocia primero los productos.',
+        code: 'GROUP_ASSOCIATED_TO_PRODUCTS',
+        details: {
+          productsCount: existingGroup.products.length,
+          products: existingGroup.products.map(pm => ({
+            id: pm.product.id,
+            name: pm.product.name
+          }))
+        }
+      };
+    }
+
+    // 7. Eliminar el grupo de modificadores
+    await prisma.modifierGroup.delete({
+      where: { id: groupIdNum }
+    });
+
+    // 8. Retornar información del grupo eliminado
+    return {
+      deletedGroup: {
+        id: existingGroup.id,
+        name: existingGroup.name,
+        deletedAt: new Date().toISOString()
+      }
+    };
   }
 
   /**
