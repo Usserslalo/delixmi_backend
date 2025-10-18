@@ -1405,3 +1405,203 @@ return await prisma.$transaction(async (tx) => {
 5. **Respuesta Informativa:** La respuesta incluye información completa del producto eliminado, incluyendo nombres del restaurante y subcategoría para referencia del cliente.
 
 6. **Sugerencia Inteligente:** En caso de conflicto, el sistema ofrece una alternativa práctica (marcar como no disponible) en lugar de simplemente rechazar la operación.
+
+---
+
+## 📁 **Gestión de Subcategorías**
+
+### **POST /api/restaurant/subcategories** - Crear Subcategoría
+
+**Descripción:** Crea una nueva subcategoría para organizar productos dentro de una categoría específica del menú del restaurante.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/subcategories`
+
+**Método:** `POST`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validate(createSubcategorySchema)`: Valida y transforma los datos de entrada usando Zod
+
+#### **Esquema de Validación Zod:**
+
+```javascript
+const createSubcategorySchema = z.object({
+  categoryId: z
+    .number({ required_error: 'El ID de la categoría es requerido' })
+    .int({ message: 'El ID de la categoría debe ser un número entero' })
+    .min(1, 'El ID de la categoría debe ser mayor a 0'),
+  name: z
+    .string({ required_error: 'El nombre de la subcategoría es requerido' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim()),
+  displayOrder: z
+    .number({ message: 'El orden de visualización debe ser un número' })
+    .int({ message: 'El orden de visualización debe ser un número entero' })
+    .min(0, 'El orden de visualización debe ser mayor o igual a 0')
+    .optional()
+    .default(0)
+}).strict();
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const createSubcategory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Los datos ya están validados por Zod
+    const newSubcategory = await SubcategoryRepository.create(req.body, userId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Subcategoría creada exitosamente',
+      { subcategory: newSubcategory },
+      201
+    );
+
+  } catch (error) {
+    console.error('Error creando subcategoría:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+#### **Lógica del SubcategoryRepository.create():**
+
+El repositorio maneja toda la lógica de negocio:
+
+1. **Validación de Usuario y Roles:**
+   - Obtiene información del usuario con sus roles asignados
+   - Verifica que tenga roles de restaurante (`owner` o `branch_manager`)
+   - Extrae el `restaurantId` del usuario autenticado
+
+2. **Validación de Categoría:**
+   - Verifica que la categoría especificada (`categoryId`) exista en la base de datos
+   - Retorna error 404 si la categoría no se encuentra
+
+3. **Creación de Subcategoría:**
+   - Crea la subcategoría con validación de restricción única
+   - Maneja el error `P2002` (duplicado) si ya existe una subcategoría con el mismo nombre en esa categoría y restaurante
+   - Incluye información de la categoría y restaurante en la respuesta
+
+4. **Formateo de Respuesta:**
+   - Retorna datos estructurados con información completa de la subcategoría creada
+
+#### **Request Body:**
+
+```json
+{
+  "name": "Subcategoría de Prueba (Zod)",
+  "categoryId": 1,
+  "displayOrder": 10
+}
+```
+
+**Campos:**
+- `name` (string, requerido): Nombre de la subcategoría (1-100 caracteres)
+- `categoryId` (number, requerido): ID de la categoría padre (debe existir)
+- `displayOrder` (number, opcional): Orden de visualización (default: 0)
+
+#### **Response Exitosa (201 Created):**
+
+```json
+{
+  "status": "success",
+  "message": "Subcategoría creada exitosamente",
+  "timestamp": "2025-10-18T19:24:01.455Z",
+  "data": {
+    "subcategory": {
+      "id": 15,
+      "name": "Subcategoría de Prueba (Zod)",
+      "displayOrder": 10,
+      "category": {
+        "id": 1,
+        "name": "Pizzas"
+      },
+      "restaurant": {
+        "id": 1,
+        "name": "Pizzería de Ana (Actualizado)"
+      },
+      "createdAt": "2025-10-18T19:24:00.975Z",
+      "updatedAt": "2025-10-18T19:24:00.975Z"
+    }
+  }
+}
+```
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod:**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_type",
+      "expected": "number",
+      "received": "string",
+      "path": ["categoryId"],
+      "message": "El ID de la categoría debe ser un número"
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**404 Not Found - Categoría No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Categoría no encontrada",
+  "code": "CATEGORY_NOT_FOUND",
+  "details": {
+    "categoryId": 999
+  }
+}
+```
+
+**409 Conflict - Subcategoría Duplicada:**
+```json
+{
+  "status": "error",
+  "message": "Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante",
+  "code": "DUPLICATE_SUBCATEGORY",
+  "details": {
+    "categoryId": 1,
+    "categoryName": "Pizzas",
+    "subcategoryName": "Pizzas Tradicionales"
+  }
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository:** Toda la lógica de negocio se centralizó en `SubcategoryRepository.create()`
+2. **Validación Zod:** Reemplazó `express-validator` con validación más robusta y tipada
+3. **Manejo de Errores:** Centralizado en el repositorio con códigos específicos
+4. **Separación de Responsabilidades:** El controlador solo orquesta la respuesta
+5. **Validación de Restricción Única:** Maneja automáticamente nombres duplicados por restaurante y categoría

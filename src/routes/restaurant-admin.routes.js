@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { validate, validateParams } = require('../middleware/validate.middleware');
+const { validate, validateParams, validateQuery } = require('../middleware/validate.middleware');
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema } = require('../validations/subcategory.validation');
@@ -529,40 +529,8 @@ router.post('/subcategories',
  */
 router.patch('/subcategories/:subcategoryId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('subcategoryId')
-      .notEmpty()
-      .withMessage('El ID de la subcategoría es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la subcategoría debe ser un número entero válido'),
-    body('categoryId')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('El ID de la categoría debe ser un número entero válido'),
-    body('name')
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage('El nombre no puede estar vacío')
-      .isLength({ min: 1, max: 100 })
-      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
-    body('displayOrder')
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage('El orden de visualización debe ser un número entero mayor o igual a 0')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(subcategoryParamsSchema),
+  validate(updateSubcategorySchema),
   updateSubcategory
 );
 

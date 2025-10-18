@@ -939,213 +939,32 @@ const createSubcategory = async (req, res) => {
  */
 const updateSubcategory = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { subcategoryId } = req.params;
-    const { categoryId, name, displayOrder } = req.body;
+    const userId = req.user.id;
 
-    // Convertir subcategoryId a número
-    const subcategoryIdNum = parseInt(subcategoryId);
+    const updatedSubcategory = await SubcategoryRepository.update(subcategoryId, req.body, userId, req.id);
 
-    // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
-
-    if (!userWithRoles) {
-      return ResponseService.notFound(res, 'Usuario no encontrado');
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return ResponseService.forbidden(
-        res, 
-        'Acceso denegado. Se requieren permisos de restaurante',
-        'INSUFFICIENT_PERMISSIONS'
-      );
-    }
-
-    // 3. Obtener el restaurant_id del usuario
-    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
-      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
-    );
-
-    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontró un restaurante asignado para este usuario',
-        code: 'NO_RESTAURANT_ASSIGNED'
-      });
-    }
-
-    const restaurantId = userRestaurantAssignment.restaurantId;
-
-    // 4. Buscar la subcategoría existente
-    const existingSubcategory = await prisma.subcategory.findUnique({
-      where: { id: subcategoryIdNum },
-      select: {
-        id: true,
-        name: true,
-        displayOrder: true,
-        restaurantId: true,
-        categoryId: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        category: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+    return ResponseService.success(res, 'Subcategoría actualizada exitosamente', {
+      subcategory: updatedSubcategory
     });
-
-    if (!existingSubcategory) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Subcategoría no encontrada',
-        code: 'SUBCATEGORY_NOT_FOUND'
-      });
-    }
-
-    // 5. Verificar autorización: la subcategoría debe pertenecer al restaurante del usuario
-    if (existingSubcategory.restaurantId !== restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para editar esta subcategoría',
-        code: 'FORBIDDEN',
-        details: {
-          subcategoryId: subcategoryIdNum,
-          restaurantId: existingSubcategory.restaurantId,
-          restaurantName: existingSubcategory.restaurant.name
-        }
-      });
-    }
-
-    // 6. Si se está cambiando la categoría, verificar que existe
-    if (categoryId !== undefined) {
-      const categoryIdNum = parseInt(categoryId);
-      
-      const newCategory = await prisma.category.findUnique({
-        where: { id: categoryIdNum },
-        select: {
-          id: true,
-          name: true
-        }
-      });
-
-      if (!newCategory) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Categoría no encontrada',
-          code: 'CATEGORY_NOT_FOUND'
-        });
-      }
-    }
-
-    // 7. Preparar los datos de actualización (solo campos enviados)
-    const updateData = {};
-    
-    if (categoryId !== undefined) {
-      updateData.categoryId = parseInt(categoryId);
-    }
-    
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    
-    if (displayOrder !== undefined) {
-      updateData.displayOrder = parseInt(displayOrder);
-    }
-
-    // Si no hay campos para actualizar
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se proporcionaron campos para actualizar',
-        code: 'NO_FIELDS_TO_UPDATE'
-      });
-    }
-
-    // 8. Actualizar la subcategoría
-    try {
-      const updatedSubcategory = await prisma.subcategory.update({
-        where: { id: subcategoryIdNum },
-        data: updateData,
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          restaurant: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      // 9. Formatear respuesta
-      const formattedSubcategory = {
-        id: updatedSubcategory.id,
-        name: updatedSubcategory.name,
-        displayOrder: updatedSubcategory.displayOrder,
-        category: {
-          id: updatedSubcategory.category.id,
-          name: updatedSubcategory.category.name
-        },
-        restaurant: {
-          id: updatedSubcategory.restaurant.id,
-          name: updatedSubcategory.restaurant.name
-        },
-        createdAt: updatedSubcategory.createdAt,
-        updatedAt: updatedSubcategory.updatedAt
-      };
-
-      // 10. Respuesta exitosa
-      res.status(200).json({
-        status: 'success',
-        message: 'Subcategoría actualizada exitosamente',
-        data: {
-          subcategory: formattedSubcategory,
-          updatedFields: Object.keys(updateData)
-        }
-      });
-
-    } catch (error) {
-      // Manejar error de restricción única (P2002)
-      if (error.code === 'P2002') {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante',
-          code: 'DUPLICATE_SUBCATEGORY',
-          details: {
-            subcategoryId: subcategoryIdNum,
-            attemptedName: name ? name.trim() : existingSubcategory.name,
-            categoryId: categoryId ? parseInt(categoryId) : existingSubcategory.categoryId
-          }
-        });
-      }
-      
-      // Re-lanzar el error para que sea manejado por el catch externo
-      throw error;
-    }
 
   } catch (error) {
     console.error('Error actualizando subcategoría:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      } else if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
