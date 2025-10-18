@@ -542,25 +542,7 @@ router.patch('/subcategories/:subcategoryId',
  */
 router.delete('/subcategories/:subcategoryId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('subcategoryId')
-      .notEmpty()
-      .withMessage('El ID de la subcategoría es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la subcategoría debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(subcategoryParamsSchema),
   deleteSubcategory
 );
 

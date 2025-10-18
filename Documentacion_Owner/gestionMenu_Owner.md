@@ -1605,3 +1605,257 @@ El repositorio maneja toda la lógica de negocio:
 3. **Manejo de Errores:** Centralizado en el repositorio con códigos específicos
 4. **Separación de Responsabilidades:** El controlador solo orquesta la respuesta
 5. **Validación de Restricción Única:** Maneja automáticamente nombres duplicados por restaurante y categoría
+
+---
+
+### **PATCH /api/restaurant/subcategories/:subcategoryId** - Actualizar Subcategoría
+
+**Descripción:** Actualiza los datos de una subcategoría existente del menú del restaurante. Todos los campos son opcionales para permitir actualizaciones parciales.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/subcategories/:subcategoryId`
+
+**Método:** `PATCH`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(subcategoryParamsSchema)`: Valida y transforma el parámetro `subcategoryId` de la URL
+- `validate(updateSubcategorySchema)`: Valida y transforma los datos del body usando Zod
+
+#### **Esquemas de Validación Zod:**
+
+**subcategoryParamsSchema:**
+```javascript
+const subcategoryParamsSchema = z.object({
+  subcategoryId: z
+    .string({ required_error: 'El ID de la subcategoría es requerido' })
+    .regex(/^\d+$/, 'El ID de la subcategoría debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID de la subcategoría debe ser mayor que 0')
+});
+```
+
+**updateSubcategorySchema:**
+```javascript
+const updateSubcategorySchema = z.object({
+  categoryId: z
+    .number({ message: 'El ID de la categoría debe ser un número' })
+    .int({ message: 'El ID de la categoría debe ser un número entero' })
+    .min(1, 'El ID de la categoría debe ser mayor a 0')
+    .optional(),
+  name: z
+    .string({ message: 'El nombre debe ser una cadena de texto' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim())
+    .optional(),
+  displayOrder: z
+    .number({ message: 'El orden de visualización debe ser un número' })
+    .int({ message: 'El orden de visualización debe ser un número entero' })
+    .min(0, 'El orden de visualización debe ser mayor o igual a 0')
+    .optional()
+}).strict();
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const updateSubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+    const userId = req.user.id;
+
+    const updatedSubcategory = await SubcategoryRepository.update(subcategoryId, req.body, userId, req.id);
+
+    return ResponseService.success(res, 'Subcategoría actualizada exitosamente', {
+      subcategory: updatedSubcategory
+    });
+
+  } catch (error) {
+    console.error('Error actualizando subcategoría:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      } else if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+#### **Lógica del SubcategoryRepository.update():**
+
+El repositorio maneja toda la lógica de negocio:
+
+1. **Validación de Usuario y Roles:**
+   - Obtiene información del usuario con sus roles asignados
+   - Verifica que tenga roles de restaurante (`owner` o `branch_manager`)
+   - Extrae el `restaurantId` del usuario autenticado
+
+2. **Validación de Subcategoría:**
+   - Busca la subcategoría existente por ID
+   - Verifica que pertenezca al restaurante del usuario (autorización)
+   - Retorna error 404 si no se encuentra o 403 si no tiene permisos
+
+3. **Validación de Categoría (opcional):**
+   - Si se especifica `categoryId`, verifica que la nueva categoría exista
+   - Retorna error 404 si la categoría no se encuentra
+
+4. **Preparación de Datos:**
+   - Solo incluye en la actualización los campos enviados (actualización parcial)
+   - Valida que al menos un campo sea enviado (error 400 si no hay cambios)
+
+5. **Actualización:**
+   - Ejecuta la transacción Prisma para actualizar la subcategoría
+   - Maneja el error de restricción única (`P2002`) para nombres duplicados
+   - Incluye información completa en la respuesta
+
+#### **Request Body:**
+
+```json
+{
+  "name": "Subcategoría (Actualizada con Zod)",
+  "displayOrder": 20
+}
+```
+
+**Campos (todos opcionales):**
+- `name` (string, opcional): Nuevo nombre de la subcategoría (1-100 caracteres)
+- `categoryId` (number, opcional): ID de nueva categoría padre (debe existir)
+- `displayOrder` (number, opcional): Nuevo orden de visualización (≥ 0)
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+  "status": "success",
+  "message": "Subcategoría actualizada exitosamente",
+  "timestamp": "2025-10-18T19:32:46.291Z",
+  "data": {
+    "subcategory": {
+      "id": 15,
+      "name": "Subcategoría (Actualizada con Zod)",
+      "displayOrder": 20,
+      "category": {
+        "id": 1,
+        "name": "Pizzas"
+      },
+      "restaurant": {
+        "id": 1,
+        "name": "Pizzería de Ana (Actualizado)"
+      },
+      "createdAt": "2025-10-18T19:24:00.975Z",
+      "updatedAt": "2025-10-18T19:32:45.815Z",
+      "updatedFields": [
+        "name",
+        "displayOrder"
+      ]
+    }
+  }
+}
+```
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación de Parámetros:**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["subcategoryId"],
+      "message": "El ID de la subcategoría debe ser un número"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Sin Campos para Actualizar:**
+```json
+{
+  "status": "error",
+  "message": "No se proporcionaron campos para actualizar",
+  "code": "NO_FIELDS_TO_UPDATE"
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - Subcategoría de Otro Restaurante:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para editar esta subcategoría",
+  "code": "FORBIDDEN",
+  "details": {
+    "subcategoryId": 15,
+    "restaurantId": 2,
+    "restaurantName": "Otro Restaurante"
+  }
+}
+```
+
+**404 Not Found - Subcategoría No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Subcategoría no encontrada",
+  "code": "SUBCATEGORY_NOT_FOUND",
+  "details": {
+    "subcategoryId": 999
+  }
+}
+```
+
+**404 Not Found - Categoría No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Categoría no encontrada",
+  "code": "CATEGORY_NOT_FOUND",
+  "details": {
+    "categoryId": 999
+  }
+}
+```
+
+**409 Conflict - Subcategoría Duplicada:**
+```json
+{
+  "status": "error",
+  "message": "Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante",
+  "code": "DUPLICATE_SUBCATEGORY",
+  "details": {
+    "subcategoryId": 15,
+    "attemptedName": "Pizzas Tradicionales",
+    "categoryId": 1
+  }
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository:** Toda la lógica de negocio se centralizó en `SubcategoryRepository.update()`
+2. **Validación Zod:** Reemplazó `express-validator` con `validateParams()` y `validate()` más robustos
+3. **Actualización Parcial:** Permite actualizar solo los campos enviados
+4. **Manejo de Errores:** Centralizado con códigos específicos (400, 403, 404, 409)
+5. **Validación de Autorización:** Verifica que la subcategoría pertenezca al restaurante del usuario
+6. **Respuesta Informativa:** Incluye `updatedFields` para mostrar qué campos fueron modificados

@@ -337,7 +337,127 @@ class SubcategoryRepository {
    * @returns {Promise<Object>} Información de la subcategoría eliminada
    */
   static async delete(subcategoryId, userId, requestId) {
-    // TODO: Implementar lógica completa
+    const subcategoryIdNum = parseInt(subcategoryId);
+
+    // 1. Obtener información del usuario y sus roles
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      throw {
+        status: 403,
+        message: 'Acceso denegado. Se requieren permisos de restaurante',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      };
+    }
+
+    // 3. Obtener el restaurant_id del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      throw {
+        status: 403,
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      };
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Buscar la subcategoría existente
+    const existingSubcategory = await prisma.subcategory.findUnique({
+      where: { id: subcategoryIdNum },
+      select: {
+        id: true,
+        name: true,
+        restaurantId: true,
+        restaurant: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!existingSubcategory) {
+      throw {
+        status: 404,
+        message: 'Subcategoría no encontrada',
+        code: 'SUBCATEGORY_NOT_FOUND',
+        details: {
+          subcategoryId: subcategoryIdNum
+        }
+      };
+    }
+
+    // 5. Verificar autorización: la subcategoría debe pertenecer al restaurante del usuario
+    if (existingSubcategory.restaurantId !== restaurantId) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para eliminar esta subcategoría',
+        code: 'FORBIDDEN',
+        details: {
+          subcategoryId: subcategoryIdNum,
+          restaurantId: existingSubcategory.restaurantId,
+          restaurantName: existingSubcategory.restaurant.name
+        }
+      };
+    }
+
+    // 6. VERIFICACIÓN CRÍTICA: Verificar si la subcategoría tiene productos asociados
+    const productsCount = await prisma.product.count({
+      where: {
+        subcategoryId: subcategoryIdNum
+      }
+    });
+
+    if (productsCount > 0) {
+      throw {
+        status: 409,
+        message: 'No se puede eliminar la subcategoría porque todavía contiene productos',
+        code: 'SUBCATEGORY_HAS_PRODUCTS',
+        details: {
+          subcategoryId: subcategoryIdNum,
+          subcategoryName: existingSubcategory.name,
+          productsCount: productsCount,
+          suggestion: 'Mueva o elimine los productos primero antes de eliminar la subcategoría'
+        }
+      };
+    }
+
+    // 7. Eliminar la subcategoría
+    await prisma.subcategory.delete({
+      where: { id: subcategoryIdNum }
+    });
+
+    // 8. Retornar información de la subcategoría eliminada
+    return {
+      id: existingSubcategory.id,
+      name: existingSubcategory.name,
+      categoryName: existingSubcategory.category.name,
+      restaurantName: existingSubcategory.restaurant.name
+    };
   }
 
   /**

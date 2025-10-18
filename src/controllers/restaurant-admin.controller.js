@@ -975,133 +975,29 @@ const updateSubcategory = async (req, res) => {
  */
 const deleteSubcategory = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { subcategoryId } = req.params;
+    const userId = req.user.id;
 
-    // Convertir subcategoryId a número
-    const subcategoryIdNum = parseInt(subcategoryId);
+    const deletedSubcategory = await SubcategoryRepository.delete(subcategoryId, userId, req.id);
 
-    // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
-
-    if (!userWithRoles) {
-      return ResponseService.notFound(res, 'Usuario no encontrado');
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return ResponseService.forbidden(
-        res, 
-        'Acceso denegado. Se requieren permisos de restaurante',
-        'INSUFFICIENT_PERMISSIONS'
-      );
-    }
-
-    // 3. Obtener el restaurant_id del usuario
-    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
-      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
-    );
-
-    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontró un restaurante asignado para este usuario',
-        code: 'NO_RESTAURANT_ASSIGNED'
-      });
-    }
-
-    const restaurantId = userRestaurantAssignment.restaurantId;
-
-    // 4. Buscar la subcategoría existente
-    const existingSubcategory = await prisma.subcategory.findUnique({
-      where: { id: subcategoryIdNum },
-      select: {
-        id: true,
-        name: true,
-        restaurantId: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        category: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+    return ResponseService.success(res, 'Subcategoría eliminada exitosamente', {
+      deletedSubcategory
     });
-
-    if (!existingSubcategory) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Subcategoría no encontrada',
-        code: 'SUBCATEGORY_NOT_FOUND'
-      });
-    }
-
-    // 5. Verificar autorización: la subcategoría debe pertenecer al restaurante del usuario
-    if (existingSubcategory.restaurantId !== restaurantId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para eliminar esta subcategoría',
-        code: 'FORBIDDEN',
-        details: {
-          subcategoryId: subcategoryIdNum,
-          restaurantId: existingSubcategory.restaurantId,
-          restaurantName: existingSubcategory.restaurant.name
-        }
-      });
-    }
-
-    // 6. Verificar si la subcategoría tiene productos asociados
-    const productsCount = await prisma.product.count({
-      where: {
-        subcategoryId: subcategoryIdNum
-      }
-    });
-
-    if (productsCount > 0) {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar la subcategoría porque todavía contiene productos',
-        code: 'SUBCATEGORY_HAS_PRODUCTS',
-        details: {
-          subcategoryId: subcategoryIdNum,
-          subcategoryName: existingSubcategory.name,
-          productsCount: productsCount,
-          suggestion: 'Mueva o elimine los productos primero antes de eliminar la subcategoría'
-        }
-      });
-    }
-
-    // 7. Eliminar la subcategoría
-    await prisma.subcategory.delete({
-      where: { id: subcategoryIdNum }
-    });
-
-    // 8. Respuesta exitosa
-    return ResponseService.success(
-      res,
-      'Subcategoría eliminada exitosamente',
-      {
-        deletedSubcategory: {
-          id: existingSubcategory.id,
-          name: existingSubcategory.name,
-          categoryName: existingSubcategory.category.name,
-          restaurantName: existingSubcategory.restaurant.name
-        }
-      }
-    );
 
   } catch (error) {
     console.error('Error eliminando subcategoría:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
