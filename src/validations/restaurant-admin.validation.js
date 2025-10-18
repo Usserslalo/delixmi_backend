@@ -73,6 +73,35 @@ const updateProfileSchema = z.object({
     .optional()
 }).strict(); // No permitir campos adicionales
 
+/**
+ * Esquema de validación para actualizar la ubicación del restaurante
+ */
+const updateLocationSchema = z.object({
+  latitude: z
+    .number({
+      invalid_type_error: 'La latitud debe ser un número'
+    })
+    .min(-90, 'La latitud debe ser mayor o igual a -90')
+    .max(90, 'La latitud debe ser menor o igual a 90'),
+  
+  longitude: z
+    .number({
+      invalid_type_error: 'La longitud debe ser un número'
+    })
+    .min(-180, 'La longitud debe ser mayor o igual a -180')
+    .max(180, 'La longitud debe ser menor o igual a 180'),
+  
+  address: z
+    .string({
+      invalid_type_error: 'La dirección debe ser un texto'
+    })
+    .min(5, 'La dirección debe tener al menos 5 caracteres')
+    .max(255, 'La dirección no puede exceder 255 caracteres')
+    .trim()
+    .optional()
+}).strict(); // No permitir campos adicionales
+
 module.exports = {
-  updateProfileSchema
+  updateProfileSchema,
+  updateLocationSchema
 };

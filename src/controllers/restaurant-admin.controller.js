@@ -3429,6 +3429,135 @@ const deactivateProductsByTag = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene el estado de configuración de ubicación del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getLocationStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return ResponseService.forbidden(
+        res, 
+        'No se encontró un restaurante asignado para este owner',
+        null,
+        'NO_RESTAURANT_ASSIGNED'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Verificar el estado de configuración de ubicación
+    const isLocationSet = await RestaurantRepository.getLocationStatus(restaurantId);
+
+    return ResponseService.success(
+      res,
+      'Estado de ubicación obtenido exitosamente',
+      {
+        isLocationSet: isLocationSet
+      }
+    );
+
+  } catch (error) {
+    console.error('Error obteniendo estado de ubicación:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
+/**
+ * Actualiza la ubicación del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const updateLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return ResponseService.forbidden(
+        res, 
+        'No se encontró un restaurante asignado para este owner',
+        null,
+        'NO_RESTAURANT_ASSIGNED'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Los datos ya fueron validados por Zod
+    const data = req.body;
+
+    // 5. Actualizar la ubicación usando el repositorio
+    const updatedRestaurant = await RestaurantRepository.updateLocation(restaurantId, data);
+
+    return ResponseService.success(
+      res,
+      'Ubicación del restaurante actualizada exitosamente',
+      {
+        restaurant: updatedRestaurant
+      }
+    );
+
+  } catch (error) {
+    console.error('Error actualizando ubicación del restaurante:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3450,6 +3579,8 @@ module.exports = {
   updateBranchSchedule,
   rejectOrder,
   formatOrderForSocket,
-  deactivateProductsByTag
+  deactivateProductsByTag,
+  getLocationStatus,
+  updateLocation
 };
 

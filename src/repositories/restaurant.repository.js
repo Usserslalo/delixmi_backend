@@ -116,6 +116,53 @@ class RestaurantRepository {
       }
     });
   }
+
+  /**
+   * Verifica si el restaurante tiene configurada su ubicación
+   * @param {number} restaurantId - ID del restaurante
+   * @returns {Promise<boolean>} true si latitude y longitude no son null, false en caso contrario
+   */
+  static async getLocationStatus(restaurantId) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        latitude: true,
+        longitude: true
+      }
+    });
+
+    if (!restaurant) {
+      return false;
+    }
+
+    return restaurant.latitude !== null && restaurant.longitude !== null;
+  }
+
+  /**
+   * Actualiza la ubicación del restaurante
+   * @param {number} restaurantId - ID del restaurante
+   * @param {Object} data - Datos de ubicación { latitude, longitude, address? }
+   * @returns {Promise<Object>} Restaurante actualizado
+   */
+  static async updateLocation(restaurantId, data) {
+    return await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        address: data.address || undefined,
+        updatedAt: new Date()
+      },
+      select: {
+        id: true,
+        name: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        updatedAt: true
+      }
+    });
+  }
 }
 
 module.exports = RestaurantRepository;

@@ -171,6 +171,8 @@ model Restaurant {
   phone          String?  @db.VarChar(20)
   email          String?  @db.VarChar(150)
   address        String?  @db.Text
+  latitude       Decimal? @db.Decimal(10, 8)
+  longitude      Decimal? @db.Decimal(11, 8)
   commissionRate Decimal  @default(10.00) @map("commission_rate") @db.Decimal(5, 2)
   rating         Float?   @default(0.0)
   status         RestaurantStatus @default(pending_approval)

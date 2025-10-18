@@ -2,11 +2,12 @@ const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateParams, validateQuery } = require('../middleware/validate.middleware');
-const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
+const { requireRestaurantLocation } = require('../middleware/location.middleware');
+const { updateProfileSchema, updateLocationSchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -60,6 +61,32 @@ router.patch(
 );
 
 /**
+ * @route   GET /api/restaurant/location-status
+ * @desc    Obtener el estado de configuración de ubicación del restaurante
+ * @access  Private (Owner Only)
+ */
+router.get(
+  '/location-status',
+  requireRole(['owner']),
+  getLocationStatus
+);
+
+/**
+ * @route   PATCH /api/restaurant/location
+ * @desc    Actualizar la ubicación principal del restaurante
+ * @access  Private (Owner Only)
+ * @body    latitude - Latitud de la ubicación (requerido)
+ * @body    longitude - Longitud de la ubicación (requerido)
+ * @body    address - Dirección del restaurante (opcional)
+ */
+router.patch(
+  '/location',
+  requireRole(['owner']),
+  validate(updateLocationSchema),
+  updateLocation
+);
+
+/**
  * @route   GET /api/restaurant/branches
  * @desc    Obtener todas las sucursales del restaurante del dueño autenticado
  * @access  Private (Owner Only)
@@ -70,6 +97,7 @@ router.patch(
 router.get(
   '/branches',
   requireRole(['owner']),
+  requireRestaurantLocation,
   [
     query('status')
       .optional()
@@ -116,6 +144,7 @@ router.get(
 router.patch(
   '/branches/:branchId',
   requireRole(['owner']),
+  requireRestaurantLocation,
   [
     param('branchId')
       .notEmpty()
@@ -184,6 +213,7 @@ router.patch(
 router.delete(
   '/branches/:branchId',
   requireRole(['owner']),
+  requireRestaurantLocation,
   [
     param('branchId')
       .notEmpty()
@@ -215,6 +245,7 @@ router.delete(
 router.get(
   '/branches/:branchId/schedule',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   [
     param('branchId')
       .notEmpty()
@@ -247,6 +278,7 @@ router.get(
 router.patch(
   '/branches/:branchId/schedule',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   [
     param('branchId')
       .notEmpty()
@@ -331,6 +363,7 @@ router.patch(
 router.post(
   '/branches',
   requireRole(['owner']),
+  requireRestaurantLocation,
   [
     body('name')
       .notEmpty()
@@ -397,7 +430,10 @@ router.post(
  * @query   page (opcional) - Número de página (default: 1)
  * @query   pageSize (opcional) - Tamaño de página (default: 10, max: 50)
  */
-router.get('/orders', requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']), getRestaurantOrders);
+router.get('/orders', 
+  requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']), 
+  requireRestaurantLocation,
+  getRestaurantOrders);
 
 /**
  * @route   PATCH /api/restaurant/orders/:orderId/status
@@ -408,6 +444,7 @@ router.get('/orders', requireRole(['owner', 'branch_manager', 'order_manager', '
  */
 router.patch('/orders/:orderId/status', 
   requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']),
+  requireRestaurantLocation,
   [
     body('status')
       .notEmpty()
@@ -439,6 +476,7 @@ router.patch('/orders/:orderId/status',
  */
 router.patch('/orders/:orderId/reject',
   requireRole(['owner', 'branch_manager', 'order_manager']),
+  requireRestaurantLocation,
   [
     param('orderId')
       .notEmpty()
@@ -476,6 +514,7 @@ router.patch('/orders/:orderId/reject',
  */
 router.get('/subcategories',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateQuery(subcategoryQuerySchema),
   getRestaurantSubcategories
 );
@@ -490,6 +529,7 @@ router.get('/subcategories',
  */
 router.post('/subcategories',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validate(createSubcategorySchema),
   createSubcategory
 );
@@ -505,6 +545,7 @@ router.post('/subcategories',
  */
 router.patch('/subcategories/:subcategoryId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(subcategoryParamsSchema),
   validate(updateSubcategorySchema),
   updateSubcategory
@@ -518,6 +559,7 @@ router.patch('/subcategories/:subcategoryId',
  */
 router.delete('/subcategories/:subcategoryId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(subcategoryParamsSchema),
   deleteSubcategory
 );
@@ -531,6 +573,7 @@ router.delete('/subcategories/:subcategoryId',
 router.post(
   '/products/upload-image',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   uploadProduct.single('image'),
   handleMulterError,
   uploadProductImage
@@ -547,6 +590,7 @@ router.post(
  */
 router.get('/products',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   [
     query('subcategoryId')
       .optional()
@@ -593,6 +637,7 @@ router.get('/products',
  */
 router.post('/products',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validate(createProductSchema),
   createProduct
 );
@@ -605,6 +650,7 @@ router.post('/products',
  */
 router.patch('/products/deactivate-by-tag',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   [
     body('tag')
       .notEmpty()
@@ -642,6 +688,7 @@ router.patch('/products/deactivate-by-tag',
  */
 router.patch('/products/:productId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(productParamsSchema),
   validate(updateProductSchema),
   updateProduct
@@ -655,6 +702,7 @@ router.patch('/products/:productId',
  */
 router.delete('/products/:productId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(productParamsSchema),
   deleteProduct
 );
@@ -674,6 +722,7 @@ router.delete('/products/:productId',
 router.post(
   '/modifier-groups',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validate(createGroupSchema),
   createModifierGroup
 );
@@ -686,6 +735,7 @@ router.post(
 router.get(
   '/modifier-groups',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateQuery(groupQuerySchema),
   getModifierGroups
 );
@@ -702,6 +752,7 @@ router.get(
 router.patch(
   '/modifier-groups/:groupId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(groupParamsSchema),
   validate(updateGroupSchema),
   updateModifierGroup
@@ -716,6 +767,7 @@ router.patch(
 router.delete(
   '/modifier-groups/:groupId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(groupParamsSchema),
   deleteModifierGroup
 );
@@ -735,6 +787,7 @@ router.delete(
 router.post(
   '/modifier-groups/:groupId/options',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(groupParamsSchema),
   validate(createOptionSchema),
   createModifierOption
@@ -751,6 +804,7 @@ router.post(
 router.patch(
   '/modifier-options/:optionId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(optionParamsSchema),
   validate(updateOptionSchema),
   updateModifierOption
@@ -765,6 +819,7 @@ router.patch(
 router.delete(
   '/modifier-options/:optionId',
   requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
   validateParams(optionParamsSchema),
   deleteModifierOption
 );
