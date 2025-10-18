@@ -17,26 +17,19 @@ const prisma = new PrismaClient();
 const verifyFileExists = (url) => {
   if (!url) return null;
   
-  try {
-    // Extraer el nombre del archivo de la URL
-    const urlParts = url.split('/');
-    const filename = urlParts[urlParts.length - 1];
-    const type = urlParts[urlParts.length - 2]; // 'logos' o 'covers'
-    
-    // Construir la ruta del archivo en el servidor
-    const filePath = path.join(__dirname, '../public/uploads', type, filename);
-    
-    // Verificar si el archivo existe
-    if (fs.existsSync(filePath)) {
-      return url;
-    } else {
-      console.warn(`⚠️ Archivo no encontrado: ${filePath} para URL: ${url}`);
-      return null;
-    }
-  } catch (error) {
-    console.error('Error verificando archivo:', error);
+  // Validar que la URL tenga el formato esperado y termine con una extensión de imagen
+  if (typeof url !== 'string' || url.trim() === '') {
     return null;
   }
+  
+  // Verificar que sea una URL de nuestro dominio y tenga formato válido
+  if (url.includes('/uploads/') && url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    console.log(`✅ URL válida de imagen verificada: ${url}`);
+    return url;
+  }
+  
+  console.warn(`⚠️ URL inválida o no es una imagen: ${url}`);
+  return null;
 };
 
 /**
