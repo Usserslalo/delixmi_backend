@@ -3,6 +3,7 @@ const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
+const { createProductSchema } = require('../validations/product.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -693,50 +694,7 @@ router.get('/products',
  */
 router.post('/products',
   requireRole(['owner', 'branch_manager']),
-  [
-    body('subcategoryId')
-      .notEmpty()
-      .withMessage('El ID de la subcategoría es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la subcategoría debe ser un número entero válido'),
-    body('name')
-      .notEmpty()
-      .withMessage('El nombre del producto es requerido')
-      .trim()
-      .isLength({ min: 1, max: 150 })
-      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
-    body('description')
-      .optional()
-      .trim()
-      .isLength({ max: 1000 })
-      .withMessage('La descripción no puede exceder 1000 caracteres'),
-    body('imageUrl')
-      .optional()
-      .trim()
-      .isLength({ max: 255 })
-      .withMessage('La URL de la imagen no puede exceder 255 caracteres'),
-    body('price')
-      .notEmpty()
-      .withMessage('El precio del producto es requerido')
-      .isFloat({ min: 0.01 })
-      .withMessage('El precio debe ser un número mayor que cero'),
-    body('isAvailable')
-      .optional()
-      .isBoolean()
-      .withMessage('isAvailable debe ser un valor booleano')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validate(createProductSchema),
   createProduct
 );
 

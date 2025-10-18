@@ -5,6 +5,7 @@ const UserService = require('../services/user.service');
 const ResponseService = require('../services/response.service');
 const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
 const RestaurantRepository = require('../repositories/restaurant.repository');
+const ProductRepository = require('../repositories/product.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -1586,172 +1587,20 @@ const getRestaurantProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { subcategoryId, name, description, imageUrl, price, isAvailable = true, modifierGroupIds = [] } = req.body;
+    const { modifierGroupIds = [], ...productData } = req.body;
 
-    // Convertir subcategoryId a número
-    const subcategoryIdNum = parseInt(subcategoryId);
-
-    // 1. Buscar la subcategoría y obtener su restaurant_id
-    const subcategory = await prisma.subcategory.findUnique({
-      where: { id: subcategoryIdNum },
-      select: {
-        id: true,
-        name: true,
-        restaurantId: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
-        }
-      }
-    });
-
-    if (!subcategory) {
-      return ResponseService.notFound(
-        res, 
-        'Subcategoría no encontrada',
-        'SUBCATEGORY_NOT_FOUND'
-      );
-    }
-
-    // 2. Obtener información de roles del usuario
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
-
-    if (!userWithRoles) {
-      return ResponseService.notFound(res, 'Usuario no encontrado');
-    }
-
-    // 3. Verificar autorización: el usuario debe tener permisos sobre el restaurante de la subcategoría
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId === subcategory.restaurantId
+    // Crear el producto usando el repositorio con toda la lógica de negocio
+    const newProduct = await ProductRepository.create(
+      productData, 
+      modifierGroupIds, 
+      userId, 
+      req.id
     );
 
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId === subcategory.restaurantId
-    );
+    // Obtener grupos de modificadores asociados para formatear la respuesta
+    const associatedModifierGroups = await ProductRepository.getAssociatedModifierGroups(newProduct.id);
 
-    // Si no es owner ni branch_manager del restaurante, denegar acceso
-    if (!ownerRole && !branchManagerRole) {
-      return ResponseService.forbidden(
-        res, 
-        'No tienes permiso para añadir productos a esta subcategoría',
-        {
-          subcategoryId: subcategoryIdNum,
-          restaurantId: subcategory.restaurantId,
-          restaurantName: subcategory.restaurant.name
-        },
-        'FORBIDDEN'
-      );
-    }
-
-    // 4. Validar modifierGroupIds si se proporcionan
-    if (modifierGroupIds && modifierGroupIds.length > 0) {
-      // Verificar que todos los grupos pertenezcan al restaurante
-      const validGroups = await prisma.modifierGroup.findMany({
-        where: {
-          id: { in: modifierGroupIds },
-          restaurantId: subcategory.restaurantId
-        },
-        select: { id: true }
-      });
-
-      if (validGroups.length !== modifierGroupIds.length) {
-        const invalidIds = modifierGroupIds.filter(id => !validGroups.find(g => g.id === id));
-        return ResponseService.badRequest(
-          res, 
-          'Algunos grupos de modificadores no pertenecen a este restaurante',
-          {
-            invalidGroupIds: invalidIds,
-            restaurantId: subcategory.restaurantId
-          },
-          'INVALID_MODIFIER_GROUPS'
-        );
-      }
-    }
-
-    // 5. Crear el producto con transacción para incluir asociaciones de modificadores
-    const result = await prisma.$transaction(async (tx) => {
-      // Crear el producto
-      const newProduct = await tx.product.create({
-        data: {
-          restaurantId: subcategory.restaurantId,
-          subcategoryId: subcategoryIdNum,
-          name: name.trim(),
-          description: description ? description.trim() : null,
-          imageUrl: imageUrl ? imageUrl.trim() : null,
-          price: parseFloat(price),
-          isAvailable: isAvailable
-        },
-        include: {
-          subcategory: {
-            select: {
-              id: true,
-              name: true,
-              category: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          restaurant: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      // Crear asociaciones con grupos de modificadores si se proporcionan
-      if (modifierGroupIds && modifierGroupIds.length > 0) {
-        await tx.productModifier.createMany({
-          data: modifierGroupIds.map(groupId => ({
-            productId: newProduct.id,
-            modifierGroupId: groupId
-          }))
-        });
-      }
-
-      return newProduct;
-    });
-
-    const newProduct = result;
-
-    // 6. Obtener grupos de modificadores asociados
-    const associatedModifierGroups = await prisma.modifierGroup.findMany({
-      where: {
-        products: {
-          some: {
-            productId: newProduct.id
-          }
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        minSelection: true,
-        maxSelection: true,
-        options: {
-          select: {
-            id: true,
-            name: true,
-            price: true
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'asc'
-      }
-    });
-
-    // 7. Formatear respuesta
+    // Formatear respuesta
     const formattedProduct = {
       id: newProduct.id,
       name: newProduct.name,
@@ -1786,7 +1635,7 @@ const createProduct = async (req, res) => {
       updatedAt: newProduct.updatedAt
     };
 
-    // 8. Respuesta exitosa
+    // Respuesta exitosa
     return ResponseService.success(
       res,
       'Producto creado exitosamente',
@@ -1798,6 +1647,18 @@ const createProduct = async (req, res) => {
 
   } catch (error) {
     console.error('Error creando producto:', error);
+    
+    // Manejar errores específicos del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.details, error.code);
+      }
+    }
+    
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
