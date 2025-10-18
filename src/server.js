@@ -3,6 +3,7 @@ const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const fs = require('fs');
 const { testConnection, disconnect } = require('./config/database');
 const { initializeSocket } = require('./config/socket');
 const { 
@@ -105,29 +106,71 @@ app.use(requestLoggingMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos estáticos desde la carpeta public
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Configuración específica para servir archivos de uploads con headers apropiados
-app.use('/uploads', express.static(path.join(__dirname, '../public/uploads'), {
+// Servir archivos estáticos desde la carpeta public con configuración optimizada
+app.use(express.static(path.join(__dirname, '../public'), {
   setHeaders: (res, path) => {
-    // Configurar headers para imágenes según su extensión
-    if (path.match(/\.jpg$|\.jpeg$/i)) {
-      res.setHeader('Content-Type', 'image/jpeg');
-    } else if (path.match(/\.png$/i)) {
-      res.setHeader('Content-Type', 'image/png');
-    } else if (path.match(/\.gif$/i)) {
-      res.setHeader('Content-Type', 'image/gif');
-    } else if (path.match(/\.webp$/i)) {
-      res.setHeader('Content-Type', 'image/webp');
-    }
-    
-    // Configurar cache para todas las imágenes de uploads
-    if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+    // Configurar headers específicos para archivos de uploads
+    if (path.includes('/uploads/')) {
+      // Log para debugging (solo en desarrollo)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📁 Sirviendo archivo: ${path}`);
+      }
+      
+      // Configurar headers para imágenes según su extensión
+      if (path.match(/\.jpg$|\.jpeg$/i)) {
+        res.setHeader('Content-Type', 'image/jpeg');
+      } else if (path.match(/\.png$/i)) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (path.match(/\.gif$/i)) {
+        res.setHeader('Content-Type', 'image/gif');
+      } else if (path.match(/\.webp$/i)) {
+        res.setHeader('Content-Type', 'image/webp');
+      }
+      
+      // Configurar cache para todas las imágenes de uploads
+      if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+      }
     }
   }
 }));
+
+// Ruta de diagnóstico para verificar archivos de uploads
+app.get('/debug/uploads/:type/:filename', (req, res) => {
+  const { type, filename } = req.params;
+  
+  if (!['logos', 'covers'].includes(type)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tipo inválido. Solo se permiten: logos, covers'
+    });
+  }
+  
+  const filePath = path.join(__dirname, '../public/uploads', type, filename);
+  
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Archivo no encontrado',
+        filePath: filePath,
+        filename: filename,
+        type: type
+      });
+    }
+    
+    const stats = fs.statSync(filePath);
+    res.json({
+      status: 'success',
+      message: 'Archivo encontrado',
+      filename: filename,
+      type: type,
+      filePath: filePath,
+      size: stats.size,
+      lastModified: stats.mtime
+    });
+  });
+});
 
 // Ruta de prueba de conexión
 app.get('/health', async (req, res) => {

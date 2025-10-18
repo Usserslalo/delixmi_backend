@@ -4,8 +4,40 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 const UserService = require('../services/user.service');
 const ResponseService = require('../services/response.service');
 const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
+const fs = require('fs');
+const path = require('path');
 
 const prisma = new PrismaClient();
+
+/**
+ * Función helper para verificar si un archivo existe en el servidor
+ * @param {string} url - URL del archivo a verificar
+ * @returns {string|null} URL si el archivo existe, null si no existe
+ */
+const verifyFileExists = (url) => {
+  if (!url) return null;
+  
+  try {
+    // Extraer el nombre del archivo de la URL
+    const urlParts = url.split('/');
+    const filename = urlParts[urlParts.length - 1];
+    const type = urlParts[urlParts.length - 2]; // 'logos' o 'covers'
+    
+    // Construir la ruta del archivo en el servidor
+    const filePath = path.join(__dirname, '../public/uploads', type, filename);
+    
+    // Verificar si el archivo existe
+    if (fs.existsSync(filePath)) {
+      return url;
+    } else {
+      console.warn(`⚠️ Archivo no encontrado: ${filePath} para URL: ${url}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error verificando archivo:', error);
+    return null;
+  }
+};
 
 /**
  * Función auxiliar para formatear un objeto order para Socket.io
@@ -2340,13 +2372,27 @@ const getRestaurantProfile = async (req, res) => {
       });
     }
 
-    // 5. Formatear respuesta
+    // 5. Verificar que los archivos de imagen existen antes de formatear respuesta
+    const verifiedLogoUrl = verifyFileExists(restaurant.logoUrl);
+    const verifiedCoverPhotoUrl = verifyFileExists(restaurant.coverPhotoUrl);
+    
+    // Log para debugging
+    console.log('🔍 Verificando archivos del restaurante:', {
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
+      logoUrl: restaurant.logoUrl,
+      verifiedLogoUrl: verifiedLogoUrl,
+      coverPhotoUrl: restaurant.coverPhotoUrl,
+      verifiedCoverPhotoUrl: verifiedCoverPhotoUrl
+    });
+
+    // 6. Formatear respuesta
     const formattedRestaurant = {
       id: restaurant.id,
       name: restaurant.name,
       description: restaurant.description,
-      logoUrl: restaurant.logoUrl,
-      coverPhotoUrl: restaurant.coverPhotoUrl,
+      logoUrl: verifiedLogoUrl,
+      coverPhotoUrl: verifiedCoverPhotoUrl,
       phone: restaurant.phone,
       email: restaurant.email,
       address: restaurant.address,
@@ -2376,7 +2422,7 @@ const getRestaurantProfile = async (req, res) => {
       updatedAt: restaurant.updatedAt
     };
 
-    // 6. Respuesta exitosa
+    // 7. Respuesta exitosa
     return ResponseService.success(
       res,
       'Perfil del restaurante obtenido exitosamente',

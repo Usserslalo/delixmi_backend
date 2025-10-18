@@ -32,6 +32,15 @@ const uploadRestaurantLogo = async (req, res) => {
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
 
+    // Log para debugging
+    console.log(`✅ Logo subido exitosamente:`, {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      url: fileUrl,
+      baseUrl: baseUrl
+    });
+
     // Respuesta exitosa
     res.status(200).json({
       status: 'success',
@@ -73,6 +82,15 @@ const uploadRestaurantCover = async (req, res) => {
     // Construir la URL pública del archivo de manera robusta
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/covers/${req.file.filename}`;
+
+    // Log para debugging
+    console.log(`✅ Cover subido exitosamente:`, {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      url: fileUrl,
+      baseUrl: baseUrl
+    });
 
     // Respuesta exitosa
     res.status(200).json({
