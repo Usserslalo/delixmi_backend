@@ -393,7 +393,87 @@ class ModifierRepository {
    * @returns {Promise<Object>} Opción de modificador creada
    */
   static async createOption(groupId, data, userId, requestId) {
-    // TODO: Implementar lógica completa
+    const groupIdNum = parseInt(groupId);
+    const { name, price } = data;
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para crear opciones de modificadores',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      };
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      throw {
+        status: 403,
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      };
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Verificar que el grupo existe y pertenece al restaurante del usuario
+    const existingGroup = await prisma.modifierGroup.findFirst({
+      where: {
+        id: groupIdNum,
+        restaurantId: restaurantId
+      },
+      select: {
+        id: true,
+        name: true,
+        restaurantId: true
+      }
+    });
+
+    if (!existingGroup) {
+      throw {
+        status: 404,
+        message: 'Grupo de modificadores no encontrado',
+        code: 'MODIFIER_GROUP_NOT_FOUND'
+      };
+    }
+
+    // 5. Crear la opción de modificador
+    const newModifierOption = await prisma.modifierOption.create({
+      data: {
+        name: name.trim(),
+        price: parseFloat(price),
+        modifierGroupId: groupIdNum
+      }
+    });
+
+    // 6. Retornar la opción creada formateada
+    return {
+      id: newModifierOption.id,
+      name: newModifierOption.name,
+      price: Number(newModifierOption.price),
+      modifierGroupId: newModifierOption.modifierGroupId,
+      createdAt: newModifierOption.createdAt,
+      updatedAt: newModifierOption.updatedAt
+    };
   }
 
   /**

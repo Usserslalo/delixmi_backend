@@ -221,113 +221,28 @@ const deleteModifierGroup = async (req, res) => {
  */
 const createModifierOption = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { groupId } = req.params;
-    const { name, price } = req.body;
+    const userId = req.user.id;
 
-    // Convertir groupId a número
-    const groupIdNum = parseInt(groupId);
+    const newOption = await ModifierRepository.createOption(groupId, req.body, userId, req.id);
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para crear opciones de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
-
-    // 4. Verificar que el grupo existe y pertenece al restaurante del usuario
-    const existingGroup = await prisma.modifierGroup.findFirst({
-      where: {
-        id: groupIdNum,
-        restaurantId: restaurantId
-      },
-      select: {
-        id: true,
-        name: true,
-        restaurantId: true
-      }
-    });
-
-    if (!existingGroup) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Grupo de modificadores no encontrado',
-        code: 'MODIFIER_GROUP_NOT_FOUND'
-      });
-    }
-
-    // 5. Crear la opción de modificador
-    const newModifierOption = await prisma.modifierOption.create({
-      data: {
-        name: name.trim(),
-        price: parseFloat(price),
-        modifierGroupId: groupIdNum
-      }
-    });
-
-    // 6. Respuesta exitosa
-    res.status(201).json({
-      status: 'success',
-      message: 'Opción de modificador creada exitosamente',
-      data: {
-        modifierOption: {
-          id: newModifierOption.id,
-          name: newModifierOption.name,
-          price: Number(newModifierOption.price),
-          modifierGroupId: newModifierOption.modifierGroupId,
-          createdAt: newModifierOption.createdAt,
-          updatedAt: newModifierOption.updatedAt
-        }
-      }
-    });
+    return ResponseService.success(res, 'Opción de modificador creada exitosamente', {
+      modifierOption: newOption
+    }, 201);
 
   } catch (error) {
     console.error('Error creando opción de modificador:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
