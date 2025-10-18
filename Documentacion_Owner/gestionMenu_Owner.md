@@ -3190,3 +3190,363 @@ El repositorio maneja toda la lógica de negocio y validaciones críticas:
 5. **Transformación Automática:** Zod maneja trimming, parsing y conversión de tipos automáticamente
 6. **Manejo Específico de Errores:** Captura y formatea correctamente errores 403/404 con códigos específicos
 7. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+---
+
+### **PATCH /api/restaurant/modifier-options/:optionId** - Actualizar Opción de Modificador
+
+**Descripción:** Actualiza una opción de modificador existente. Permite actualizar selectivamente solo los campos enviados (nombre y/o precio). El endpoint verifica que el usuario tenga permisos en el restaurante y que la opción pertenezca a un grupo del mismo restaurante antes de proceder con la actualización.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-options/:optionId`
+
+**Método:** `PATCH`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(optionParamsSchema)`: Valida y transforma el parámetro `optionId` de la URL
+- `validate(updateOptionSchema)`: Valida y transforma los datos del body de la petición
+
+#### **Esquemas de Validación Zod:**
+
+**optionParamsSchema** (Validación de Parámetros URL):
+```javascript
+const optionParamsSchema = z.object({
+  optionId: z
+    .string({ required_error: 'El ID de la opción es requerido' })
+    .regex(/^\d+$/, 'El ID de la opción debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID de la opción debe ser mayor que 0')
+});
+```
+
+**updateOptionSchema** (Validación del Body):
+```javascript
+const updateOptionSchema = z.object({
+  name: z
+    .string({ message: 'El nombre debe ser una cadena de texto' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim())
+    .optional(),
+  price: z
+    .number({ message: 'El precio debe ser un número' })
+    .min(0, 'El precio debe ser mayor o igual a 0')
+    .transform(val => parseFloat(val))
+    .optional()
+}).strict();
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const updateModifierOption = async (req, res) => {
+  try {
+    const { optionId } = req.params;
+    const userId = req.user.id;
+
+    const result = await ModifierRepository.updateOption(optionId, req.body, userId, req.id);
+
+    return ResponseService.success(res, 'Opción de modificador actualizada exitosamente', result);
+
+  } catch (error) {
+    console.error('Error actualizando opción de modificador:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 25 líneas vs 150+ líneas anteriores
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **ResponseService Estándar:** Uso de `ResponseService.success()` para respuestas consistentes
+- **Manejo Específico:** Captura errores 400/403/404 del repositorio con códigos específicos
+
+#### **Lógica del ModifierRepository.updateOption():**
+
+El repositorio maneja toda la lógica de negocio y validaciones críticas:
+
+1. **Validación de Usuario y Autorización:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia arquitectónica
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Extracción del RestaurantId:**
+   ```javascript
+   // Obtiene el restaurantId del usuario de forma segura
+   const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+     assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+   );
+   
+   if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+     throw {
+       status: 403,
+       message: 'No se encontró un restaurante asignado para este usuario',
+       code: 'NO_RESTAURANT_ASSIGNED'
+     };
+   }
+   ```
+
+3. **🔒 Validación Crítica de Pertenencia de la Opción:**
+   ```javascript
+   // Verifica que la opción existe y pertenece a un grupo del restaurante del usuario
+   const existingOption = await prisma.modifierOption.findFirst({
+     where: {
+       id: optionIdNum,
+       modifierGroup: {
+         restaurantId: restaurantId
+       }
+     },
+     include: {
+       modifierGroup: {
+         select: {
+           id: true,
+           name: true,
+           restaurantId: true
+         }
+       }
+     }
+   });
+
+   if (!existingOption) {
+     throw {
+       status: 404,
+       message: 'Opción de modificador no encontrada',
+       code: 'MODIFIER_OPTION_NOT_FOUND'
+     };
+   }
+   ```
+
+4. **🔄 Actualización Selectiva (Campos Opcionales):**
+   ```javascript
+   // Solo actualiza los campos enviados en la petición
+   const updateData = {};
+   
+   if (name !== undefined) {
+     updateData.name = name.trim();
+   }
+   
+   if (price !== undefined) {
+     updateData.price = parseFloat(price);
+   }
+
+   // Validación: debe enviar al menos un campo
+   if (Object.keys(updateData).length === 0) {
+     throw {
+       status: 400,
+       message: 'No se proporcionaron campos para actualizar',
+       code: 'NO_FIELDS_TO_UPDATE'
+     };
+   }
+   ```
+
+5. **Actualización con Información de Grupo:**
+   ```javascript
+   // Actualiza la opción incluyendo información del grupo padre
+   const updatedOption = await prisma.modifierOption.update({
+     where: { id: optionIdNum },
+     data: updateData,
+     include: {
+       modifierGroup: {
+         select: {
+           id: true,
+           name: true,
+           restaurantId: true
+         }
+       }
+     }
+   });
+   ```
+
+6. **Formateo de Respuesta Completa:**
+   ```javascript
+   // Retorna tanto la opción actualizada como los campos modificados
+   return {
+     modifierOption: {
+       id: updatedOption.id,
+       name: updatedOption.name,
+       price: Number(updatedOption.price),
+       modifierGroupId: updatedOption.modifierGroupId,
+       modifierGroup: {
+         id: updatedOption.modifierGroup.id,
+         name: updatedOption.modifierGroup.name,
+         restaurantId: updatedOption.modifierGroup.restaurantId
+       },
+       createdAt: updatedOption.createdAt,
+       updatedAt: updatedOption.updatedAt
+     },
+     updatedFields: Object.keys(updateData)
+   };
+   ```
+
+#### **Payload de Ejemplo:**
+
+```json
+{
+  "name": "Gigante XL (20 pulgadas) (Zod Actualizado)",
+  "price": 110.00
+}
+```
+
+**Características del Payload:**
+- **Campos Opcionales**: Puede enviar solo `name`, solo `price`, o ambos
+- **name**: String opcional (1-100 caracteres), se trimea automáticamente
+- **price**: Número opcional (≥ 0), se convierte a float automáticamente
+- **Validación Estricta**: `.strict()` en Zod previene campos no definidos
+- **Actualización Selectiva**: Solo se actualizan los campos enviados
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Opción de modificador actualizada exitosamente",
+    "timestamp": "2025-10-18T21:01:49.417Z",
+    "data": {
+        "modifierOption": {
+            "id": 26,
+            "name": "Gigante XL (20 pulgadas) (Zod Actualizado)",
+            "price": 110,
+            "modifierGroupId": 1,
+            "modifierGroup": {
+                "id": 1,
+                "name": "Tamaño",
+                "restaurantId": 1
+            },
+            "createdAt": "2025-10-18T20:54:17.823Z",
+            "updatedAt": "2025-10-18T21:01:48.992Z"
+        },
+        "updatedFields": [
+            "name",
+            "price"
+        ]
+    }
+}
+```
+
+**Características de la Respuesta:**
+- **Código 200:** Confirmación de actualización exitosa
+- **Información Completa:** Incluye opción actualizada con información del grupo padre
+- **Campos Modificados:** Lista `updatedFields` muestra exactamente qué se cambió
+- **Conversión de Tipos:** Precio convertido a número JavaScript estándar
+- **Timestamps:** Muestra `createdAt` original y `updatedAt` con la nueva fecha
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Parámetros URL):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["optionId"],
+      "message": "El ID de la opción debe ser un número"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Validación Zod (Body):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "too_small",
+      "path": ["name"],
+      "message": "El nombre no puede estar vacío"
+    },
+    {
+      "code": "too_small",
+      "path": ["price"],
+      "message": "El precio debe ser mayor o igual a 0"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Sin Campos para Actualizar:**
+```json
+{
+  "status": "error",
+  "message": "No se proporcionaron campos para actualizar",
+  "code": "NO_FIELDS_TO_UPDATE"
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para actualizar opciones de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Opción No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Opción de modificador no encontrada",
+  "code": "MODIFIER_OPTION_NOT_FOUND"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `ModifierRepository.updateOption()`
+2. **Validación Zod Robusta:** Doble validación con `validateParams()` y `validate()` para parámetros URL y body
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔒 Validación Crítica Preservada:** Verificación de pertenencia de la opción al restaurante del usuario
+5. **🔄 Actualización Selectiva:** Solo modifica campos enviados, preserva valores existentes
+6. **Transformación Automática:** Zod maneja trimming y parsing automáticamente
+7. **Información Detallada:** Respuesta incluye tanto el objeto actualizado como la lista de campos modificados
+8. **Manejo Específico de Errores:** Captura y formatea correctamente errores 400/403/404 con códigos específicos
+9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme

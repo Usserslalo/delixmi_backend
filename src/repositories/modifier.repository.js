@@ -619,7 +619,107 @@ class ModifierRepository {
    * @returns {Promise<Object>} Información de la opción eliminada
    */
   static async deleteOption(optionId, userId, requestId) {
-    // TODO: Implementar lógica completa
+    const optionIdNum = parseInt(optionId);
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para eliminar opciones de modificadores',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      };
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      throw {
+        status: 403,
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      };
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Verificar que la opción existe y pertenece a un grupo del restaurante del usuario
+    const existingOption = await prisma.modifierOption.findFirst({
+      where: {
+        id: optionIdNum,
+        modifierGroup: {
+          restaurantId: restaurantId
+        }
+      },
+      include: {
+        modifierGroup: {
+          select: {
+            id: true,
+            name: true,
+            restaurantId: true
+          }
+        }
+      }
+    });
+
+    if (!existingOption) {
+      throw {
+        status: 404,
+        message: 'Opción de modificador no encontrada',
+        code: 'MODIFIER_OPTION_NOT_FOUND'
+      };
+    }
+
+    // 5. 🚨 VALIDACIÓN CRÍTICA: Verificar si la opción está siendo usada en carritos activos
+    const cartItemsCount = await prisma.cartItemModifier.count({
+      where: { modifierOptionId: optionIdNum }
+    });
+
+    if (cartItemsCount > 0) {
+      throw {
+        status: 409,
+        message: 'No se puede eliminar la opción porque está siendo usada en carritos de compra activos',
+        code: 'OPTION_IN_USE_IN_CARTS',
+        details: {
+          cartItemsCount: cartItemsCount,
+          optionId: optionIdNum,
+          optionName: existingOption.name
+        }
+      };
+    }
+
+    // 6. Eliminar la opción de modificador
+    await prisma.modifierOption.delete({
+      where: { id: optionIdNum }
+    });
+
+    // 7. Retornar información de la opción eliminada
+    return {
+      deletedOption: {
+        id: existingOption.id,
+        name: existingOption.name,
+        price: Number(existingOption.price),
+        modifierGroupId: existingOption.modifierGroupId,
+        deletedAt: new Date().toISOString()
+      }
+    };
   }
 }
 

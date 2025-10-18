@@ -789,22 +789,7 @@ router.patch(
 router.delete(
   '/modifier-options/:optionId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('optionId')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la opción debe ser un número entero positivo')
-  ],
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(optionParamsSchema),
   deleteModifierOption
 );
 
