@@ -1,3 +1,10 @@
+const { PrismaClient } = require('@prisma/client');
+const UserService = require('../services/user.service');
+const RestaurantRepository = require('../repositories/restaurant.repository');
+const ResponseService = require('../services/response.service');
+
+const prisma = new PrismaClient();
+
 /**
  * Función helper para construir la URL base de manera robusta
  */
@@ -20,7 +27,7 @@ const getBaseUrl = (req) => {
 
 /**
  * Controlador para subir logo del restaurante
- * POST /api/restaurant/uploads/logo
+ * POST /api/restaurant/upload-logo
  */
 const uploadRestaurantLogo = async (req, res) => {
   try {
@@ -33,12 +40,54 @@ const uploadRestaurantLogo = async (req, res) => {
       });
     }
 
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de owner',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este owner',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
     // Construir la URL pública del archivo de manera robusta
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
 
+    // 4. Actualizar el logoUrl en la base de datos
+    await RestaurantRepository.updateProfile(restaurantId, { logoUrl: fileUrl });
+
     // Log para debugging
-    console.log(`✅ Logo subido exitosamente:`, {
+    console.log(`✅ Logo subido y actualizado en BD exitosamente:`, {
+      userId,
+      restaurantId,
       filename: req.file.filename,
       originalName: req.file.originalname,
       size: req.file.size,
@@ -55,7 +104,8 @@ const uploadRestaurantLogo = async (req, res) => {
         filename: req.file.filename,
         originalName: req.file.originalname,
         size: req.file.size,
-        mimetype: req.file.mimetype
+        mimetype: req.file.mimetype,
+        restaurantId: restaurantId
       }
     });
 
@@ -71,7 +121,7 @@ const uploadRestaurantLogo = async (req, res) => {
 
 /**
  * Controlador para subir foto de portada del restaurante
- * POST /api/restaurant/uploads/cover
+ * POST /api/restaurant/upload-cover
  */
 const uploadRestaurantCover = async (req, res) => {
   try {
@@ -84,12 +134,54 @@ const uploadRestaurantCover = async (req, res) => {
       });
     }
 
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requiere rol de owner',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este owner',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
     // Construir la URL pública del archivo de manera robusta
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/covers/${req.file.filename}`;
 
+    // 4. Actualizar el coverPhotoUrl en la base de datos
+    await RestaurantRepository.updateProfile(restaurantId, { coverPhotoUrl: fileUrl });
+
     // Log para debugging
-    console.log(`✅ Cover subido exitosamente:`, {
+    console.log(`✅ Cover subido y actualizado en BD exitosamente:`, {
+      userId,
+      restaurantId,
       filename: req.file.filename,
       originalName: req.file.originalname,
       size: req.file.size,
@@ -106,7 +198,8 @@ const uploadRestaurantCover = async (req, res) => {
         filename: req.file.filename,
         originalName: req.file.originalname,
         size: req.file.size,
-        mimetype: req.file.mimetype
+        mimetype: req.file.mimetype,
+        restaurantId: restaurantId
       }
     });
 
