@@ -485,7 +485,130 @@ class ModifierRepository {
    * @returns {Promise<Object>} Opción de modificador actualizada
    */
   static async updateOption(optionId, data, userId, requestId) {
-    // TODO: Implementar lógica completa
+    const optionIdNum = parseInt(optionId);
+    const { name, price } = data;
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para actualizar opciones de modificadores',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      };
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      throw {
+        status: 403,
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      };
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Verificar que la opción existe y pertenece a un grupo del restaurante del usuario
+    const existingOption = await prisma.modifierOption.findFirst({
+      where: {
+        id: optionIdNum,
+        modifierGroup: {
+          restaurantId: restaurantId
+        }
+      },
+      include: {
+        modifierGroup: {
+          select: {
+            id: true,
+            name: true,
+            restaurantId: true
+          }
+        }
+      }
+    });
+
+    if (!existingOption) {
+      throw {
+        status: 404,
+        message: 'Opción de modificador no encontrada',
+        code: 'MODIFIER_OPTION_NOT_FOUND'
+      };
+    }
+
+    // 5. Preparar los datos de actualización (solo campos enviados)
+    const updateData = {};
+    
+    if (name !== undefined) {
+      updateData.name = name.trim();
+    }
+    
+    if (price !== undefined) {
+      updateData.price = parseFloat(price);
+    }
+
+    // Si no hay campos para actualizar
+    if (Object.keys(updateData).length === 0) {
+      throw {
+        status: 400,
+        message: 'No se proporcionaron campos para actualizar',
+        code: 'NO_FIELDS_TO_UPDATE'
+      };
+    }
+
+    // 6. Actualizar la opción de modificador
+    const updatedOption = await prisma.modifierOption.update({
+      where: { id: optionIdNum },
+      data: updateData,
+      include: {
+        modifierGroup: {
+          select: {
+            id: true,
+            name: true,
+            restaurantId: true
+          }
+        }
+      }
+    });
+
+    // 7. Formatear respuesta
+    const formattedOption = {
+      id: updatedOption.id,
+      name: updatedOption.name,
+      price: Number(updatedOption.price),
+      modifierGroupId: updatedOption.modifierGroupId,
+      modifierGroup: {
+        id: updatedOption.modifierGroup.id,
+        name: updatedOption.modifierGroup.name,
+        restaurantId: updatedOption.modifierGroup.restaurantId
+      },
+      createdAt: updatedOption.createdAt,
+      updatedAt: updatedOption.updatedAt
+    };
+
+    // 8. Retornar la opción actualizada y los campos modificados
+    return {
+      modifierOption: formattedOption,
+      updatedFields: Object.keys(updateData)
+    };
   }
 
   /**

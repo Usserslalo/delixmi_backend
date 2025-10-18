@@ -2898,3 +2898,295 @@ El repositorio maneja toda la lógica de negocio y **validaciones críticas**:
 5. **Verificación de Autorización:** Garantiza que el grupo pertenezca al restaurante del usuario
 6. **Manejo Específico 409:** Captura y formatea correctamente los errores de conflicto con detalles informativos
 7. **Respuesta de Auditoría:** Proporciona información completa del grupo eliminado para rastreabilidad
+
+---
+
+### **POST /api/restaurant/modifier-groups/:groupId/options** - Crear Opción de Modificador
+
+**Descripción:** Crea una nueva opción de modificador dentro de un grupo específico del restaurante. El endpoint verifica que el usuario tenga permisos en el restaurante y que el grupo de modificadores pertenezca al mismo restaurante antes de proceder con la creación.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-groups/:groupId/options`
+
+**Método:** `POST`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(groupParamsSchema)`: Valida y transforma el parámetro `groupId` de la URL
+- `validate(createOptionSchema)`: Valida y transforma los datos del body de la petición
+
+#### **Esquemas de Validación Zod:**
+
+**groupParamsSchema** (Validación de Parámetros URL):
+```javascript
+const groupParamsSchema = z.object({
+  groupId: z
+    .string({ required_error: 'El ID del grupo es requerido' })
+    .regex(/^\d+$/, 'El ID del grupo debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID del grupo debe ser mayor que 0')
+});
+```
+
+**createOptionSchema** (Validación del Body):
+```javascript
+const createOptionSchema = z.object({
+  name: z
+    .string({ required_error: 'El nombre de la opción es requerido' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim()),
+  price: z
+    .number({ required_error: 'El precio es requerido' })
+    .min(0, 'El precio debe ser mayor o igual a 0')
+    .transform(val => parseFloat(val))
+}).strict();
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const createModifierOption = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const newOption = await ModifierRepository.createOption(groupId, req.body, userId, req.id);
+
+    return ResponseService.success(res, 'Opción de modificador creada exitosamente', {
+      modifierOption: newOption
+    }, 201);
+
+  } catch (error) {
+    console.error('Error creando opción de modificador:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 25 líneas vs 110 líneas anteriores
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **ResponseService Estándar:** Uso de `ResponseService.success()` con código 201
+- **Manejo Específico:** Captura errores 403/404 del repositorio con códigos específicos
+
+#### **Lógica del ModifierRepository.createOption():**
+
+El repositorio maneja toda la lógica de negocio y validaciones críticas:
+
+1. **Validación de Usuario y Autorización:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia arquitectónica
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Extracción del RestaurantId:**
+   ```javascript
+   // Obtiene el restaurantId del usuario de forma segura
+   const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+     assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+   );
+   
+   if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+     throw {
+       status: 403,
+       message: 'No se encontró un restaurante asignado para este usuario',
+       code: 'NO_RESTAURANT_ASSIGNED'
+     };
+   }
+   ```
+
+3. **🔒 Validación Crítica de Pertenencia del Grupo:**
+   ```javascript
+   // Verifica que el grupo existe y pertenece al restaurante del usuario
+   const existingGroup = await prisma.modifierGroup.findFirst({
+     where: {
+       id: groupIdNum,
+       restaurantId: restaurantId
+     },
+     select: {
+       id: true,
+       name: true,
+       restaurantId: true
+     }
+   });
+
+   if (!existingGroup) {
+     throw {
+       status: 404,
+       message: 'Grupo de modificadores no encontrado',
+       code: 'MODIFIER_GROUP_NOT_FOUND'
+     };
+   }
+   ```
+
+4. **Creación de la Opción:**
+   ```javascript
+   // Crea la opción con datos validados y transformados por Zod
+   const newModifierOption = await prisma.modifierOption.create({
+     data: {
+       name: name.trim(),
+       price: parseFloat(price),
+       modifierGroupId: groupIdNum
+     }
+   });
+   ```
+
+5. **Formateo de Respuesta:**
+   ```javascript
+   // Retorna la opción creada con formato estándar
+   return {
+     id: newModifierOption.id,
+     name: newModifierOption.name,
+     price: Number(newModifierOption.price),
+     modifierGroupId: newModifierOption.modifierGroupId,
+     createdAt: newModifierOption.createdAt,
+     updatedAt: newModifierOption.updatedAt
+   };
+   ```
+
+#### **Payload de Ejemplo:**
+
+```json
+{
+  "name": "Gigante (18 pulgadas) (Zod)",
+  "price": 95.50
+}
+```
+
+**Características del Payload:**
+- **name**: String requerido (1-100 caracteres), se trimea automáticamente
+- **price**: Número requerido (≥ 0), se convierte a float automáticamente
+- **Validación Estricta**: `.strict()` en Zod previene campos adicionales no definidos
+
+#### **Response Exitosa (201 Created):**
+
+```json
+{
+    "status": "success",
+    "message": "Opción de modificador creada exitosamente",
+    "timestamp": "2025-10-18T20:54:18.109Z",
+    "data": {
+        "modifierOption": {
+            "id": 26,
+            "name": "Gigante (18 pulgadas) (Zod)",
+            "price": 95.5,
+            "modifierGroupId": 1,
+            "createdAt": "2025-10-18T20:54:17.823Z",
+            "updatedAt": "2025-10-18T20:54:17.823Z"
+        }
+    }
+}
+```
+
+**Características de la Respuesta:**
+- **Código 201:** Confirmación de creación exitosa
+- **Información Completa:** Incluye ID, nombre, precio, grupo asociado y timestamps
+- **Conversión de Tipos:** Precio convertido a número JavaScript estándar
+- **Timestamp Preciso:** Generado automáticamente por la base de datos
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Parámetros URL):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["groupId"],
+      "message": "El ID del grupo debe ser un número"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Validación Zod (Body):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["name"],
+      "message": "El nombre de la opción es requerido"
+    },
+    {
+      "code": "too_small",
+      "path": ["price"],
+      "message": "El precio debe ser mayor o igual a 0"
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para crear opciones de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Grupo No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Grupo de modificadores no encontrado",
+  "code": "MODIFIER_GROUP_NOT_FOUND"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `ModifierRepository.createOption()`
+2. **Validación Zod Robusta:** Doble validación con `validateParams()` y `validate()` para parámetros URL y body
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔒 Validación Crítica Preservada:** Verificación de pertenencia del grupo al restaurante del usuario
+5. **Transformación Automática:** Zod maneja trimming, parsing y conversión de tipos automáticamente
+6. **Manejo Específico de Errores:** Captura y formatea correctamente errores 403/404 con códigos específicos
+7. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme

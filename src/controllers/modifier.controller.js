@@ -252,154 +252,28 @@ const createModifierOption = async (req, res) => {
  */
 const updateModifierOption = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { optionId } = req.params;
-    const { name, price } = req.body;
+    const userId = req.user.id;
 
-    // Convertir optionId a número
-    const optionIdNum = parseInt(optionId);
+    const result = await ModifierRepository.updateOption(optionId, req.body, userId, req.id);
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para actualizar opciones de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
-
-    // 4. Verificar que la opción existe y pertenece a un grupo del restaurante del usuario
-    const existingOption = await prisma.modifierOption.findFirst({
-      where: {
-        id: optionIdNum,
-        modifierGroup: {
-          restaurantId: restaurantId
-        }
-      },
-      include: {
-        modifierGroup: {
-          select: {
-            id: true,
-            name: true,
-            restaurantId: true
-          }
-        }
-      }
-    });
-
-    if (!existingOption) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Opción de modificador no encontrada',
-        code: 'MODIFIER_OPTION_NOT_FOUND'
-      });
-    }
-
-    // 5. Preparar los datos de actualización (solo campos enviados)
-    const updateData = {};
-    
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    
-    if (price !== undefined) {
-      updateData.price = parseFloat(price);
-    }
-
-    // Si no hay campos para actualizar
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se proporcionaron campos para actualizar',
-        code: 'NO_FIELDS_TO_UPDATE'
-      });
-    }
-
-    // 6. Actualizar la opción de modificador
-    const updatedOption = await prisma.modifierOption.update({
-      where: { id: optionIdNum },
-      data: updateData,
-      include: {
-        modifierGroup: {
-          select: {
-            id: true,
-            name: true,
-            restaurantId: true
-          }
-        }
-      }
-    });
-
-    // 7. Formatear respuesta
-    const formattedOption = {
-      id: updatedOption.id,
-      name: updatedOption.name,
-      price: Number(updatedOption.price),
-      modifierGroupId: updatedOption.modifierGroupId,
-      modifierGroup: {
-        id: updatedOption.modifierGroup.id,
-        name: updatedOption.modifierGroup.name,
-        restaurantId: updatedOption.modifierGroup.restaurantId
-      },
-      createdAt: updatedOption.createdAt,
-      updatedAt: updatedOption.updatedAt
-    };
-
-    // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Opción de modificador actualizada exitosamente',
-      data: {
-        modifierOption: formattedOption,
-        updatedFields: Object.keys(updateData)
-      }
-    });
+    return ResponseService.success(res, 'Opción de modificador actualizada exitosamente', result);
 
   } catch (error) {
     console.error('Error actualizando opción de modificador:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
