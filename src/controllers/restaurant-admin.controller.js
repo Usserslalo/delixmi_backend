@@ -4,6 +4,7 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 const UserService = require('../services/user.service');
 const ResponseService = require('../services/response.service');
 const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
+const RestaurantRepository = require('../repositories/restaurant.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -2499,8 +2500,7 @@ const getRestaurantProfile = async (req, res) => {
 const updateRestaurantProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, description, logoUrl, coverPhotoUrl, phone, email, address } = req.body;
-
+    
     // 1. Obtener información del usuario y verificar que es owner
     const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
@@ -2537,17 +2537,7 @@ const updateRestaurantProfile = async (req, res) => {
     const restaurantId = ownerAssignment.restaurantId;
 
     // 4. Verificar que el restaurante existe
-    const existingRestaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        logoUrl: true,
-        coverPhotoUrl: true,
-        status: true
-      }
-    });
+    const existingRestaurant = await RestaurantRepository.findById(restaurantId);
 
     if (!existingRestaurant) {
       return ResponseService.notFound(
@@ -2557,39 +2547,11 @@ const updateRestaurantProfile = async (req, res) => {
       );
     }
 
-    // 5. Preparar los datos de actualización (solo campos enviados)
-    const updateData = {};
-    
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    
-    if (description !== undefined) {
-      updateData.description = description.trim();
-    }
-    
-    if (logoUrl !== undefined) {
-      updateData.logoUrl = logoUrl.trim();
-    }
-    
-    if (coverPhotoUrl !== undefined) {
-      updateData.coverPhotoUrl = coverPhotoUrl.trim();
-    }
-    
-    if (phone !== undefined) {
-      updateData.phone = phone.trim();
-    }
-    
-    if (email !== undefined) {
-      updateData.email = email.trim();
-    }
-    
-    if (address !== undefined) {
-      updateData.address = address.trim();
-    }
+    // 5. El body ya fue validado por Zod - obtener datos limpios
+    const dataToUpdate = req.body;
 
     // Si no hay campos para actualizar
-    if (Object.keys(updateData).length === 0) {
+    if (Object.keys(dataToUpdate).length === 0) {
       return ResponseService.badRequest(
         res, 
         'No se proporcionaron campos para actualizar',
@@ -2597,49 +2559,8 @@ const updateRestaurantProfile = async (req, res) => {
       );
     }
 
-    // 6. Actualizar el restaurante
-    const updatedRestaurant = await prisma.restaurant.update({
-      where: { id: restaurantId },
-      data: {
-        ...updateData,
-        updatedAt: new Date()
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        branches: {
-          where: {
-            status: 'active'
-          },
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            phone: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true
-          },
-          orderBy: {
-            name: 'asc'
-          }
-        },
-        _count: {
-          select: {
-            branches: true,
-            subcategories: true,
-            products: true
-          }
-        }
-      }
-    });
+    // 6. Usar el Repositorio para actualizar
+    const updatedRestaurant = await RestaurantRepository.updateProfile(restaurantId, dataToUpdate);
 
     // 7. Formatear respuesta
     const formattedRestaurant = {
@@ -2648,6 +2569,9 @@ const updateRestaurantProfile = async (req, res) => {
       description: updatedRestaurant.description,
       logoUrl: updatedRestaurant.logoUrl,
       coverPhotoUrl: updatedRestaurant.coverPhotoUrl,
+      phone: updatedRestaurant.phone,
+      email: updatedRestaurant.email,
+      address: updatedRestaurant.address,
       status: updatedRestaurant.status,
       owner: {
         id: updatedRestaurant.owner.id,
@@ -2674,13 +2598,13 @@ const updateRestaurantProfile = async (req, res) => {
       updatedAt: updatedRestaurant.updatedAt
     };
 
-    // 5. Respuesta exitosa
+    // 8. Respuesta exitosa
     return ResponseService.success(
       res,
       'Información del restaurante actualizada exitosamente',
       {
         restaurant: formattedRestaurant,
-        updatedFields: Object.keys(updateData),
+        updatedFields: Object.keys(dataToUpdate),
         updatedBy: {
           userId: userId,
           userName: `${req.user.name} ${req.user.lastname}`

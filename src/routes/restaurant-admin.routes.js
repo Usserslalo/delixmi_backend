@@ -1,6 +1,8 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
+const { validate } = require('../middleware/validate.middleware');
+const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover } = require('../controllers/upload.controller');
@@ -50,63 +52,7 @@ router.get(
 router.patch(
   '/profile',
   requireRole(['owner']),
-  [
-    body('name')
-      .optional()
-      .trim()
-      .isLength({ min: 1, max: 150 })
-      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
-    body('description')
-      .optional()
-      .trim()
-      .isLength({ max: 1000 })
-      .withMessage('La descripción no puede exceder 1000 caracteres'),
-    body('logoUrl')
-      .optional()
-      .trim()
-      .isLength({ max: 255 })
-      .withMessage('La URL del logo no puede exceder 255 caracteres')
-      .isURL({ require_tld: false })
-      .withMessage('La URL del logo debe ser una URL válida'),
-    body('coverPhotoUrl')
-      .optional()
-      .trim()
-      .isLength({ max: 255 })
-      .withMessage('La URL de la foto de portada no puede exceder 255 caracteres')
-      .isURL({ require_tld: false })
-      .withMessage('La URL de la foto de portada debe ser una URL válida'),
-    body('phone')
-      .optional()
-      .trim()
-      .isLength({ min: 10, max: 20 })
-      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
-      .matches(/^[\+]?[\d\s\-\(\)]+$/)
-      .withMessage('El formato del teléfono no es válido'),
-    body('email')
-      .optional()
-      .trim()
-      .isEmail()
-      .withMessage('El email debe ser un formato válido')
-      .isLength({ max: 150 })
-      .withMessage('El email no puede exceder 150 caracteres'),
-    body('address')
-      .optional()
-      .trim()
-      .isLength({ max: 500 })
-      .withMessage('La dirección no puede exceder 500 caracteres')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validate(updateProfileSchema),
   updateRestaurantProfile
 );
 
