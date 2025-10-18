@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
+const mime = require('mime-types');
 const { testConnection, disconnect } = require('./config/database');
 const { initializeSocket } = require('./config/socket');
 const { 
@@ -106,34 +107,84 @@ app.use(requestLoggingMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos estáticos desde la carpeta public con configuración optimizada
-app.use(express.static(path.join(__dirname, '../public'), {
-  setHeaders: (res, path) => {
-    // Configurar headers específicos para archivos de uploads
-    if (path.includes('/uploads/')) {
-      // Log para debugging (solo en desarrollo)
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`📁 Sirviendo archivo: ${path}`);
-      }
+// Configuración robusta para archivos estáticos en Render
+const publicPath = path.join(__dirname, '../public');
+const uploadsPath = path.join(__dirname, '../public/uploads');
+
+console.log(`📂 Configurando archivos estáticos:`);
+console.log(`📂 Public path: ${publicPath}`);
+console.log(`📂 Uploads path: ${uploadsPath}`);
+
+// Verificar que los directorios existan
+if (!fs.existsSync(publicPath)) {
+  console.warn(`⚠️ Directorio public no existe: ${publicPath}`);
+}
+if (!fs.existsSync(uploadsPath)) {
+  console.warn(`⚠️ Directorio uploads no existe: ${uploadsPath}`);
+}
+
+// Servir archivos estáticos generales desde public
+app.use(express.static(publicPath));
+
+// Configuración específica y robusta para uploads
+app.use('/uploads', express.static(uploadsPath, {
+  etag: true,
+  lastModified: true,
+  index: false, // No servir index.html para directorios
+  setHeaders: (res, filePath) => {
+    // Log para debugging
+    console.log(`📁 Sirviendo archivo estático: ${filePath}`);
+    
+    // Determinar MIME type correcto
+    const mimeType = mime.lookup(filePath) || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    
+    // Headers específicos para imágenes
+    if (mimeType.startsWith('image/')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Expires', new Date(Date.now() + 31536000 * 1000).toUTCString());
+    }
+    
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+}));
+
+// Middleware de logging para debugging de requests de uploads
+app.use('/uploads', (req, res, next) => {
+  console.log(`🔍 Request para archivo: ${req.method} ${req.path}`);
+  console.log(`🔍 User-Agent: ${req.get('User-Agent')}`);
+  
+  // Si es un request de archivo específico, verificar si existe
+  if (req.path && req.path.includes('.')) {
+    const filename = path.basename(req.path);
+    const uploadsPath = path.join(__dirname, '../public/uploads');
+    const fullPath = path.join(uploadsPath, req.path.substring(1)); // Remove leading /
+    
+    console.log(`🔍 Verificando archivo: ${fullPath}`);
+    console.log(`🔍 Archivo existe: ${fs.existsSync(fullPath)}`);
+    
+    if (!fs.existsSync(fullPath)) {
+      console.error(`❌ Archivo no encontrado: ${req.path}`);
+      console.error(`❌ Ruta completa: ${fullPath}`);
       
-      // Configurar headers para imágenes según su extensión
-      if (path.match(/\.jpg$|\.jpeg$/i)) {
-        res.setHeader('Content-Type', 'image/jpeg');
-      } else if (path.match(/\.png$/i)) {
-        res.setHeader('Content-Type', 'image/png');
-      } else if (path.match(/\.gif$/i)) {
-        res.setHeader('Content-Type', 'image/gif');
-      } else if (path.match(/\.webp$/i)) {
-        res.setHeader('Content-Type', 'image/webp');
-      }
-      
-      // Configurar cache para todas las imágenes de uploads
-      if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+      // Listar archivos en el directorio padre para debugging
+      try {
+        const dirPath = path.dirname(fullPath);
+        if (fs.existsSync(dirPath)) {
+          const files = fs.readdirSync(dirPath);
+          console.error(`📂 Archivos en directorio ${dirPath}:`, files);
+        }
+      } catch (err) {
+        console.error(`❌ Error leyendo directorio: ${err.message}`);
       }
     }
   }
-}));
+  
+  next();
+});
 
 // Ruta de diagnóstico para verificar archivos de uploads
 app.get('/debug/uploads/:type/:filename', (req, res) => {
@@ -170,6 +221,65 @@ app.get('/debug/uploads/:type/:filename', (req, res) => {
       lastModified: stats.mtime
     });
   });
+});
+
+// Ruta de testing para verificar estado de uploads (temporal para debugging)
+app.get('/test-uploads', (req, res) => {
+  try {
+    const uploadsPath = path.join(__dirname, '../public/uploads');
+    
+    console.log(`🔍 Testing uploads directory: ${uploadsPath}`);
+    
+    const testFiles = {
+      'logo_1760761445771_3877.jpg': path.join(uploadsPath, 'logos', 'logo_1760761445771_3877.jpg'),
+      'cover_1760761452664_5207.jpg': path.join(uploadsPath, 'covers', 'cover_1760761452664_5207.jpg')
+    };
+    
+    const results = {
+      success: true,
+      uploadsPath: uploadsPath,
+      directoryExists: fs.existsSync(uploadsPath),
+      directories: {
+        logos: fs.existsSync(path.join(uploadsPath, 'logos')),
+        covers: fs.existsSync(path.join(uploadsPath, 'covers'))
+      },
+      files: {}
+    };
+    
+    // Verificar archivos específicos
+    for (const [filename, filePath] of Object.entries(testFiles)) {
+      const exists = fs.existsSync(filePath);
+      results.files[filename] = {
+        exists,
+        path: filePath,
+        size: exists ? fs.statSync(filePath).size : 0,
+        accessible: exists
+      };
+    }
+    
+    // Listar todos los archivos en los directorios
+    try {
+      if (fs.existsSync(path.join(uploadsPath, 'logos'))) {
+        results.filesInLogos = fs.readdirSync(path.join(uploadsPath, 'logos'));
+      }
+      if (fs.existsSync(path.join(uploadsPath, 'covers'))) {
+        results.filesInCovers = fs.readdirSync(path.join(uploadsPath, 'covers'));
+      }
+    } catch (err) {
+      results.directoryReadError = err.message;
+    }
+    
+    console.log(`📊 Upload test results:`, JSON.stringify(results, null, 2));
+    
+    res.json(results);
+  } catch (error) {
+    console.error('❌ Error en test-uploads:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
 });
 
 // Ruta de prueba de conexión

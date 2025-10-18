@@ -2,15 +2,20 @@
  * Función helper para construir la URL base de manera robusta
  */
 const getBaseUrl = (req) => {
+  let baseUrl;
+  
   // Primero intentar usar BASE_URL del entorno si está definido
   if (process.env.BASE_URL) {
-    return process.env.BASE_URL;
+    baseUrl = process.env.BASE_URL;
+  } else {
+    // Si no, construir la URL desde la request (funciona con proxies como Render)
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    baseUrl = `${protocol}://${host}`;
   }
   
-  // Si no, construir la URL desde la request (funciona con proxies como Render)
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
-  return `${protocol}://${host}`;
+  // Asegurar que no tenga trailing slash problemático
+  return baseUrl.replace(/\/$/, '');
 };
 
 /**
