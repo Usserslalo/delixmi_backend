@@ -4781,3 +4781,403 @@ El repositorio maneja toda la lógica de consulta, formateo y optimización de d
 8. **📈 Metadatos Útiles:** Total de grupos para información adicional
 9. **🚀 Futuro-Proof:** Estructura preparada para filtros y funcionalidades adicionales
 10. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+---
+
+### **GET /api/restaurant/products** - Listar Productos del Restaurante
+
+**Descripción:** Obtiene la lista completa de productos del restaurante con paginación, filtros por subcategoría y disponibilidad. Este endpoint proporciona toda la información necesaria para el panel de administración del menú, incluyendo datos de subcategorías y restaurantes asociados.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/products`
+
+**Método:** `GET`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- **Validaciones Express-Validator:** Para query parameters (`subcategoryId`, `isAvailable`, `page`, `pageSize`)
+
+#### **Query Parameters:**
+- `subcategoryId` (opcional): Filtrar por subcategoría específica
+- `isAvailable` (opcional): Filtrar por disponibilidad (`true`/`false`)
+- `page` (opcional): Número de página (default: 1)
+- `pageSize` (opcional): Tamaño de página (default: 20, max: 100)
+
+#### **Esquema de Validación (Express-Validator):**
+
+```javascript
+[
+  query('subcategoryId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('El ID de subcategoría debe ser un número entero válido'),
+  query('isAvailable')
+    .optional()
+    .isBoolean()
+    .withMessage('isAvailable debe ser un valor booleano (true/false)'),
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('El número de página debe ser un entero mayor a 0'),
+  query('pageSize')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('El tamaño de página debe ser un entero entre 1 y 100')
+]
+```
+
+**Nota:** Este endpoint aún usa `express-validator` para query parameters y no ha sido refactorizado a Zod como otros endpoints. Es candidato para futura refactorización.
+
+#### **Controlador Actual (getRestaurantProducts):**
+
+```javascript
+const getRestaurantProducts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { subcategoryId, isAvailable, page = 1, pageSize = 20 } = req.query;
+
+    // Validar parámetros de paginación
+    const pageNum = parseInt(page);
+    const pageSizeNum = parseInt(pageSize);
+
+    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
+      return ResponseService.badRequest(res, 'Parámetros de paginación inválidos');
+    }
+
+    // 1. Obtener información del usuario y sus roles
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar roles de restaurante (owner o branch_manager)
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado. Se requieren permisos de restaurante',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // 3. Obtener restaurantIds del usuario
+    const userRestaurantIds = userWithRoles.userRoleAssignments
+      .filter(assignment => restaurantRoles.includes(assignment.role.name))
+      .map(assignment => assignment.restaurantId)
+      .filter(id => id !== null);
+
+    if (userRestaurantIds.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontraron restaurantes asignados para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    // 4. Construir filtros para la consulta
+    const whereClause = { restaurantId: { in: userRestaurantIds } };
+
+    // Filtro por subcategoría con validación de pertenencia
+    if (subcategoryId !== undefined) {
+      const subcategoryIdNum = parseInt(subcategoryId);
+      
+      const subcategory = await prisma.subcategory.findFirst({
+        where: {
+          id: subcategoryIdNum,
+          restaurantId: { in: userRestaurantIds }
+        }
+      });
+
+      if (!subcategory) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Subcategoría no encontrada o no pertenece a tu restaurante',
+          code: 'SUBCATEGORY_NOT_FOUND'
+        });
+      }
+
+      whereClause.subcategoryId = subcategoryIdNum;
+    }
+
+    // Filtro por disponibilidad
+    if (isAvailable !== undefined) {
+      whereClause.isAvailable = isAvailable === 'true';
+    }
+
+    // 5. Calcular offset y realizar consulta
+    const offset = (pageNum - 1) * pageSizeNum;
+
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where: whereClause,
+        include: {
+          subcategory: {
+            select: {
+              id: true, name: true, displayOrder: true,
+              category: { select: { id: true, name: true } }
+            }
+          },
+          restaurant: { select: { id: true, name: true } }
+        },
+        orderBy: [
+          { subcategory: { displayOrder: 'asc' } },
+          { name: 'asc' }
+        ],
+        skip: offset,
+        take: pageSizeNum
+      }),
+      prisma.product.count({ where: whereClause })
+    ]);
+
+    // 6. Formatear respuesta con paginación
+    const totalPages = Math.ceil(totalCount / pageSizeNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    const formattedProducts = products.map(product => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      imageUrl: product.imageUrl,
+      price: Number(product.price),
+      isAvailable: product.isAvailable,
+      subcategory: {
+        id: product.subcategory.id,
+        name: product.subcategory.name,
+        displayOrder: product.subcategory.displayOrder,
+        category: {
+          id: product.subcategory.category.id,
+          name: product.subcategory.category.name
+        }
+      },
+      restaurant: {
+        id: product.restaurant.id,
+        name: product.restaurant.name
+      },
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt
+    }));
+
+    return ResponseService.success(res, 'Productos obtenidos exitosamente', {
+      products: formattedProducts,
+      pagination: {
+        currentPage: pageNum,
+        pageSize: pageSizeNum,
+        totalCount: totalCount,
+        totalPages: totalPages,
+        hasNextPage: hasNextPage,
+        hasPrevPage: hasPrevPage
+      },
+      filters: {
+        restaurantIds: userRestaurantIds,
+        subcategoryId: subcategoryId ? parseInt(subcategoryId) : null,
+        isAvailable: isAvailable !== undefined ? (isAvailable === 'true') : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo productos del restaurante:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Multi-Restaurant Support:** Maneja usuarios con múltiples restaurantes
+- **Filtrado Inteligente:** Validación de pertenencia de subcategorías al restaurante
+- **Paginación Completa:** Con metadatos detallados de navegación
+- **Ordenamiento Jerárquico:** Por `displayOrder` de subcategoría y nombre de producto
+- **Include Optimizado:** Relaciones con subcategoría, categoría y restaurante
+- **Conversión de Tipos:** Precios convertidos de Decimal a Number
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Productos obtenidos exitosamente",
+    "timestamp": "2025-10-18T21:45:30.123Z",
+    "data": {
+        "products": [
+            {
+                "id": 1,
+                "name": "Pizza Margherita",
+                "description": "Pizza clásica con tomate, mozzarella y albahaca",
+                "imageUrl": "https://delixmi-backend.onrender.com/uploads/products/pizza_margherita.jpg",
+                "price": 25.99,
+                "isAvailable": true,
+                "subcategory": {
+                    "id": 1,
+                    "name": "Pizzas Tradicionales",
+                    "displayOrder": 1,
+                    "category": {
+                        "id": 1,
+                        "name": "Pizzas"
+                    }
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                },
+                "createdAt": "2025-10-18T18:17:47.705Z",
+                "updatedAt": "2025-10-18T21:30:15.234Z"
+            },
+            {
+                "id": 2,
+                "name": "Pizza Pepperoni",
+                "description": "Pizza con pepperoni, queso mozzarella y salsa de tomate",
+                "imageUrl": "https://delixmi-backend.onrender.com/uploads/products/pizza_pepperoni.jpg",
+                "price": 29.99,
+                "isAvailable": true,
+                "subcategory": {
+                    "id": 1,
+                    "name": "Pizzas Tradicionales",
+                    "displayOrder": 1,
+                    "category": {
+                        "id": 1,
+                        "name": "Pizzas"
+                    }
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                },
+                "createdAt": "2025-10-18T18:18:20.456Z",
+                "updatedAt": "2025-10-18T20:15:30.789Z"
+            }
+        ],
+        "pagination": {
+            "currentPage": 1,
+            "pageSize": 20,
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasNextPage": false,
+            "hasPrevPage": false
+        },
+        "filters": {
+            "restaurantIds": [1],
+            "subcategoryId": null,
+            "isAvailable": null
+        }
+    }
+}
+```
+
+**Estructura de la Respuesta:**
+
+1. **📦 `products` Array:** Lista de productos con información completa:
+   - `id`: Identificador único del producto
+   - `name`: Nombre del producto
+   - `description`: Descripción detallada (puede ser null)
+   - `imageUrl`: URL de la imagen (puede ser null)
+   - `price`: Precio como número JavaScript (convertido de Decimal)
+   - `isAvailable`: Estado de disponibilidad (boolean)
+   - `subcategory`: Información de la subcategoría con:
+     - `id`, `name`, `displayOrder`: Datos básicos de subcategoría
+     - `category`: Objeto con `id` y `name` de la categoría padre
+   - `restaurant`: Información del restaurante con `id` y `name`
+   - `createdAt`/`updatedAt`: Timestamps
+
+2. **📊 `pagination` Object:** Metadatos de paginación:
+   - `currentPage`: Página actual
+   - `pageSize`: Elementos por página
+   - `totalCount`: Total de productos encontrados
+   - `totalPages`: Total de páginas disponibles
+   - `hasNextPage`/`hasPrevPage`: Banderas de navegación
+
+3. **🔍 `filters` Object:** Información de filtros aplicados:
+   - `restaurantIds`: Array de IDs de restaurantes del usuario
+   - `subcategoryId`: ID de subcategoría filtrada (null si no aplica)
+   - `isAvailable`: Estado de disponibilidad filtrado (null si no aplica)
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Parámetros Inválidos:**
+```json
+{
+  "status": "error",
+  "message": "Parámetros de consulta inválidos",
+  "errors": [
+    {
+      "msg": "El tamaño de página debe ser un entero entre 1 y 100",
+      "param": "pageSize"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Paginación Inválida:**
+```json
+{
+  "status": "error",
+  "message": "Parámetros de paginación inválidos",
+  "data": {
+    "page": "Debe ser un número mayor a 0",
+    "pageSize": "Debe ser un número entre 1 y 100"
+  }
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS",
+  "required": ["owner", "branch_manager"],
+  "current": ["customer"]
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontraron restaurantes asignados para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado"
+}
+```
+
+**404 Not Found - Subcategoría No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Subcategoría no encontrada o no pertenece a tu restaurante",
+  "code": "SUBCATEGORY_NOT_FOUND"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características del Endpoint:**
+
+1. **🏢 Multi-Restaurant Support:** Maneja usuarios propietarios de múltiples restaurantes
+2. **🔍 Filtrado Inteligente:** Validación de pertenencia antes de aplicar filtros
+3. **📊 Paginación Completa:** Con metadatos detallados para navegación
+4. **🔄 Ordenamiento Jerárquico:** Por subcategoría (`displayOrder`) y nombre de producto
+5. **📈 Include Optimizado:** Relaciones con subcategoría, categoría y restaurante
+6. **💱 Conversión de Tipos:** Precios convertidos automáticamente de Decimal a Number
+7. **🛡️ Validación de Seguridad:** Verificación de pertenencia de subcategorías al restaurante del usuario
+8. **📋 Respuesta Estructurada:** Con filtros aplicados y metadatos de paginación
+9. **⚡ Consultas Paralelas:** Uso de `Promise.all()` para optimizar rendimiento
+10. **🎯 ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+**Nota de Refactorización:** Este endpoint es candidato para futura migración a Repository Pattern y validación Zod, siguiendo el mismo patrón implementado en otros endpoints del módulo.

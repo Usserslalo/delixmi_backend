@@ -804,16 +804,16 @@ const createSubcategory = async (req, res) => {
     // Los datos ya están validados por Zod
     const newSubcategory = await SubcategoryRepository.create(req.body, userId, req.id);
 
-    return ResponseService.success(
-      res,
-      'Subcategoría creada exitosamente',
-      {
+      return ResponseService.success(
+        res,
+        'Subcategoría creada exitosamente',
+        {
         subcategory: newSubcategory
-      },
-      201
-    );
+        },
+        201
+      );
 
-  } catch (error) {
+    } catch (error) {
     console.error('Error creando subcategoría:', error);
     
     // Manejo específico de errores del repositorio
@@ -1303,8 +1303,8 @@ const deleteProduct = async (req, res) => {
         return ResponseService.forbidden(res, error.message, error.details, error.code);
       } else if (error.status === 409) {
         // Error de conflicto - producto en uso
-        return res.status(409).json({
-          status: 'error',
+      return res.status(409).json({
+        status: 'error',
           message: error.message,
           code: error.code,
           details: error.details,
@@ -1518,7 +1518,7 @@ const getRestaurantProfile = async (req, res) => {
 const updateRestaurantProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     // 1. Obtener información del usuario y verificar que es owner
     const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
