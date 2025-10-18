@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
+const ModifierRepository = require('../repositories/modifier.repository');
+const ResponseService = require('../services/response.service');
 
 const prisma = new PrismaClient();
 
@@ -9,110 +11,28 @@ const prisma = new PrismaClient();
 const createModifierGroup = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, minSelection = 1, maxSelection = 1 } = req.body;
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    const newModifierGroup = await ModifierRepository.createGroup(req.body, userId, req.id);
 
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para crear grupos de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
-
-    // 4. Validar que minSelection <= maxSelection
-    if (minSelection > maxSelection) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'La selección mínima no puede ser mayor que la selección máxima',
-        code: 'INVALID_SELECTION_RANGE'
-      });
-    }
-
-    // 5. Crear el grupo de modificadores
-    const newModifierGroup = await prisma.modifierGroup.create({
-      data: {
-        name: name.trim(),
-        restaurantId: restaurantId,
-        minSelection: parseInt(minSelection),
-        maxSelection: parseInt(maxSelection)
-      },
-      include: {
-        options: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        }
-      }
-    });
-
-    // 6. Respuesta exitosa
-    res.status(201).json({
-      status: 'success',
-      message: 'Grupo de modificadores creado exitosamente',
-      data: {
-        modifierGroup: {
-          id: newModifierGroup.id,
-          name: newModifierGroup.name,
-          minSelection: newModifierGroup.minSelection,
-          maxSelection: newModifierGroup.maxSelection,
-          restaurantId: newModifierGroup.restaurantId,
-          options: newModifierGroup.options,
-          createdAt: newModifierGroup.createdAt,
-          updatedAt: newModifierGroup.updatedAt
-        }
-      }
-    });
+    return ResponseService.success(res, 'Grupo de modificadores creado exitosamente', {
+      modifierGroup: newModifierGroup
+    }, 201);
 
   } catch (error) {
     console.error('Error creando grupo de modificadores:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
