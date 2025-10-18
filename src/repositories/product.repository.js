@@ -486,6 +486,7 @@ class ProductRepository {
     }
 
     // 4. MEJORA CRÍTICA: Verificar si el producto tiene pedidos activos asociados
+    // Usar la consulta extendida con más estados activos
     const activeOrderItems = await prisma.orderItem.findMany({
       where: {
         productId: productId,
@@ -528,7 +529,7 @@ class ProductRepository {
             orderId: item.order.id,
             orderNumber: item.order.orderNumber,
             status: item.order.status,
-            customerName: item.order.customer.name,
+            customerName: item.order.customer?.name || 'Cliente no disponible',
             date: item.order.createdAt
           }))
         },

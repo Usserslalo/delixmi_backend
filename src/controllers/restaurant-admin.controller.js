@@ -1762,8 +1762,11 @@ const deleteProduct = async (req, res) => {
     const { productId } = req.params;
     const userId = req.user.id;
 
+    // Convertir productId a número (por si Zod no lo hizo correctamente)
+    const productIdNum = parseInt(productId, 10);
+
     // Eliminar el producto usando el repositorio con toda la lógica de negocio
-    const deletedProductInfo = await ProductRepository.delete(productId, userId, req.id);
+    const deletedProductInfo = await ProductRepository.delete(productIdNum, userId, req.id);
 
     // Respuesta exitosa
     return ResponseService.success(
@@ -1776,6 +1779,8 @@ const deleteProduct = async (req, res) => {
     );
 
   } catch (error) {
+    console.error('Error eliminando producto:', error);
+    
     // Manejo de errores específicos del repositorio
     if (error.status && error.code) {
       if (error.status === 404) {
