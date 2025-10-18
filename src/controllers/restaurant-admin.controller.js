@@ -727,24 +727,8 @@ const updateOrderStatus = async (req, res) => {
 const getRestaurantSubcategories = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { categoryId, page = 1, pageSize = 20 } = req.query;
 
-    // Validar parámetros de paginación
-    const pageNum = parseInt(page);
-    const pageSizeNum = parseInt(pageSize);
-
-    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
-      return ResponseService.badRequest(
-        res, 
-        'Parámetros de paginación inválidos',
-        {
-          page: 'Debe ser un número mayor a 0',
-          pageSize: 'Debe ser un número entre 1 y 100'
-        }
-      );
-    }
-
-    // 1. Obtener información del usuario y sus roles
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
     const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
@@ -764,7 +748,7 @@ const getRestaurantSubcategories = async (req, res) => {
       );
     }
 
-    // 3. Obtener el restaurant_id del usuario
+    // 3. Obtener el restaurantId del usuario
     const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
       assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
     );
@@ -779,116 +763,31 @@ const getRestaurantSubcategories = async (req, res) => {
 
     const restaurantId = userRestaurantAssignment.restaurantId;
 
-    // 4. Construir filtros para la consulta
-    const whereClause = {
-      restaurantId: restaurantId
-    };
+    // 4. Obtener filtros validados de req.query (ya validados por Zod)
+    const filters = req.query;
 
-    // Filtro opcional por categoría global
-    if (categoryId !== undefined) {
-      const categoryIdNum = parseInt(categoryId);
-      
-      // Verificar que la categoría existe
-      const category = await prisma.category.findUnique({
-        where: { id: categoryIdNum }
-      });
+    // 5. Llamar al repositorio para obtener subcategorías con paginación
+    const result = await SubcategoryRepository.findByRestaurantId(restaurantId, filters);
 
-      if (!category) {
-        return ResponseService.notFound(
-          res, 
-          'Categoría no encontrada',
-          'CATEGORY_NOT_FOUND'
-        );
-      }
-
-      whereClause.categoryId = categoryIdNum;
-    }
-
-    // 5. Calcular offset para paginación
-    const offset = (pageNum - 1) * pageSizeNum;
-
-    // 6. Obtener subcategorías con filtros, ordenamiento y paginación
-    const [subcategories, totalCount] = await Promise.all([
-      prisma.subcategory.findMany({
-        where: whereClause,
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-              imageUrl: true
-            }
-          },
-          restaurant: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          _count: {
-            select: {
-              products: true
-            }
-          }
-        },
-        orderBy: {
-          displayOrder: 'asc'
-        },
-        skip: offset,
-        take: pageSizeNum
-      }),
-      prisma.subcategory.count({
-        where: whereClause
-      })
-    ]);
-
-    // 7. Calcular información de paginación
-    const totalPages = Math.ceil(totalCount / pageSizeNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
-
-    // 8. Formatear respuesta
-    const formattedSubcategories = subcategories.map(subcategory => ({
-      id: subcategory.id,
-      name: subcategory.name,
-      displayOrder: subcategory.displayOrder,
-      productsCount: subcategory._count.products,
-      category: {
-        id: subcategory.category.id,
-        name: subcategory.category.name,
-        imageUrl: subcategory.category.imageUrl
-      },
-      restaurant: {
-        id: subcategory.restaurant.id,
-        name: subcategory.restaurant.name
-      },
-      createdAt: subcategory.createdAt,
-      updatedAt: subcategory.updatedAt
-    }));
-
-    // 9. Respuesta exitosa
+    // 6. Respuesta exitosa
     return ResponseService.success(
       res,
       'Subcategorías obtenidas exitosamente',
-      {
-        subcategories: formattedSubcategories,
-        pagination: {
-          currentPage: pageNum,
-          pageSize: pageSizeNum,
-          totalCount: totalCount,
-          totalPages: totalPages,
-          hasNextPage: hasNextPage,
-          hasPrevPage: hasPrevPage
-        },
-        filters: {
-          restaurantId: restaurantId,
-          categoryId: categoryId ? parseInt(categoryId) : null
-        }
-      }
+      result
     );
 
   } catch (error) {
     console.error('Error obteniendo subcategorías del restaurante:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.details, error.code);
+      } else if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      }
+    }
+    
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };

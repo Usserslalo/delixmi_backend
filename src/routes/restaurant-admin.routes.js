@@ -4,7 +4,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth.middlewar
 const { validate, validateParams, validateQuery } = require('../middleware/validate.middleware');
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
-const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema } = require('../validations/subcategory.validation');
+const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema } = require('../validations/modifier.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
@@ -476,32 +476,7 @@ router.patch('/orders/:orderId/reject',
  */
 router.get('/subcategories',
   requireRole(['owner', 'branch_manager']),
-  [
-    query('categoryId')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('El ID de categoría debe ser un número entero válido'),
-    query('page')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('El número de página debe ser un entero mayor a 0'),
-    query('pageSize')
-      .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage('El tamaño de página debe ser un entero entre 1 y 100')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de consulta inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateQuery(subcategoryQuerySchema),
   getRestaurantSubcategories
 );
 

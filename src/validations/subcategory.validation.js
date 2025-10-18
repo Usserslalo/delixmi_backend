@@ -58,25 +58,9 @@ const subcategoryParamsSchema = z.object({
  * Esquema de validación para query parameters del listado de subcategorías
  */
 const subcategoryQuerySchema = z.object({
-  categoryId: z
-    .string()
-    .regex(/^\d+$/, 'El ID de categoría debe ser un número')
-    .transform((val) => parseInt(val, 10))
-    .optional(),
-  page: z
-    .string()
-    .regex(/^\d+$/, 'El número de página debe ser un número')
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => val > 0, 'El número de página debe ser mayor a 0')
-    .optional()
-    .default('1'),
-  pageSize: z
-    .string()
-    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => val > 0 && val <= 100, 'El tamaño de página debe ser entre 1 y 100')
-    .optional()
-    .default('20')
+  categoryId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  page: z.string().regex(/^\d+$/).transform(Number).optional().default(1),
+  pageSize: z.string().regex(/^\d+$/).transform(Number).optional().default(10)
 });
 
 module.exports = {

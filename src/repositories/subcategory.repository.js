@@ -472,11 +472,134 @@ class SubcategoryRepository {
   /**
    * Busca subcategorías por restaurante con filtros
    * @param {number} restaurantId - ID del restaurante
-   * @param {Object} filters - Filtros de búsqueda
-   * @returns {Promise<Array>} Lista de subcategorías
+   * @param {Object} filters - Filtros de búsqueda (categoryId, page, pageSize)
+   * @returns {Promise<Object>} Lista de subcategorías con paginación
    */
-  static async findByRestaurantId(restaurantId, filters) {
-    // TODO: Implementar lógica completa
+  static async findByRestaurantId(restaurantId, filters = {}) {
+    const { categoryId, page = 1, pageSize = 20 } = filters;
+
+    // Validar parámetros de paginación
+    const pageNum = parseInt(page);
+    const pageSizeNum = parseInt(pageSize);
+
+    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
+      throw {
+        status: 400,
+        message: 'Parámetros de paginación inválidos',
+        code: 'INVALID_PAGINATION_PARAMS',
+        details: {
+          page: 'Debe ser un número mayor a 0',
+          pageSize: 'Debe ser un número entre 1 y 100'
+        }
+      };
+    }
+
+    // 1. Construir filtros para la consulta
+    const whereClause = {
+      restaurantId: restaurantId
+    };
+
+    // Filtro opcional por categoría global
+    if (categoryId !== undefined && categoryId !== null) {
+      const categoryIdNum = parseInt(categoryId);
+      
+      // Verificar que la categoría existe
+      const category = await prisma.category.findUnique({
+        where: { id: categoryIdNum }
+      });
+
+      if (!category) {
+        throw {
+          status: 404,
+          message: 'Categoría no encontrada',
+          code: 'CATEGORY_NOT_FOUND',
+          details: {
+            categoryId: categoryIdNum
+          }
+        };
+      }
+
+      whereClause.categoryId = categoryIdNum;
+    }
+
+    // 2. Calcular offset para paginación
+    const offset = (pageNum - 1) * pageSizeNum;
+
+    // 3. Obtener subcategorías con filtros, ordenamiento y paginación
+    const [subcategories, totalCount] = await Promise.all([
+      prisma.subcategory.findMany({
+        where: whereClause,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          _count: {
+            select: {
+              products: true
+            }
+          }
+        },
+        orderBy: {
+          displayOrder: 'asc'
+        },
+        skip: offset,
+        take: pageSizeNum
+      }),
+      prisma.subcategory.count({
+        where: whereClause
+      })
+    ]);
+
+    // 4. Calcular información de paginación
+    const totalPages = Math.ceil(totalCount / pageSizeNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // 5. Formatear respuesta
+    const formattedSubcategories = subcategories.map(subcategory => ({
+      id: subcategory.id,
+      name: subcategory.name,
+      displayOrder: subcategory.displayOrder,
+      productsCount: subcategory._count.products,
+      category: {
+        id: subcategory.category.id,
+        name: subcategory.category.name,
+        imageUrl: subcategory.category.imageUrl
+      },
+      restaurant: {
+        id: subcategory.restaurant.id,
+        name: subcategory.restaurant.name
+      },
+      createdAt: subcategory.createdAt,
+      updatedAt: subcategory.updatedAt
+    }));
+
+    // 6. Retornar resultado con paginación
+    return {
+      subcategories: formattedSubcategories,
+      pagination: {
+        currentPage: pageNum,
+        pageSize: pageSizeNum,
+        totalCount: totalCount,
+        totalPages: totalPages,
+        hasNextPage: hasNextPage,
+        hasPrevPage: hasPrevPage
+      },
+      filters: {
+        restaurantId: restaurantId,
+        categoryId: categoryId ? parseInt(categoryId) : null
+      }
+    };
   }
 
   /**
