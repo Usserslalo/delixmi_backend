@@ -107,11 +107,18 @@ const optionParamsSchema = z.object({
     .refine((val) => val > 0, 'El ID de la opción debe ser mayor que 0')
 });
 
+/**
+ * Esquema de validación para query parameters del listado de grupos de modificadores
+ * (placeholder para futura extensión si se necesitan filtros)
+ */
+const groupQuerySchema = z.object({});
+
 module.exports = {
   createGroupSchema,
   updateGroupSchema,
   groupParamsSchema,
   createOptionSchema,
   updateOptionSchema,
-  optionParamsSchema
+  optionParamsSchema,
+  groupQuerySchema
 };

@@ -99,11 +99,57 @@ class ModifierRepository {
   /**
    * Obtiene grupos de modificadores por restaurante
    * @param {number} restaurantId - ID del restaurante
-   * @param {Object} filters - Filtros de búsqueda
-   * @returns {Promise<Array>} Lista de grupos de modificadores
+   * @param {Object} filters - Filtros de búsqueda (placeholder para futura extensión)
+   * @returns {Promise<Object>} Lista de grupos de modificadores con total
    */
   static async getGroups(restaurantId, filters = {}) {
-    // TODO: Implementar lógica completa
+    // 1. Obtener todos los grupos de modificadores del restaurante
+    const modifierGroups = await prisma.modifierGroup.findMany({
+      where: {
+        restaurantId: restaurantId
+      },
+      include: {
+        options: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    });
+
+    // 2. Formatear respuesta
+    const formattedGroups = modifierGroups.map(group => ({
+      id: group.id,
+      name: group.name,
+      minSelection: group.minSelection,
+      maxSelection: group.maxSelection,
+      restaurantId: group.restaurantId,
+      options: group.options.map(option => ({
+        id: option.id,
+        name: option.name,
+        price: Number(option.price),
+        createdAt: option.createdAt,
+        updatedAt: option.updatedAt
+      })),
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt
+    }));
+
+    // 3. Retornar resultado con total
+    return {
+      modifierGroups: formattedGroups,
+      total: formattedGroups.length
+    };
   }
 
   /**

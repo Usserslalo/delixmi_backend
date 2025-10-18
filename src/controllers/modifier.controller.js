@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const ModifierRepository = require('../repositories/modifier.repository');
 const ResponseService = require('../services/response.service');
+const UserService = require('../services/user.service');
 
 const prisma = new PrismaClient();
 
@@ -44,112 +45,57 @@ const getModifierGroups = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
 
     if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
+      return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
+    // 2. Verificar que el usuario tenga roles de restaurante
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
 
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para ver grupos de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+    if (!hasRestaurantRole) {
+      return ResponseService.forbidden(
+        res, 
+        'No tienes permiso para ver grupos de modificadores',
+        'INSUFFICIENT_PERMISSIONS'
+      );
     }
 
     // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
 
-    // 4. Obtener todos los grupos de modificadores del restaurante
-    const modifierGroups = await prisma.modifierGroup.findMany({
-      where: {
-        restaurantId: restaurantId
-      },
-      include: {
-        options: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            createdAt: true,
-            updatedAt: true
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'asc'
-      }
-    });
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
 
-    // 5. Formatear respuesta
-    const formattedGroups = modifierGroups.map(group => ({
-      id: group.id,
-      name: group.name,
-      minSelection: group.minSelection,
-      maxSelection: group.maxSelection,
-      restaurantId: group.restaurantId,
-      options: group.options.map(option => ({
-        id: option.id,
-        name: option.name,
-        price: Number(option.price),
-        createdAt: option.createdAt,
-        updatedAt: option.updatedAt
-      })),
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt
-    }));
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Obtener filtros validados de req.query (ya validados por Zod)
+    const filters = req.query;
+
+    // 5. Llamar al repositorio para obtener grupos de modificadores
+    const result = await ModifierRepository.getGroups(restaurantId, filters);
 
     // 6. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Grupos de modificadores obtenidos exitosamente',
-      data: {
-        modifierGroups: formattedGroups,
-        total: formattedGroups.length
-      }
-    });
+    return ResponseService.success(
+      res,
+      'Grupos de modificadores obtenidos exitosamente',
+      result
+    );
 
   } catch (error) {
     console.error('Error obteniendo grupos de modificadores:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 

@@ -3838,3 +3838,545 @@ El repositorio maneja toda la lógica de negocio, validaciones críticas y **cor
 7. **Manejo Específico 409:** Captura y formatea correctamente el error de conflicto con detalles informativos
 8. **Respuesta de Auditoría:** Proporciona información completa de la opción eliminada para rastreabilidad
 9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+---
+
+### **GET /api/restaurant/subcategories** - Listar Subcategorías del Restaurante
+
+**Descripción:** Obtiene la lista paginada de subcategorías del restaurante para el panel de administración, con filtrado opcional por categoría global y soporte completo de paginación.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/subcategories`
+
+**Método:** `GET`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateQuery(subcategoryQuerySchema)`: Valida y transforma los query parameters usando Zod
+
+#### **Esquema de Validación Zod:**
+
+**subcategoryQuerySchema** (Validación de Query Parameters):
+```javascript
+const subcategoryQuerySchema = z.object({
+  categoryId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  page: z.string().regex(/^\d+$/).transform(Number).optional().default(1),
+  pageSize: z.string().regex(/^\d+$/).transform(Number).optional().default(10)
+});
+```
+
+**Parámetros de Query Opcionales:**
+- `categoryId`: ID numérico de categoría global para filtrar (opcional)
+- `page`: Número de página (por defecto: 1, mínimo: 1)
+- `pageSize`: Tamaño de página (por defecto: 10, rango: 1-100)
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const getRestaurantSubcategories = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y sus roles usando UserService estandarizado
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tenga roles de restaurante
+    const restaurantRoles = ['owner', 'branch_manager'];
+    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+    if (!hasRestaurantRole) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requieren permisos de restaurante',
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del usuario
+    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    );
+
+    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No se encontró un restaurante asignado para este usuario',
+        code: 'NO_RESTAURANT_ASSIGNED'
+      });
+    }
+
+    const restaurantId = userRestaurantAssignment.restaurantId;
+
+    // 4. Obtener filtros validados de req.query (ya validados por Zod)
+    const filters = req.query;
+
+    // 5. Llamar al repositorio para obtener subcategorías con paginación
+    const result = await SubcategoryRepository.findByRestaurantId(restaurantId, filters);
+
+    // 6. Respuesta exitosa
+    return ResponseService.success(
+      res,
+      'Subcategorías obtenidas exitosamente',
+      result
+    );
+
+  } catch (error) {
+    console.error('Error obteniendo subcategorías del restaurante:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.details, error.code);
+      } else if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 65 líneas vs 170+ líneas anteriores (60% reducción)
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **UserService Estandarizado:** Uso consistente de `UserService.getUserWithRoles()`
+- **ResponseService Estándar:** Uso de `ResponseService.success()` para respuestas uniformes
+- **Manejo Específico de Errores:** Captura errores del repositorio con códigos informativos
+
+#### **Lógica del SubcategoryRepository.findByRestaurantId():**
+
+El repositorio maneja toda la lógica de negocio, filtrado, paginación y formateo de datos:
+
+1. **Validación de Parámetros de Paginación:**
+   ```javascript
+   // Validar parámetros de paginación
+   const pageNum = parseInt(page);
+   const pageSizeNum = parseInt(pageSize);
+
+   if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 100) {
+     throw {
+       status: 400,
+       message: 'Parámetros de paginación inválidos',
+       code: 'INVALID_PAGINATION_PARAMS',
+       details: {
+         page: 'Debe ser un número mayor a 0',
+         pageSize: 'Debe ser un número entre 1 y 100'
+       }
+     };
+   }
+   ```
+
+2. **Construcción de Filtros Dinámicos:**
+   ```javascript
+   // 1. Construir filtros para la consulta
+   const whereClause = {
+     restaurantId: restaurantId
+   };
+
+   // Filtro opcional por categoría global
+   if (categoryId !== undefined && categoryId !== null) {
+     const categoryIdNum = parseInt(categoryId);
+     
+     // Verificar que la categoría existe
+     const category = await prisma.category.findUnique({
+       where: { id: categoryIdNum }
+     });
+
+     if (!category) {
+       throw {
+         status: 404,
+         message: 'Categoría no encontrada',
+         code: 'CATEGORY_NOT_FOUND',
+         details: { categoryId: categoryIdNum }
+       };
+     }
+
+     whereClause.categoryId = categoryIdNum;
+   }
+   ```
+
+3. **Consulta Optimizada con Include y Paginación:**
+   ```javascript
+   // 2. Calcular offset para paginación
+   const offset = (pageNum - 1) * pageSizeNum;
+
+   // 3. Obtener subcategorías con filtros, ordenamiento y paginación
+   const [subcategories, totalCount] = await Promise.all([
+     prisma.subcategory.findMany({
+       where: whereClause,
+       include: {
+         category: {
+           select: {
+             id: true,
+             name: true,
+             imageUrl: true
+           }
+         },
+         restaurant: {
+           select: {
+             id: true,
+             name: true
+           }
+         },
+         _count: {
+           select: {
+             products: true
+           }
+         }
+       },
+       orderBy: {
+         displayOrder: 'asc'
+       },
+       skip: offset,
+       take: pageSizeNum
+     }),
+     prisma.subcategory.count({
+       where: whereClause
+     })
+   ]);
+   ```
+
+4. **Cálculo de Información de Paginación:**
+   ```javascript
+   // 4. Calcular información de paginación
+   const totalPages = Math.ceil(totalCount / pageSizeNum);
+   const hasNextPage = pageNum < totalPages;
+   const hasPrevPage = pageNum > 1;
+   ```
+
+5. **Formateo de Respuesta Estructurada:**
+   ```javascript
+   // 5. Formatear respuesta
+   const formattedSubcategories = subcategories.map(subcategory => ({
+     id: subcategory.id,
+     name: subcategory.name,
+     displayOrder: subcategory.displayOrder,
+     productsCount: subcategory._count.products,
+     category: {
+       id: subcategory.category.id,
+       name: subcategory.category.name,
+       imageUrl: subcategory.category.imageUrl
+     },
+     restaurant: {
+       id: subcategory.restaurant.id,
+       name: subcategory.restaurant.name
+     },
+     createdAt: subcategory.createdAt,
+     updatedAt: subcategory.updatedAt
+   }));
+
+   // 6. Retornar resultado con paginación
+   return {
+     subcategories: formattedSubcategories,
+     pagination: {
+       currentPage: pageNum,
+       pageSize: pageSizeNum,
+       totalCount: totalCount,
+       totalPages: totalPages,
+       hasNextPage: hasNextPage,
+       hasPrevPage: hasPrevPage
+     },
+     filters: {
+       restaurantId: restaurantId,
+       categoryId: categoryId ? parseInt(categoryId) : null
+     }
+   };
+   ```
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Subcategorías obtenidas exitosamente",
+    "timestamp": "2025-10-18T21:21:36.499Z",
+    "data": {
+        "subcategories": [
+            {
+                "id": 1,
+                "name": "Pizzas Tradicionales",
+                "displayOrder": 1,
+                "productsCount": 3,
+                "category": {
+                    "id": 1,
+                    "name": "Pizzas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:32.531Z",
+                "updatedAt": "2025-10-18T18:17:32.531Z"
+            },
+            {
+                "id": 2,
+                "name": "Pizzas Gourmet",
+                "displayOrder": 2,
+                "productsCount": 1,
+                "category": {
+                    "id": 1,
+                    "name": "Pizzas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:32.912Z",
+                "updatedAt": "2025-10-18T18:17:32.912Z"
+            },
+            {
+                "id": 3,
+                "name": "Pizzas Vegetarianas",
+                "displayOrder": 3,
+                "productsCount": 1,
+                "category": {
+                    "id": 1,
+                    "name": "Pizzas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:33.168Z",
+                "updatedAt": "2025-10-18T18:17:33.168Z"
+            },
+            {
+                "id": 4,
+                "name": "Refrescos",
+                "displayOrder": 4,
+                "productsCount": 2,
+                "category": {
+                    "id": 2,
+                    "name": "Bebidas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:33.424Z",
+                "updatedAt": "2025-10-18T18:17:33.424Z"
+            },
+            {
+                "id": 5,
+                "name": "Aguas Frescas",
+                "displayOrder": 5,
+                "productsCount": 1,
+                "category": {
+                    "id": 2,
+                    "name": "Bebidas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:33.678Z",
+                "updatedAt": "2025-10-18T18:17:33.678Z"
+            },
+            {
+                "id": 6,
+                "name": "Bebidas Calientes",
+                "displayOrder": 6,
+                "productsCount": 0,
+                "category": {
+                    "id": 2,
+                    "name": "Bebidas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:33.933Z",
+                "updatedAt": "2025-10-18T18:17:33.933Z"
+            },
+            {
+                "id": 7,
+                "name": "Aperitivos",
+                "displayOrder": 7,
+                "productsCount": 1,
+                "category": {
+                    "id": 3,
+                    "name": "Entradas",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:34.186Z",
+                "updatedAt": "2025-10-18T18:17:34.186Z"
+            },
+            {
+                "id": 8,
+                "name": "Helados",
+                "displayOrder": 8,
+                "productsCount": 0,
+                "category": {
+                    "id": 4,
+                    "name": "Postres",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:34.439Z",
+                "updatedAt": "2025-10-18T18:17:34.439Z"
+            },
+            {
+                "id": 9,
+                "name": "Pasteles",
+                "displayOrder": 9,
+                "productsCount": 1,
+                "category": {
+                    "id": 4,
+                    "name": "Postres",
+                    "imageUrl": null
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana (Actualizado)"
+                },
+                "createdAt": "2025-10-18T18:17:34.693Z",
+                "updatedAt": "2025-10-18T18:17:34.693Z"
+            }
+        ],
+        "pagination": {
+            "currentPage": 1,
+            "pageSize": 10,
+            "totalCount": 9,
+            "totalPages": 1,
+            "hasNextPage": false,
+            "hasPrevPage": false
+        },
+        "filters": {
+            "restaurantId": 1,
+            "categoryId": null
+        }
+    }
+}
+```
+
+**Estructura de la Respuesta:**
+
+1. **📋 `subcategories` Array:** Lista de subcategorías con información completa:
+   - `id`: Identificador único de la subcategoría
+   - `name`: Nombre de la subcategoría
+   - `displayOrder`: Orden de visualización (ascendente)
+   - `productsCount`: Cantidad de productos en la subcategoría (usando `_count`)
+   - `category`: Información de la categoría padre (id, name, imageUrl)
+   - `restaurant`: Información del restaurante (id, name)
+   - `createdAt`/`updatedAt`: Timestamps de creación y actualización
+
+2. **📊 `pagination` Object:** Metadatos de paginación:
+   - `currentPage`: Página actual (1)
+   - `pageSize`: Tamaño de página (10)
+   - `totalCount`: Total de registros (9)
+   - `totalPages`: Total de páginas (1)
+   - `hasNextPage`/`hasPrevPage`: Indicadores booleanos para navegación
+
+3. **🔍 `filters` Object:** Filtros aplicados en la consulta:
+   - `restaurantId`: ID del restaurante consultado (1)
+   - `categoryId`: ID de categoría filtrada (null = sin filtro)
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Query Parameters):**
+```json
+{
+  "status": "error",
+  "message": "El número de página debe ser un número",
+  "code": "VALIDATION_ERROR",
+  "errors": [
+    {
+      "field": "page",
+      "message": "El número de página debe ser un número",
+      "code": "invalid_string"
+    }
+  ],
+  "data": null
+}
+```
+
+**400 Bad Request - Parámetros de Paginación Inválidos:**
+```json
+{
+  "status": "error",
+  "message": "Parámetros de paginación inválidos",
+  "code": "INVALID_PAGINATION_PARAMS",
+  "details": {
+    "page": "Debe ser un número mayor a 0",
+    "pageSize": "Debe ser un número entre 1 y 100"
+  }
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Categoría No Encontrada (Filtro):**
+```json
+{
+  "status": "error",
+  "message": "Categoría no encontrada",
+  "code": "CATEGORY_NOT_FOUND",
+  "details": {
+    "categoryId": 999
+  }
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `SubcategoryRepository.findByRestaurantId()`
+2. **Validación Zod Robusta:** `validateQuery(subcategoryQuerySchema)` para validación de query parameters
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔍 Filtros Dinámicos:** Soporte para filtrado por categoría con validación de existencia
+5. **📊 Paginación Completa:** Cálculo automático de metadatos de paginación
+6. **📈 Include Optimizado:** Consulta eficiente con relaciones y contadores de productos
+7. **🔄 Ordenamiento Consistente:** Subcategorías ordenadas por `displayOrder` ascendente
+8. **💡 Consultas Paralelas:** Uso de `Promise.all()` para optimizar rendimiento
+9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
