@@ -827,8 +827,8 @@ Content-Type: multipart/form-data (automático)
   "status": "success",
   "message": "Logo subido exitosamente",
   "data": {
-    "logoUrl": "https://delixmi-backend.onrender.com/uploads/logos/logo_1760808510643_5514.jpg",
-    "filename": "logo_1760808510643_5514.jpg",
+    "logoUrl": "https://delixmi-backend.onrender.com/uploads/logos/logo_1760808959176_1798.jpg",
+    "filename": "logo_1760808959176_1798.jpg",
     "originalName": "logo.jpg",
     "size": 358751,
     "mimetype": "image/jpeg",
@@ -964,3 +964,262 @@ const upload = multer({
 
 #### Nota Importante
 **✅ ACTUALIZADO:** Este endpoint ahora actualiza automáticamente el campo `logoUrl` en la base de datos del restaurante después de subir el archivo exitosamente. Esto significa que el logo aparecerá inmediatamente en el perfil del restaurante cuando se consulte con `GET /api/restaurant/profile`.
+
+---
+
+## 🖼️ Subida de Foto de Portada del Restaurante
+
+### Endpoint de Subida de Foto de Portada
+**POST** `/api/restaurant/upload-cover`
+
+#### Configuración del Endpoint
+- **Ruta completa:** `https://delixmi-backend.onrender.com/api/restaurant/upload-cover`
+- **Archivo de ruta:** `src/routes/restaurant-admin.routes.js` (líneas 1131-1137)
+- **Prefijo montado:** `/api/restaurant` (configurado en `src/server.js`)
+
+#### Middlewares Aplicados
+1. **`authenticateToken`** (aplicado a todas las rutas del router)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Verifica JWT token y extrae información del usuario
+
+2. **`requireRole(['owner'])`** (específico de esta ruta)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Verifica que el usuario tenga rol 'owner'
+
+3. **`uploadCover.single('cover')`** (middleware de Multer)
+   - Archivo: `src/config/multer.js`
+   - **Función:** Procesa la subida de un solo archivo con el campo name 'cover'
+   - **Configuración:**
+     - **Almacenamiento:** Disco local en `public/uploads/covers/`
+     - **Formato filename:** `cover_{timestamp}_{randomNumber}.{extension}`
+     - **Límites:** 5MB máximo, solo 1 archivo
+     - **Filtros:** Solo imágenes JPG, JPEG, PNG
+
+4. **`handleMulterError`** (manejo de errores de Multer)
+   - Archivo: `src/config/multer.js`
+   - **Función:** Captura y formatea errores específicos de Multer
+
+#### Controlador: uploadRestaurantCover
+**Archivo:** `src/controllers/upload.controller.js` (líneas 126-214)
+
+##### Flujo del Controlador:
+
+1. **Verificación de archivo subido:**
+   ```javascript
+   if (!req.file) {
+     return res.status(400).json({
+       status: 'error',
+       message: 'No se proporcionó ningún archivo',
+       code: 'NO_FILE_PROVIDED'
+     });
+   }
+   ```
+
+2. **Obtención del restaurantId del usuario autenticado:**
+   ```javascript
+   const userId = req.user.id;
+   const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+   
+   // Verificar rol de owner y obtener restaurantId
+   const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+     assignment => assignment.role.name === 'owner'
+   );
+   const ownerAssignment = ownerAssignments.find(
+     assignment => assignment.restaurantId !== null
+   );
+   const restaurantId = ownerAssignment.restaurantId;
+   ```
+
+3. **Construcción de URL pública y actualización en BD:**
+   ```javascript
+   const baseUrl = getBaseUrl(req);
+   const fileUrl = `${baseUrl}/uploads/covers/${req.file.filename}`;
+   
+   // Actualizar el coverPhotoUrl en la base de datos
+   await RestaurantRepository.updateProfile(restaurantId, { coverPhotoUrl: fileUrl });
+   ```
+
+4. **Respuesta exitosa:**
+   ```javascript
+   res.status(200).json({
+     status: 'success',
+     message: 'Foto de portada subida exitosamente',
+     data: {
+       coverPhotoUrl: fileUrl,
+       filename: req.file.filename,
+       originalName: req.file.originalname,
+       size: req.file.size,
+       mimetype: req.file.mimetype,
+       restaurantId: restaurantId
+     }
+   });
+   ```
+
+#### Configuración de Postman
+
+##### Headers Requeridos:
+```
+Authorization: Bearer {accessToken}
+Content-Type: multipart/form-data (automático)
+```
+
+##### Body Configuration:
+- **Tipo:** `form-data`
+- **Key:** `cover` (tipo: File)
+- **Value:** Seleccionar archivo de imagen
+
+##### Requisitos del Archivo:
+- **Formatos permitidos:** JPG, JPEG, PNG
+- **Tamaño máximo:** 5MB
+- **Solo un archivo por vez**
+
+#### Respuesta Exitosa
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "status": "success",
+  "message": "Foto de portada subida exitosamente",
+  "data": {
+    "coverPhotoUrl": "https://delixmi-backend.onrender.com/uploads/covers/cover_1760809236169_7914.jpg",
+    "filename": "cover_1760809236169_7914.jpg",
+    "originalName": "pizza.jpg",
+    "size": 300752,
+    "mimetype": "image/jpeg",
+    "restaurantId": 3
+  }
+}
+```
+
+#### Estructura de la Respuesta
+- **`status`**: Estado de la respuesta (`"success"`)
+- **`message`**: Mensaje descriptivo
+- **`data.coverPhotoUrl`**: URL completa pública del archivo subido
+- **`data.filename`**: Nombre único generado por Multer
+- **`data.originalName`**: Nombre original del archivo del usuario
+- **`data.size`**: Tamaño del archivo en bytes
+- **`data.mimetype`**: Tipo MIME del archivo
+- **`data.restaurantId`**: ID del restaurante actualizado
+
+#### Manejo de Errores
+
+**400 Bad Request - Sin archivo:**
+```json
+{
+  "status": "error",
+  "message": "No se proporcionó ningún archivo",
+  "code": "NO_FILE_PROVIDED"
+}
+```
+
+**400 Bad Request - Archivo muy grande (>5MB):**
+```json
+{
+  "status": "error",
+  "message": "El archivo es demasiado grande. El tamaño máximo permitido es 5MB",
+  "code": "FILE_TOO_LARGE"
+}
+```
+
+**400 Bad Request - Tipo de archivo inválido (.txt):**
+```json
+{
+  "status": "error",
+  "message": "Solo se permiten archivos JPG, JPEG y PNG",
+  "code": "INVALID_FILE_TYPE"
+}
+```
+
+**400 Bad Request - No es imagen:**
+```json
+{
+  "status": "error",
+  "message": "Solo se permiten archivos de imagen",
+  "code": "INVALID_FILE_TYPE"
+}
+```
+
+**401 Unauthorized - Token faltante/inválido:**
+```json
+{
+  "status": "error",
+  "message": "Token de acceso requerido",
+  "code": "MISSING_TOKEN"
+}
+```
+
+**403 Forbidden - Permisos insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requiere rol de owner",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - Sin restaurante asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este owner",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+#### Lógica de Acceso a Datos
+- **Multer:** Maneja la subida y almacenamiento de archivos usando `uploadCover`
+- **Almacenamiento:** Disco local en `public/uploads/covers/`
+- **Naming:** Nombres únicos basados en timestamp + número aleatorio con prefijo `cover_`
+- **URLs públicas:** Servidas estáticamente desde `/uploads/covers/`
+- **Base de datos:** Actualiza el campo `coverPhotoUrl` del restaurante usando `RestaurantRepository`
+
+#### Servicios Utilizados
+
+- **Multer uploadCover**: `src/config/multer.js` - Manejo específico de uploads de fotos de portada
+- **UserService**: `src/services/user.service.js` - `getUserWithRoles()` para obtener información del usuario
+- **RestaurantRepository**: `src/repositories/restaurant.repository.js` - Actualización del campo `coverPhotoUrl`
+- **ResponseService**: `src/services/response.service.js` - Respuestas consistentes
+- **Express.static**: Configurado en `src/server.js` para servir archivos estáticos
+- **getBaseUrl()**: Función helper para construir URLs robustas en diferentes entornos
+
+#### Configuración de Multer para Covers
+
+```javascript
+const uploadCover = multer({
+  storage: coverStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 1 // Solo un archivo
+  }
+});
+
+// Configuración específica para covers
+const coverStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../../public/uploads/covers');
+    ensureDirectoryExists(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const randomNumber = Math.round(Math.random() * 10000);
+    const extension = path.extname(file.originalname);
+    cb(null, `cover_${timestamp}_${randomNumber}${extension}`);
+  }
+});
+```
+
+#### Diferencias con el Endpoint de Logo
+
+| Aspecto | Logo | Foto de Portada |
+|---------|------|-----------------|
+| **Key en form-data** | `logo` | `cover` |
+| **Directorio** | `/uploads/logos/` | `/uploads/covers/` |
+| **Prefijo filename** | `logo_` | `cover_` |
+| **Campo BD** | `logoUrl` | `coverPhotoUrl` |
+| **Middleware** | `upload.single('logo')` | `uploadCover.single('cover')` |
+
+#### Nota Importante
+**✅ ACTUALIZADO:** Este endpoint ahora actualiza automáticamente el campo `coverPhotoUrl` en la base de datos del restaurante después de subir el archivo exitosamente. Esto significa que la foto de portada aparecerá inmediatamente en el perfil del restaurante cuando se consulte con `GET /api/restaurant/profile`.
