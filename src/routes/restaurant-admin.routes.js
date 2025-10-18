@@ -4,6 +4,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth.middlewar
 const { validate, validateParams } = require('../middleware/validate.middleware');
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
+const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema } = require('../validations/subcategory.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -513,35 +514,7 @@ router.get('/subcategories',
  */
 router.post('/subcategories',
   requireRole(['owner', 'branch_manager']),
-  [
-    body('categoryId')
-      .notEmpty()
-      .withMessage('El ID de la categoría es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la categoría debe ser un número entero válido'),
-    body('name')
-      .notEmpty()
-      .withMessage('El nombre de la subcategoría es requerido')
-      .trim()
-      .isLength({ min: 1, max: 100 })
-      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
-    body('displayOrder')
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage('El orden de visualización debe ser un número entero mayor o igual a 0')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validate(createSubcategorySchema),
   createSubcategory
 );
 

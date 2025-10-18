@@ -6,6 +6,7 @@ const ResponseService = require('../services/response.service');
 const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
 const RestaurantRepository = require('../repositories/restaurant.repository');
 const ProductRepository = require('../repositories/product.repository');
+const SubcategoryRepository = require('../repositories/subcategory.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -900,134 +901,33 @@ const getRestaurantSubcategories = async (req, res) => {
 const createSubcategory = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { categoryId, name, displayOrder = 0 } = req.body;
+    
+    // Los datos ya están validados por Zod
+    const newSubcategory = await SubcategoryRepository.create(req.body, userId, req.id);
 
-    // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
-
-    if (!userWithRoles) {
-      return ResponseService.notFound(res, 'Usuario no encontrado');
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante (owner o branch_manager)
-    const restaurantRoles = ['owner', 'branch_manager'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return ResponseService.forbidden(
-        res, 
-        'Acceso denegado. Se requieren permisos de restaurante',
-        'INSUFFICIENT_PERMISSIONS'
-      );
-    }
-
-    // 3. Obtener el restaurant_id del usuario
-    const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
-      assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+    return ResponseService.success(
+      res,
+      'Subcategoría creada exitosamente',
+      {
+        subcategory: newSubcategory
+      },
+      201
     );
-
-    if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
-      return ResponseService.forbidden(
-        res, 
-        'No se encontró un restaurante asignado para este usuario',
-        'NO_RESTAURANT_ASSIGNED'
-      );
-    }
-
-    const restaurantId = userRestaurantAssignment.restaurantId;
-
-    // 4. Verificar que la categoría existe
-    const categoryIdNum = parseInt(categoryId);
-    const category = await prisma.category.findUnique({
-      where: { id: categoryIdNum },
-      select: {
-        id: true,
-        name: true
-      }
-    });
-
-    if (!category) {
-      return ResponseService.notFound(
-        res, 
-        'Categoría no encontrada',
-        'CATEGORY_NOT_FOUND'
-      );
-    }
-
-    // 5. Crear la subcategoría
-    try {
-      const newSubcategory = await prisma.subcategory.create({
-        data: {
-          restaurantId: restaurantId,
-          categoryId: categoryIdNum,
-          name: name.trim(),
-          displayOrder: parseInt(displayOrder)
-        },
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          restaurant: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
-
-      // 6. Formatear respuesta
-      const formattedSubcategory = {
-        id: newSubcategory.id,
-        name: newSubcategory.name,
-        displayOrder: newSubcategory.displayOrder,
-        category: {
-          id: newSubcategory.category.id,
-          name: newSubcategory.category.name
-        },
-        restaurant: {
-          id: newSubcategory.restaurant.id,
-          name: newSubcategory.restaurant.name
-        },
-        createdAt: newSubcategory.createdAt,
-        updatedAt: newSubcategory.updatedAt
-      };
-
-      // 7. Respuesta exitosa
-      return ResponseService.success(
-        res,
-        'Subcategoría creada exitosamente',
-        {
-          subcategory: formattedSubcategory
-        },
-        201
-      );
-
-    } catch (error) {
-      // Manejar error de restricción única (P2002)
-      if (error.code === 'P2002') {
-        return ResponseService.conflict(
-          res,
-          'Ya existe una subcategoría con ese nombre en esta categoría para tu restaurante',
-          {
-            categoryId: categoryIdNum,
-            categoryName: category.name,
-            subcategoryName: name.trim()
-          },
-          'DUPLICATE_SUBCATEGORY'
-        );
-      }
-      
-      // Re-lanzar el error para que sea manejado por el catch externo
-      throw error;
-    }
 
   } catch (error) {
     console.error('Error creando subcategoría:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };

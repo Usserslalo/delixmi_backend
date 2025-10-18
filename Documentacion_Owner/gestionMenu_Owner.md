@@ -1120,3 +1120,288 @@ Content-Type: application/json
 6. **Validación de Consistencia:** Al cambiar la subcategoría, se verifica que pertenezca al mismo restaurante. Al actualizar grupos de modificadores, se valida que todos pertenezcan al restaurante del producto.
 
 7. **Respuesta Informativa:** La respuesta incluye tanto el producto actualizado completo como una lista de los campos que fueron modificados (`updatedFields`).
+
+---
+
+## 4. Eliminar Producto
+
+### Endpoint
+```http
+DELETE /api/restaurant/products/:productId
+```
+
+### Descripción
+Elimina un producto específico del restaurante. **Importante:** Solo permite eliminar productos que no estén asociados a pedidos activos para mantener la integridad de los datos.
+
+### Configuración en Postman
+
+**Método:** `DELETE`
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/products/18`
+
+**Headers:**
+```
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Parámetros de URL:**
+- `productId` (number, requerido): ID del producto a eliminar
+
+### Middlewares Aplicados
+
+1. **`authenticateToken`**: Verifica que el usuario esté autenticado y el token sea válido
+2. **`requireRole(['owner', 'branch_manager'])`**: Verifica que el usuario tenga rol de propietario o gerente de sucursal
+3. **`validateParams(productParamsSchema)`**: Valida que el `productId` en la URL sea un número válido mayor que 0
+
+### Esquema Zod de Validación
+
+```javascript
+const productParamsSchema = z.object({
+  productId: z
+    .string({ required_error: 'El ID del producto es requerido' })
+    .regex(/^\d+$/, 'El ID del producto debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID del producto debe ser mayor que 0')
+});
+```
+
+### Lógica del Controlador
+
+El controlador `deleteProduct` en `src/controllers/restaurant-admin.controller.js` se refactorizó para usar el patrón Repository:
+
+```javascript
+const deleteProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const userId = req.user.id;
+
+    // Conversión explícita a número para evitar errores de tipo
+    const productIdNum = parseInt(productId, 10);
+    const deletedProductInfo = await ProductRepository.delete(productIdNum, userId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Producto eliminado exitosamente',
+      { deletedProduct: deletedProductInfo },
+      200
+    );
+
+  } catch (error) {
+    console.error('Error eliminando producto:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 409) {
+        // Error crítico: producto en uso
+        return res.status(409).json({
+          status: 'error',
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          suggestion: error.suggestion,
+          data: null
+        });
+      }
+    }
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+### Lógica del Repositorio
+
+El método `ProductRepository.delete()` implementa la lógica crítica para validar que el producto se pueda eliminar de forma segura:
+
+#### Mejora Crítica: Validación de Pedidos Activos
+
+```javascript
+// 4. MEJORA CRÍTICA: Verificar si el producto tiene pedidos activos asociados
+const activeOrderItems = await prisma.orderItem.findMany({
+  where: {
+    productId: productId,
+    order: {
+      status: {
+        in: ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery']
+      }
+    }
+  },
+  include: {
+    order: {
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    }
+  },
+  take: 5 // Límite para evitar respuestas muy grandes
+});
+
+if (activeOrderItems.length > 0) {
+  throw {
+    status: 409,
+    message: 'No se puede eliminar el producto porque está asociado a pedidos activos',
+    code: 'PRODUCT_IN_USE',
+    details: {
+      ordersCount: activeOrderItems.length,
+      productId: productId,
+      productName: existingProduct.name,
+      orders: activeOrderItems.map(item => ({
+        orderId: item.order.id,
+        status: item.order.status,
+        customerName: item.order.customer?.name || 'Cliente no disponible',
+        date: item.order.createdAt
+      }))
+    },
+    suggestion: `Considera marcar el producto como no disponible en lugar de eliminarlo. Usa: PATCH /api/restaurant/products/${productId} con { "isAvailable": false }`
+  };
+}
+```
+
+#### Proceso de Eliminación Segura
+
+```javascript
+// 5. Eliminar el producto y sus asociaciones en una transacción
+return await prisma.$transaction(async (tx) => {
+  // Eliminar asociaciones con modificadores primero
+  await tx.productModifier.deleteMany({
+    where: { productId: productId }
+  });
+  
+  // Eliminar el producto
+  await tx.product.delete({
+    where: { id: productId }
+  });
+  
+  // Retornar información del producto eliminado
+  return {
+    id: existingProduct.id,
+    name: existingProduct.name,
+    restaurantId: existingProduct.restaurantId,
+    restaurantName: existingRestaurant.name,
+    subcategoryName: existingSubcategory.name,
+    deletedAt: new Date().toISOString()
+  };
+});
+```
+
+### Respuesta Exitosa
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "status": "success",
+  "message": "Producto eliminado exitosamente",
+  "timestamp": "2025-10-18T19:09:03.928Z",
+  "data": {
+    "deletedProduct": {
+      "id": 18,
+      "name": "Sushi Premium (Actualizado con Zod)",
+      "restaurantId": 1,
+      "restaurantName": "Pizzería de Ana (Actualizado)",
+      "subcategoryName": "Pizzas Tradicionales",
+      "deletedAt": "2025-10-18T19:09:03.877Z"
+    }
+  }
+}
+```
+
+### Manejo de Errores
+
+#### 1. Error de Validación de Parámetros (400 Bad Request)
+```json
+{
+  "status": "error",
+  "message": "El ID del producto debe ser un número",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "productId",
+      "message": "El ID del producto debe ser un número"
+    }
+  ]
+}
+```
+
+#### 2. Producto No Encontrado (404 Not Found)
+```json
+{
+  "status": "error",
+  "message": "Producto no encontrado",
+  "code": "PRODUCT_NOT_FOUND",
+  "details": {
+    "productId": 999,
+    "searchedBy": "ID"
+  }
+}
+```
+
+#### 3. Sin Autorización (403 Forbidden)
+```json
+{
+  "status": "error",
+  "message": "No tienes permisos para eliminar productos de este restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS",
+  "details": {
+    "userId": 18,
+    "requiredRole": "owner o branch_manager",
+    "targetRestaurantId": 3
+  }
+}
+```
+
+#### 4. **Error Crítico: Producto en Uso (409 Conflict)**
+```json
+{
+  "status": "error",
+  "message": "No se puede eliminar el producto porque está asociado a pedidos activos",
+  "code": "PRODUCT_IN_USE",
+  "details": {
+    "ordersCount": 3,
+    "productId": 18,
+    "productName": "Pizza Margherita",
+    "orders": [
+      {
+        "orderId": "4567891234567890123",
+        "status": "preparing",
+        "customerName": "Juan Pérez",
+        "date": "2025-10-18T19:00:00.000Z"
+      },
+      {
+        "orderId": "4567891234567890124",
+        "status": "confirmed",
+        "customerName": "María García",
+        "date": "2025-10-18T18:45:00.000Z"
+      }
+    ]
+  },
+  "suggestion": "Considera marcar el producto como no disponible en lugar de eliminarlo. Usa: PATCH /api/restaurant/products/18 con { \"isAvailable\": false }"
+}
+```
+
+### Notas Técnicas Importantes
+
+1. **Validación de Pedidos Activos:** El sistema verifica que no haya pedidos en estados activos (`pending`, `confirmed`, `preparing`, `ready_for_pickup`, `out_for_delivery`) antes de permitir la eliminación. Esta es una **mejora crítica** que protege la integridad de los datos.
+
+2. **Transacción Atómica:** La eliminación se realiza en una transacción de Prisma para garantizar que todas las operaciones (eliminación de asociaciones y del producto) se completen exitosamente o se reviertan en caso de error.
+
+3. **Autorización Granular:** Se valida que el usuario tenga permisos específicos sobre el restaurante del producto, no solo el rol general.
+
+4. **Orden de Eliminación:** Se eliminan primero las asociaciones con grupos de modificadores (`productModifier`) y luego el producto en sí, respetando las restricciones de clave foránea.
+
+5. **Respuesta Informativa:** La respuesta incluye información completa del producto eliminado, incluyendo nombres del restaurante y subcategoría para referencia del cliente.
+
+6. **Sugerencia Inteligente:** En caso de conflicto, el sistema ofrece una alternativa práctica (marcar como no disponible) en lugar de simplemente rechazar la operación.
