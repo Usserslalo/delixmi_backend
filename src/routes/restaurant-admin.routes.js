@@ -5,7 +5,7 @@ const { validate, validateParams, validateQuery } = require('../middleware/valid
 const { updateProfileSchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema } = require('../validations/subcategory.validation');
-const { createGroupSchema } = require('../validations/modifier.validation');
+const { createGroupSchema, updateGroupSchema, groupParamsSchema } = require('../validations/modifier.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -726,35 +726,8 @@ router.get(
 router.patch(
   '/modifier-groups/:groupId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('groupId')
-      .isInt({ min: 1 })
-      .withMessage('El ID del grupo debe ser un número entero positivo'),
-    body('name')
-      .optional()
-      .trim()
-      .isLength({ min: 1, max: 100 })
-      .withMessage('El nombre debe tener entre 1 y 100 caracteres'),
-    body('minSelection')
-      .optional()
-      .isInt({ min: 0, max: 10 })
-      .withMessage('La selección mínima debe ser un número entre 0 y 10'),
-    body('maxSelection')
-      .optional()
-      .isInt({ min: 1, max: 10 })
-      .withMessage('La selección máxima debe ser un número entre 1 y 10')
-  ],
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(groupParamsSchema),
+  validate(updateGroupSchema),
   updateModifierGroup
 );
 

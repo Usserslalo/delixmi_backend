@@ -2060,3 +2060,252 @@ El repositorio maneja toda la lógica de negocio con **foco en la validación cr
 5. **Validación de Autorización:** Verifica que la subcategoría pertenezca al restaurante del usuario
 6. **Respuesta Informativa:** Retorna datos de la subcategoría eliminada para confirmación
 7. **Integridad de Datos:** Protege contra la pérdida accidental de información relacionada
+
+---
+
+## **🔧 Gestión de Modificadores - Grupos y Opciones**
+
+### **POST /api/restaurant/modifier-groups** - Crear Grupo de Modificadores
+
+**Descripción:** Crea un nuevo grupo de modificadores para el restaurante. Un grupo de modificadores permite definir opciones que los clientes pueden seleccionar para personalizar sus productos (ej. tamaño, extras, etc.).
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-groups`
+
+**Método:** `POST`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validate(createGroupSchema)`: Valida y transforma los datos del body usando Zod
+
+#### **Esquema de Validación Zod:**
+
+**createGroupSchema:**
+```javascript
+const createGroupSchema = z.object({
+  name: z
+    .string({ required_error: 'El nombre del grupo es requerido' })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(100, 'El nombre debe tener máximo 100 caracteres')
+    .transform(val => val.trim()),
+  minSelection: z
+    .number({ message: 'La selección mínima debe ser un número' })
+    .int({ message: 'La selección mínima debe ser un número entero' })
+    .min(0, 'La selección mínima debe ser mayor o igual a 0')
+    .max(10, 'La selección mínima debe ser menor o igual a 10')
+    .optional()
+    .default(1),
+  maxSelection: z
+    .number({ message: 'La selección máxima debe ser un número' })
+    .int({ message: 'La selección máxima debe ser un número entero' })
+    .min(1, 'La selección máxima debe ser mayor o igual a 1')
+    .max(10, 'La selección máxima debe ser menor o igual a 10')
+    .optional()
+    .default(1)
+}).strict()
+.refine(data => data.minSelection <= data.maxSelection, {
+  message: 'La selección mínima no puede ser mayor que la selección máxima',
+  path: ['minSelection']
+});
+```
+
+**🎯 Validación Crítica:** El esquema incluye un `.refine()` que valida que `minSelection <= maxSelection`, asegurando coherencia en las reglas de selección.
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const createModifierGroup = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const newModifierGroup = await ModifierRepository.createGroup(req.body, userId, req.id);
+
+    return ResponseService.success(res, 'Grupo de modificadores creado exitosamente', {
+      modifierGroup: newModifierGroup
+    }, 201);
+
+  } catch (error) {
+    console.error('Error creando grupo de modificadores:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Simplificado:** Solo 21 líneas vs 109 líneas anteriores
+- **Delegación:** Toda la lógica de negocio se delega al repositorio
+- **Manejo de Errores:** Centralizado con códigos específicos del repositorio
+
+#### **Lógica del ModifierRepository.createGroup():**
+
+El repositorio maneja toda la lógica de negocio:
+
+1. **Validación de Usuario y Roles:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Extracción del Restaurant ID:**
+   ```javascript
+   const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+     assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+   );
+   const restaurantId = userRestaurantAssignment.restaurantId;
+   ```
+
+3. **Validación de Negocio:**
+   ```javascript
+   // Validación adicional de coherencia de datos
+   if (minSelection > maxSelection) {
+     throw {
+       status: 400,
+       message: 'La selección mínima no puede ser mayor que la selección máxima',
+       code: 'INVALID_SELECTION_RANGE'
+     };
+   }
+   ```
+
+4. **Creación del Grupo:**
+   ```javascript
+   const newModifierGroup = await prisma.modifierGroup.create({
+     data: {
+       name: name.trim(),
+       restaurantId: restaurantId,
+       minSelection: parseInt(minSelection),
+       maxSelection: parseInt(maxSelection)
+     },
+     include: { options: { /* campos de opciones */ } }
+   });
+   ```
+
+#### **Request Body:**
+
+```json
+{
+  "name": "Tamaño de Bebida (Zod)",
+  "minSelection": 1,
+  "maxSelection": 1
+}
+```
+
+**Campos:**
+- `name` (string, requerido): Nombre del grupo de modificadores (1-100 caracteres)
+- `minSelection` (number, opcional): Número mínimo de opciones que debe seleccionar el cliente (0-10, default: 1)
+- `maxSelection` (number, opcional): Número máximo de opciones que puede seleccionar el cliente (1-10, default: 1)
+
+#### **Response Exitosa (201 Created):**
+
+```json
+{
+  "status": "success",
+  "message": "Grupo de modificadores creado exitosamente",
+  "timestamp": "2025-10-18T19:59:39.380Z",
+  "data": {
+    "modifierGroup": {
+      "id": 6,
+      "name": "Tamaño de Bebida (Zod)",
+      "minSelection": 1,
+      "maxSelection": 1,
+      "restaurantId": 1,
+      "options": [],
+      "createdAt": "2025-10-18T19:59:39.002Z",
+      "updatedAt": "2025-10-18T19:59:39.002Z"
+    }
+  }
+}
+```
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Campos Básicos):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["name"],
+      "message": "El nombre del grupo es requerido"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Validación Zod (Refine Custom):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "custom",
+      "message": "La selección mínima no puede ser mayor que la selección máxima",
+      "path": ["minSelection"]
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para crear grupos de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository:** Toda la lógica de negocio se centralizó en `ModifierRepository.createGroup()`
+2. **Validación Zod:** Reemplazó `express-validator` con validación más robusta y tipada
+3. **Uso de UserService:** Implementa `UserService.getUserWithRoles()` para consistencia arquitectónica
+4. **Validación de Negocio:** Incluye validación customizada con `.refine()` para coherencia de datos
+5. **Manejo de Errores:** Centralizado con códigos específicos (400, 403, 404)
+6. **Autorización:** Verifica roles de restaurante y extracción correcta del `restaurantId`
+7. **Respuesta Formateada:** Entrega datos completos del grupo creado incluyendo campos de auditoría

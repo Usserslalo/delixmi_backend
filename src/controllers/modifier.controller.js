@@ -159,167 +159,28 @@ const getModifierGroups = async (req, res) => {
  */
 const updateModifierGroup = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { groupId } = req.params;
-    const { name, minSelection, maxSelection } = req.body;
+    const userId = req.user.id;
 
-    // Convertir groupId a número
-    const groupIdNum = parseInt(groupId);
+    const result = await ModifierRepository.updateGroup(groupId, req.body, userId, req.id);
 
-    // 1. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario sea owner o branch_manager
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId
-    );
-
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para actualizar grupos de modificadores',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    // 3. Obtener el restaurantId del usuario
-    const restaurantId = ownerRole ? ownerRole.restaurantId : branchManagerRole.restaurantId;
-
-    // 4. Verificar que el grupo existe y pertenece al restaurante del usuario
-    const existingGroup = await prisma.modifierGroup.findFirst({
-      where: {
-        id: groupIdNum,
-        restaurantId: restaurantId
-      }
-    });
-
-    if (!existingGroup) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Grupo de modificadores no encontrado',
-        code: 'MODIFIER_GROUP_NOT_FOUND'
-      });
-    }
-
-    // 5. Preparar los datos de actualización (solo campos enviados)
-    const updateData = {};
-    
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    
-    if (minSelection !== undefined) {
-      updateData.minSelection = parseInt(minSelection);
-    }
-    
-    if (maxSelection !== undefined) {
-      updateData.maxSelection = parseInt(maxSelection);
-    }
-
-    // Si no hay campos para actualizar
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se proporcionaron campos para actualizar',
-        code: 'NO_FIELDS_TO_UPDATE'
-      });
-    }
-
-    // 6. Validar que minSelection <= maxSelection si ambos están presentes
-    const finalMinSelection = updateData.minSelection !== undefined ? updateData.minSelection : existingGroup.minSelection;
-    const finalMaxSelection = updateData.maxSelection !== undefined ? updateData.maxSelection : existingGroup.maxSelection;
-
-    if (finalMinSelection > finalMaxSelection) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'La selección mínima no puede ser mayor que la selección máxima',
-        code: 'INVALID_SELECTION_RANGE'
-      });
-    }
-
-    // 7. Actualizar el grupo de modificadores
-    const updatedGroup = await prisma.modifierGroup.update({
-      where: { id: groupIdNum },
-      data: updateData,
-      include: {
-        options: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            createdAt: true,
-            updatedAt: true
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        }
-      }
-    });
-
-    // 8. Formatear respuesta
-    const formattedGroup = {
-      id: updatedGroup.id,
-      name: updatedGroup.name,
-      minSelection: updatedGroup.minSelection,
-      maxSelection: updatedGroup.maxSelection,
-      restaurantId: updatedGroup.restaurantId,
-      options: updatedGroup.options.map(option => ({
-        id: option.id,
-        name: option.name,
-        price: Number(option.price),
-        createdAt: option.createdAt,
-        updatedAt: option.updatedAt
-      })),
-      createdAt: updatedGroup.createdAt,
-      updatedAt: updatedGroup.updatedAt
-    };
-
-    // 9. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Grupo de modificadores actualizado exitosamente',
-      data: {
-        modifierGroup: formattedGroup,
-        updatedFields: Object.keys(updateData)
-      }
-    });
+    return ResponseService.success(res, 'Grupo de modificadores actualizado exitosamente', result);
 
   } catch (error) {
     console.error('Error actualizando grupo de modificadores:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      code: 'INTERNAL_ERROR'
-    });
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 400) {
+        return ResponseService.badRequest(res, error.message, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
 
