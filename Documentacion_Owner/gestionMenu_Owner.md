@@ -3550,3 +3550,291 @@ El repositorio maneja toda la lógica de negocio y validaciones críticas:
 7. **Información Detallada:** Respuesta incluye tanto el objeto actualizado como la lista de campos modificados
 8. **Manejo Específico de Errores:** Captura y formatea correctamente errores 400/403/404 con códigos específicos
 9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
+
+---
+
+### **DELETE /api/restaurant/modifier-options/:optionId** - Eliminar Opción de Modificador
+
+**Descripción:** Elimina una opción de modificador existente. Incluye una **corrección crítica** que previene la eliminación de opciones que están siendo utilizadas en carritos de compra activos, garantizando la integridad de los datos del sistema.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-options/:optionId`
+
+**Método:** `DELETE`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(optionParamsSchema)`: Valida y transforma el parámetro `optionId` de la URL
+
+#### **Esquema de Validación Zod:**
+
+**optionParamsSchema** (Validación de Parámetros URL):
+```javascript
+const optionParamsSchema = z.object({
+  optionId: z
+    .string({ required_error: 'El ID de la opción es requerido' })
+    .regex(/^\d+$/, 'El ID de la opción debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID de la opción debe ser mayor que 0')
+});
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const deleteModifierOption = async (req, res) => {
+  try {
+    const { optionId } = req.params;
+    const userId = req.user.id;
+
+    const result = await ModifierRepository.deleteOption(optionId, userId, req.id);
+
+    return ResponseService.success(res, 'Opción de modificador eliminada exitosamente', result);
+
+  } catch (error) {
+    console.error('Error eliminando opción de modificador:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 25 líneas vs 110+ líneas anteriores
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **ResponseService Estándar:** Uso de `ResponseService.success()` para respuestas consistentes
+- **Manejo Específico 409:** Captura el error crítico de conflicto con detalles informativos
+
+#### **Lógica del ModifierRepository.deleteOption():**
+
+El repositorio maneja toda la lógica de negocio, validaciones críticas y **corrección del bug crítico**:
+
+1. **Validación de Usuario y Autorización:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia arquitectónica
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Extracción del RestaurantId:**
+   ```javascript
+   // Obtiene el restaurantId del usuario de forma segura
+   const userRestaurantAssignment = userWithRoles.userRoleAssignments.find(
+     assignment => restaurantRoles.includes(assignment.role.name) && assignment.restaurantId !== null
+   );
+   
+   if (!userRestaurantAssignment || !userRestaurantAssignment.restaurantId) {
+     throw {
+       status: 403,
+       message: 'No se encontró un restaurante asignado para este usuario',
+       code: 'NO_RESTAURANT_ASSIGNED'
+     };
+   }
+   ```
+
+3. **🔒 Validación de Pertenencia de la Opción:**
+   ```javascript
+   // Verifica que la opción existe y pertenece a un grupo del restaurante del usuario
+   const existingOption = await prisma.modifierOption.findFirst({
+     where: {
+       id: optionIdNum,
+       modifierGroup: {
+         restaurantId: restaurantId
+       }
+     },
+     include: {
+       modifierGroup: {
+         select: {
+           id: true,
+           name: true,
+           restaurantId: true
+         }
+       }
+     }
+   });
+
+   if (!existingOption) {
+     throw {
+       status: 404,
+       message: 'Opción de modificador no encontrada',
+       code: 'MODIFIER_OPTION_NOT_FOUND'
+     };
+   }
+   ```
+
+4. **🚨 CORRECCIÓN CRÍTICA DEL BUG - Validación de Uso en Carritos:**
+   ```javascript
+   // NUEVA VALIDACIÓN: Verificar si la opción está siendo usada en carritos activos
+   const cartItemsCount = await prisma.cartItemModifier.count({
+     where: { modifierOptionId: optionIdNum }
+   });
+
+   if (cartItemsCount > 0) {
+     throw {
+       status: 409,
+       message: 'No se puede eliminar la opción porque está siendo usada en carritos de compra activos',
+       code: 'OPTION_IN_USE_IN_CARTS',
+       details: {
+         cartItemsCount: cartItemsCount,
+         optionId: optionIdNum,
+         optionName: existingOption.name
+       }
+     };
+   }
+   ```
+
+5. **Eliminación Segura:**
+   ```javascript
+   // Solo procede si todas las validaciones críticas pasan
+   await prisma.modifierOption.delete({
+     where: { id: optionIdNum }
+   });
+
+   // Retorna información de la opción eliminada
+   return {
+     deletedOption: {
+       id: existingOption.id,
+       name: existingOption.name,
+       price: Number(existingOption.price),
+       modifierGroupId: existingOption.modifierGroupId,
+       deletedAt: new Date().toISOString()
+     }
+   };
+   ```
+
+#### **🚨 Corrección Crítica del Bug:**
+
+**Problema Identificado:** El endpoint original eliminaba opciones de modificadores sin verificar si estaban siendo utilizadas en la tabla `CartItemModifier`, lo que podría causar problemas de integridad referencial y cascadas no deseadas.
+
+**Solución Implementada:**
+- **Nueva Consulta:** `prisma.cartItemModifier.count({ where: { modifierOptionId: optionIdNum } })`
+- **Validación Preventiva:** Si `cartItemsCount > 0`, lanza error 409 Conflict
+- **Código de Error:** `OPTION_IN_USE_IN_CARTS` con detalles informativos
+- **Protección:** Evita eliminaciones que podrían romper la integridad de datos
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+    "status": "success",
+    "message": "Opción de modificador eliminada exitosamente",
+    "timestamp": "2025-10-18T21:09:25.562Z",
+    "data": {
+        "deletedOption": {
+            "id": 26,
+            "name": "Gigante XL (20 pulgadas) (Zod Actualizado)",
+            "price": 110,
+            "modifierGroupId": 1,
+            "deletedAt": "2025-10-18T21:09:25.561Z"
+        }
+    }
+}
+```
+
+**Características de la Respuesta:**
+- **Código 200:** Confirmación de eliminación exitosa
+- **Información de Auditoría:** Incluye ID, nombre, precio y timestamp de eliminación
+- **Conversión de Tipos:** Precio convertido a número JavaScript estándar
+- **Timestamp Preciso:** `deletedAt` generado en el momento exacto de la eliminación
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Parámetros URL):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["optionId"],
+      "message": "El ID de la opción debe ser un número"
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para eliminar opciones de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Opción No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Opción de modificador no encontrada",
+  "code": "MODIFIER_OPTION_NOT_FOUND"
+}
+```
+
+**🚨 409 Conflict - Corrección Crítica del Bug (Opción en Uso en Carritos):**
+```json
+{
+  "status": "error",
+  "message": "No se puede eliminar la opción porque está siendo usada en carritos de compra activos",
+  "code": "OPTION_IN_USE_IN_CARTS",
+  "details": {
+    "cartItemsCount": 3,
+    "optionId": 26,
+    "optionName": "Gigante XL (20 pulgadas) (Zod Actualizado)"
+  }
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `ModifierRepository.deleteOption()`
+2. **Validación Zod Robusta:** `validateParams(optionParamsSchema)` para validación de parámetros URL
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔒 Validación de Autorización:** Verificación de pertenencia de la opción al restaurante del usuario
+5. **🚨 CORRECCIÓN CRÍTICA DEL BUG:** Nueva validación que previene eliminación de opciones en uso en carritos
+6. **Integridad de Datos:** Protección contra cascadas que podrían afectar la integridad referencial
+7. **Manejo Específico 409:** Captura y formatea correctamente el error de conflicto con detalles informativos
+8. **Respuesta de Auditoría:** Proporciona información completa de la opción eliminada para rastreabilidad
+9. **ResponseService Estándar:** Respuesta consistente con timestamp y formato uniforme
