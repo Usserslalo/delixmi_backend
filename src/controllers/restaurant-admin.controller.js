@@ -1759,168 +1759,41 @@ const updateProduct = async (req, res) => {
  */
 const deleteProduct = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { productId } = req.params;
+    const userId = req.user.id;
 
-    // Convertir productId a número
-    const productIdNum = parseInt(productId);
+    // Eliminar el producto usando el repositorio con toda la lógica de negocio
+    const deletedProductInfo = await ProductRepository.delete(productId, userId, req.id);
 
-    // 1. Buscar el producto existente
-    const existingProduct = await prisma.product.findUnique({
-      where: { id: productIdNum },
-      select: {
-        id: true,
-        name: true,
-        restaurantId: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
-        },
-        subcategory: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    });
-
-    if (!existingProduct) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Producto no encontrado',
-        code: 'PRODUCT_NOT_FOUND'
-      });
-    }
-
-    // 2. Obtener información de roles del usuario
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 3. Verificar autorización: el usuario debe tener permisos sobre el restaurante del producto
-    const ownerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId === existingProduct.restaurantId
-    );
-
-    const branchManagerRole = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId === existingProduct.restaurantId
-    );
-
-    // Si no es owner ni branch_manager del restaurante, denegar acceso
-    if (!ownerRole && !branchManagerRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permiso para eliminar este producto',
-        code: 'FORBIDDEN',
-        details: {
-          productId: productIdNum,
-          restaurantId: existingProduct.restaurantId,
-          restaurantName: existingProduct.restaurant.name
-        }
-      });
-    }
-
-    // 4. Verificar si el producto tiene pedidos asociados (con detalles)
-    const orderItems = await prisma.orderItem.findMany({
-      where: { productId: productIdNum },
-      include: {
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            createdAt: true,
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            }
-          }
-        }
-      },
-      take: 5 // Mostrar máximo 5 pedidos
-    });
-
-    if (orderItems.length > 0) {
-      return res.status(409).json({
-        status: 'error',
-        message: 'No se puede eliminar el producto porque está asociado a pedidos existentes',
-        code: 'PRODUCT_IN_USE',
-        details: {
-          ordersCount: orderItems.length,
-          productId: productIdNum,
-          productName: existingProduct.name,
-          orders: orderItems.map(item => ({
-            orderId: item.order.id,
-            orderNumber: item.order.orderNumber,
-            status: item.order.status,
-            customerName: item.order.customer.name,
-            date: item.order.createdAt
-          }))
-        },
-        suggestion: 'Considera marcar el producto como no disponible en lugar de eliminarlo. Usa: PATCH /api/restaurant/products/' + productIdNum + ' con { "isAvailable": false }',
-        devNote: process.env.NODE_ENV === 'development' 
-          ? 'Si estos son pedidos de prueba del seed, reinicia la base de datos con: npx prisma migrate reset' 
-          : undefined
-      });
-    }
-
-    // 5. Eliminar asociaciones con modificadores primero (ProductModifier)
-    await prisma.productModifier.deleteMany({
-      where: { productId: productIdNum }
-    });
-
-    // 6. Eliminar el producto
-    await prisma.product.delete({
-      where: { id: productIdNum }
-    });
-
-    // 7. Respuesta exitosa
+    // Respuesta exitosa
     return ResponseService.success(
       res,
       'Producto eliminado exitosamente',
       {
-        deletedProduct: {
-          id: existingProduct.id,
-          name: existingProduct.name,
-          restaurantId: existingProduct.restaurantId,
-          restaurantName: existingProduct.restaurant.name,
-          subcategoryName: existingProduct.subcategory.name,
-          deletedAt: new Date().toISOString()
-        }
-      }
+        deletedProduct: deletedProductInfo
+      },
+      200
     );
 
   } catch (error) {
-    console.error('Error eliminando producto:', error);
+    // Manejo de errores específicos del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 409) {
+        // Error de conflicto - producto en uso
+        return res.status(409).json({
+          status: 'error',
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          suggestion: error.suggestion,
+          data: null
+        });
+      }
+    }
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };

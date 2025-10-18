@@ -756,25 +756,7 @@ router.patch('/products/:productId',
  */
 router.delete('/products/:productId',
   requireRole(['owner', 'branch_manager']),
-  [
-    param('productId')
-      .notEmpty()
-      .withMessage('El ID del producto es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID del producto debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(productParamsSchema),
   deleteProduct
 );
 

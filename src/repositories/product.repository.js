@@ -415,9 +415,128 @@ class ProductRepository {
   /**
    * Elimina un producto
    * @param {number} productId - ID del producto
-   * @returns {Promise<void>}
+   * @param {number} userId - ID del usuario que está eliminando
+   * @param {string} requestId - ID de la request para logging
+   * @returns {Promise<Object>} Información del producto eliminado
    */
-  static async delete(productId) {
+  static async delete(productId, userId, requestId) {
+    // 1. Buscar el producto existente
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        restaurantId: true,
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true
+          }
+        },
+        subcategory: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!existingProduct) {
+      throw {
+        status: 404,
+        message: 'Producto no encontrado',
+        code: 'PRODUCT_NOT_FOUND'
+      };
+    }
+
+    // 2. Obtener información de roles del usuario
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+    if (!userWithRoles) {
+      throw {
+        status: 404,
+        message: 'Usuario no encontrado',
+        code: 'USER_NOT_FOUND'
+      };
+    }
+
+    // 3. Verificar autorización: el usuario debe tener permisos sobre el restaurante del producto
+    const ownerRole = userWithRoles.userRoleAssignments.find(
+      assignment => assignment.role.name === 'owner' && assignment.restaurantId === existingProduct.restaurantId
+    );
+
+    const branchManagerRole = userWithRoles.userRoleAssignments.find(
+      assignment => assignment.role.name === 'branch_manager' && assignment.restaurantId === existingProduct.restaurantId
+    );
+
+    // Si no es owner ni branch_manager del restaurante, denegar acceso
+    if (!ownerRole && !branchManagerRole) {
+      throw {
+        status: 403,
+        message: 'No tienes permiso para eliminar este producto',
+        code: 'FORBIDDEN',
+        details: {
+          productId: productId,
+          restaurantId: existingProduct.restaurantId,
+          restaurantName: existingProduct.restaurant.name
+        }
+      };
+    }
+
+    // 4. MEJORA CRÍTICA: Verificar si el producto tiene pedidos activos asociados
+    const activeOrderItems = await prisma.orderItem.findMany({
+      where: {
+        productId: productId,
+        order: {
+          status: {
+            in: ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery']
+          }
+        }
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            createdAt: true,
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      },
+      take: 5 // Mostrar máximo 5 pedidos
+    });
+
+    if (activeOrderItems.length > 0) {
+      throw {
+        status: 409,
+        message: 'No se puede eliminar el producto porque está asociado a pedidos activos',
+        code: 'PRODUCT_IN_USE',
+        details: {
+          ordersCount: activeOrderItems.length,
+          productId: productId,
+          productName: existingProduct.name,
+          orders: activeOrderItems.map(item => ({
+            orderId: item.order.id,
+            orderNumber: item.order.orderNumber,
+            status: item.order.status,
+            customerName: item.order.customer.name,
+            date: item.order.createdAt
+          }))
+        },
+        suggestion: `Considera marcar el producto como no disponible en lugar de eliminarlo. Usa: PATCH /api/restaurant/products/${productId} con { "isAvailable": false }`
+      };
+    }
+
+    // 5. Eliminar el producto y sus asociaciones en una transacción
     return await prisma.$transaction(async (tx) => {
       // Eliminar asociaciones con modificadores primero
       await tx.productModifier.deleteMany({
@@ -428,6 +547,16 @@ class ProductRepository {
       await tx.product.delete({
         where: { id: productId }
       });
+
+      // Retornar información del producto eliminado
+      return {
+        id: existingProduct.id,
+        name: existingProduct.name,
+        restaurantId: existingProduct.restaurantId,
+        restaurantName: existingProduct.restaurant.name,
+        subcategoryName: existingProduct.subcategory.name,
+        deletedAt: new Date().toISOString()
+      };
     });
   }
 
