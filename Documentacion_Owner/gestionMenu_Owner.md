@@ -1859,3 +1859,204 @@ El repositorio maneja toda la lógica de negocio:
 4. **Manejo de Errores:** Centralizado con códigos específicos (400, 403, 404, 409)
 5. **Validación de Autorización:** Verifica que la subcategoría pertenezca al restaurante del usuario
 6. **Respuesta Informativa:** Incluye `updatedFields` para mostrar qué campos fueron modificados
+
+---
+
+### **DELETE /api/restaurant/subcategories/:subcategoryId** - Eliminar Subcategoría
+
+**Descripción:** Elimina una subcategoría del menú del restaurante. Incluye una **validación crítica** que previene la eliminación si la subcategoría contiene productos asociados.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/subcategories/:subcategoryId`
+
+**Método:** `DELETE`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(subcategoryParamsSchema)`: Valida y transforma el parámetro `subcategoryId` de la URL usando Zod
+
+#### **Esquema de Validación Zod:**
+
+**subcategoryParamsSchema:**
+```javascript
+const subcategoryParamsSchema = z.object({
+  subcategoryId: z
+    .string({ required_error: 'El ID de la subcategoría es requerido' })
+    .regex(/^\d+$/, 'El ID de la subcategoría debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID de la subcategoría debe ser mayor que 0')
+});
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const deleteSubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+    const userId = req.user.id;
+
+    const deletedSubcategory = await SubcategoryRepository.delete(subcategoryId, userId, req.id);
+
+    return ResponseService.success(res, 'Subcategoría eliminada exitosamente', {
+      deletedSubcategory
+    });
+
+  } catch (error) {
+    console.error('Error eliminando subcategoría:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.details, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+#### **Lógica del SubcategoryRepository.delete():**
+
+El repositorio maneja toda la lógica de negocio con **foco en la validación crítica**:
+
+1. **Validación de Usuario y Roles:**
+   - Obtiene información del usuario con sus roles asignados
+   - Verifica que tenga roles de restaurante (`owner` o `branch_manager`)
+   - Extrae el `restaurantId` del usuario autenticado
+
+2. **Validación de Subcategoría:**
+   - Busca la subcategoría existente por ID
+   - Verifica que pertenezca al restaurante del usuario (autorización)
+   - Retorna error 404 si no se encuentra o 403 si no tiene permisos
+
+3. **🔒 VALIDACIÓN CRÍTICA - Productos Asociados:**
+   ```javascript
+   // 6. VERIFICACIÓN CRÍTICA: Verificar si la subcategoría tiene productos asociados
+   const productsCount = await prisma.product.count({
+     where: {
+       subcategoryId: subcategoryIdNum
+     }
+   });
+
+   if (productsCount > 0) {
+     throw {
+       status: 409,
+       message: 'No se puede eliminar la subcategoría porque todavía contiene productos',
+       code: 'SUBCATEGORY_HAS_PRODUCTS',
+       details: {
+         subcategoryId: subcategoryIdNum,
+         subcategoryName: existingSubcategory.name,
+         productsCount: productsCount,
+         suggestion: 'Mueva o elimine los productos primero antes de eliminar la subcategoría'
+       }
+     };
+   }
+   ```
+
+4. **Eliminación Segura:**
+   - Solo procede a eliminar si no hay productos asociados
+   - Ejecuta `prisma.subcategory.delete()` de forma atómica
+   - Retorna información de la subcategoría eliminada para confirmación
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+  "status": "success",
+  "message": "Subcategoría eliminada exitosamente",
+  "timestamp": "2025-10-18T19:48:43.604Z",
+  "data": {
+    "deletedSubcategory": {
+      "id": 15,
+      "name": "Subcategoría (Actualizada con Zod)",
+      "categoryName": "Pizzas",
+      "restaurantName": "Pizzería de Ana (Actualizado)"
+    }
+  }
+}
+```
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación de Parámetros:**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["subcategoryId"],
+      "message": "El ID de la subcategoría debe ser un número"
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - Subcategoría de Otro Restaurante:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para eliminar esta subcategoría",
+  "code": "FORBIDDEN",
+  "details": {
+    "subcategoryId": 15,
+    "restaurantId": 2,
+    "restaurantName": "Otro Restaurante"
+  }
+}
+```
+
+**404 Not Found - Subcategoría No Encontrada:**
+```json
+{
+  "status": "error",
+  "message": "Subcategoría no encontrada",
+  "code": "SUBCATEGORY_NOT_FOUND",
+  "details": {
+    "subcategoryId": 999
+  }
+}
+```
+
+**🚨 409 Conflict - Subcategoría en Uso (Validación Crítica):**
+```json
+{
+  "status": "error",
+  "message": "No se puede eliminar la subcategoría porque todavía contiene productos",
+  "code": "SUBCATEGORY_HAS_PRODUCTS",
+  "details": {
+    "subcategoryId": 15,
+    "subcategoryName": "Pizzas Tradicionales",
+    "productsCount": 5,
+    "suggestion": "Mueva o elimine los productos primero antes de eliminar la subcategoría"
+  }
+}
+```
+
+> **💡 Nota Importante:** El error 409 Conflict incluye una **sugerencia específica** que guía al usuario sobre cómo proceder: "Mueva o elimine los productos primero antes de eliminar la subcategoría". Esta validación previene la pérdida accidental de datos y mantiene la integridad referencial.
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository:** Toda la lógica de negocio se centralizó en `SubcategoryRepository.delete()`
+2. **Validación Zod:** Reemplazó `express-validator` con `validateParams()` más robusto
+3. **🔒 Validación Crítica:** Implementa verificación de productos asociados que previene eliminaciones accidentales
+4. **Manejo de Errores:** Centralizado con códigos específicos (400, 403, 404, 409)
+5. **Validación de Autorización:** Verifica que la subcategoría pertenezca al restaurante del usuario
+6. **Respuesta Informativa:** Retorna datos de la subcategoría eliminada para confirmación
+7. **Integridad de Datos:** Protege contra la pérdida accidental de información relacionada
