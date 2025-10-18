@@ -2606,3 +2606,295 @@ El repositorio maneja toda la lógica de negocio compleja:
 5. **Actualización Selectiva:** Solo modifica campos enviados, preserva valores existentes
 6. **Verificación de Autorización:** Garantiza que el grupo pertenezca al restaurante del usuario
 7. **Respuesta Detallada:** Proporciona tanto el objeto actualizado como la lista de campos modificados
+
+---
+
+### **DELETE /api/restaurant/modifier-groups/:groupId** - Eliminar Grupo de Modificadores
+
+**Descripción:** Elimina un grupo de modificadores del restaurante. Incluye validaciones críticas para prevenir eliminaciones que podrían romper la integridad de los datos, verificando que no existan opciones asociadas ni productos vinculados al grupo.
+
+**URL:** `https://delixmi-backend.onrender.com/api/restaurant/modifier-groups/:groupId`
+
+**Método:** `DELETE`
+
+#### **Middlewares Aplicados:**
+- `authenticateToken`: Valida el JWT token del usuario autenticado
+- `requireRole(['owner', 'branch_manager'])`: Verifica que el usuario tenga permisos de restaurante
+- `validateParams(groupParamsSchema)`: Valida y transforma el parámetro `groupId` de la URL
+
+#### **Esquema de Validación Zod:**
+
+**groupParamsSchema** (Validación de Parámetros URL):
+```javascript
+const groupParamsSchema = z.object({
+  groupId: z
+    .string({ required_error: 'El ID del grupo es requerido' })
+    .regex(/^\d+$/, 'El ID del grupo debe ser un número')
+    .transform((val) => parseInt(val, 10))
+    .refine((val) => val > 0, 'El ID del grupo debe ser mayor que 0')
+});
+```
+
+#### **Controlador Refactorizado:**
+
+```javascript
+const deleteModifierGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const result = await ModifierRepository.deleteGroup(groupId, userId, req.id);
+
+    return ResponseService.success(res, 'Grupo de modificadores eliminado exitosamente', result);
+
+  } catch (error) {
+    console.error('Error eliminando grupo de modificadores:', error);
+    
+    // Manejo específico de errores del repositorio
+    if (error.status && error.code) {
+      if (error.status === 404) {
+        return ResponseService.notFound(res, error.message, error.code);
+      } else if (error.status === 403) {
+        return ResponseService.forbidden(res, error.message, error.code);
+      } else if (error.status === 409) {
+        return ResponseService.conflict(res, error.message, error.details, error.code);
+      }
+    }
+    
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Ultra Simplificado:** Solo 20 líneas vs 148 líneas anteriores
+- **Delegación Total:** Toda la lógica de negocio delegada al repositorio
+- **Manejo Específico:** Captura errores 409 Conflict para las validaciones críticas
+
+#### **Lógica del ModifierRepository.deleteGroup():**
+
+El repositorio maneja toda la lógica de negocio y **validaciones críticas**:
+
+1. **Validación de Usuario y Autorización:**
+   ```javascript
+   // Usa UserService estandarizado para consistencia
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   
+   // Verifica roles de restaurante
+   const restaurantRoles = ['owner', 'branch_manager'];
+   const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+   const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+   ```
+
+2. **Verificación de Pertenencia del Grupo:**
+   ```javascript
+   // Verifica que el grupo existe y pertenece al restaurante del usuario
+   // Incluye relaciones críticas para validaciones posteriores
+   const existingGroup = await prisma.modifierGroup.findFirst({
+     where: { id: groupIdNum, restaurantId: restaurantId },
+     include: {
+       options: { select: { id: true, name: true } },
+       products: { 
+         select: { 
+           product: { select: { id: true, name: true } } 
+         } 
+       }
+     }
+   });
+   ```
+
+3. **🔒 VALIDACIÓN CRÍTICA 1A - Opciones Asociadas:**
+   ```javascript
+   // Verifica si el grupo tiene opciones asociadas
+   if (existingGroup.options.length > 0) {
+     throw {
+       status: 409,
+       message: 'No se puede eliminar el grupo porque tiene opciones asociadas. Elimina primero las opciones.',
+       code: 'GROUP_HAS_OPTIONS',
+       details: {
+         optionsCount: existingGroup.options.length,
+         options: existingGroup.options.map(option => ({
+           id: option.id,
+           name: option.name
+         }))
+       }
+     };
+   }
+   ```
+
+4. **🔒 VALIDACIÓN CRÍTICA 1B - Productos Asociados:**
+   ```javascript
+   // Verifica si el grupo está asociado a productos (tabla ProductModifier)
+   if (existingGroup.products.length > 0) {
+     throw {
+       status: 409,
+       message: 'No se puede eliminar el grupo porque está asociado a productos. Desasocia primero los productos.',
+       code: 'GROUP_ASSOCIATED_TO_PRODUCTS',
+       details: {
+         productsCount: existingGroup.products.length,
+         products: existingGroup.products.map(pm => ({
+           id: pm.product.id,
+           name: pm.product.name
+         }))
+       }
+     };
+   }
+   ```
+
+5. **Eliminación Segura:**
+   ```javascript
+   // Solo procede si todas las validaciones críticas pasan
+   await prisma.modifierGroup.delete({
+     where: { id: groupIdNum }
+   });
+
+   // Retorna información del grupo eliminado
+   return {
+     deletedGroup: {
+       id: existingGroup.id,
+       name: existingGroup.name,
+       deletedAt: new Date().toISOString()
+     }
+   };
+   ```
+
+#### **Response Exitosa (200 OK):**
+
+```json
+{
+  "status": "success",
+  "message": "Grupo de modificadores eliminado exitosamente",
+  "timestamp": "2025-10-18T20:42:37.416Z",
+  "data": {
+    "deletedGroup": {
+      "id": 6,
+      "name": "Tamaño de Bebida (Actualizado con Zod)",
+      "deletedAt": "2025-10-18T20:42:37.416Z"
+    }
+  }
+}
+```
+
+**Características de la Respuesta:**
+- **Confirmación de Eliminación:** Incluye ID, nombre y timestamp del grupo eliminado
+- **Timestamp Preciso:** `deletedAt` generado en el momento exacto de la eliminación
+- **Información de Auditoría:** Mantiene registro del grupo eliminado para referencias
+
+#### **Manejo de Errores:**
+
+**400 Bad Request - Validación Zod (Parámetros URL):**
+```json
+{
+  "status": "error",
+  "message": "Datos de entrada inválidos",
+  "errors": [
+    {
+      "code": "invalid_string",
+      "path": ["groupId"],
+      "message": "El ID del grupo debe ser un número"
+    }
+  ]
+}
+```
+
+**403 Forbidden - Permisos Insuficientes:**
+```json
+{
+  "status": "error",
+  "message": "No tienes permiso para eliminar grupos de modificadores",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**403 Forbidden - No Restaurante Asignado:**
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este usuario",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**404 Not Found - Usuario No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**404 Not Found - Grupo No Encontrado:**
+```json
+{
+  "status": "error",
+  "message": "Grupo de modificadores no encontrado",
+  "code": "MODIFIER_GROUP_NOT_FOUND"
+}
+```
+
+**🔒 409 Conflict - Validación Crítica 1A (Opciones Asociadas):**
+```json
+{
+  "status": "error",
+  "message": "No se puede eliminar el grupo porque tiene opciones asociadas. Elimina primero las opciones.",
+  "code": "GROUP_HAS_OPTIONS",
+  "details": {
+    "optionsCount": 3,
+    "options": [
+      {
+        "id": 15,
+        "name": "Pequeño"
+      },
+      {
+        "id": 16,
+        "name": "Mediano"
+      },
+      {
+        "id": 17,
+        "name": "Grande"
+      }
+    ]
+  }
+}
+```
+
+**🔒 409 Conflict - Validación Crítica 1B (Productos Asociados):**
+```json
+{
+  "status": "error",
+  "message": "No se puede eliminar el grupo porque está asociado a productos. Desasocia primero los productos.",
+  "code": "GROUP_ASSOCIATED_TO_PRODUCTS",
+  "details": {
+    "productsCount": 2,
+    "products": [
+      {
+        "id": 25,
+        "name": "Pizza Margherita"
+      },
+      {
+        "id": 26,
+        "name": "Pizza Pepperoni"
+      }
+    ]
+  }
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor"
+}
+```
+
+#### **Características de la Refactorización:**
+
+1. **Patrón Repository Completo:** Toda la lógica de negocio centralizada en `ModifierRepository.deleteGroup()`
+2. **Validación Zod Robusta:** `validateParams(groupParamsSchema)` para validación de parámetros URL
+3. **Consistencia Arquitectónica:** Uso de `UserService.getUserWithRoles()` estandarizado
+4. **🔒 Validaciones Críticas Preservadas:** Mantiene las dos validaciones críticas para integridad de datos
+5. **Verificación de Autorización:** Garantiza que el grupo pertenezca al restaurante del usuario
+6. **Manejo Específico 409:** Captura y formatea correctamente los errores de conflicto con detalles informativos
+7. **Respuesta de Auditoría:** Proporciona información completa del grupo eliminado para rastreabilidad
