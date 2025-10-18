@@ -108,6 +108,27 @@ app.use(express.urlencoded({ extended: true }));
 // Servir archivos estáticos desde la carpeta public
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Configuración específica para servir archivos de uploads con headers apropiados
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads'), {
+  setHeaders: (res, path) => {
+    // Configurar headers para imágenes según su extensión
+    if (path.match(/\.jpg$|\.jpeg$/i)) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (path.match(/\.png$/i)) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (path.match(/\.gif$/i)) {
+      res.setHeader('Content-Type', 'image/gif');
+    } else if (path.match(/\.webp$/i)) {
+      res.setHeader('Content-Type', 'image/webp');
+    }
+    
+    // Configurar cache para todas las imágenes de uploads
+    if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+    }
+  }
+}));
+
 // Ruta de prueba de conexión
 app.get('/health', async (req, res) => {
   try {

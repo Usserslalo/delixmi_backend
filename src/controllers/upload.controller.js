@@ -1,4 +1,19 @@
 /**
+ * Función helper para construir la URL base de manera robusta
+ */
+const getBaseUrl = (req) => {
+  // Primero intentar usar BASE_URL del entorno si está definido
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL;
+  }
+  
+  // Si no, construir la URL desde la request (funciona con proxies como Render)
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  return `${protocol}://${host}`;
+};
+
+/**
  * Controlador para subir logo del restaurante
  * POST /api/restaurant/uploads/logo
  */
@@ -13,8 +28,8 @@ const uploadRestaurantLogo = async (req, res) => {
       });
     }
 
-    // Construir la URL pública del archivo
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    // Construir la URL pública del archivo de manera robusta
+    const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
 
     // Respuesta exitosa
@@ -55,8 +70,8 @@ const uploadRestaurantCover = async (req, res) => {
       });
     }
 
-    // Construir la URL pública del archivo
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    // Construir la URL pública del archivo de manera robusta
+    const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/covers/${req.file.filename}`;
 
     // Respuesta exitosa
