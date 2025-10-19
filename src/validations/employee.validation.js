@@ -74,24 +74,22 @@ const employeeQuerySchema = z.object({
   page: z
     .string()
     .optional()
-    .default("1")
-    .regex(/^\d+$/, 'La página debe ser un número')
-    .transform(Number)
+    .refine(val => !val || /^\d+$/.test(val), { message: 'La página debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : 1)
     .refine(val => val > 0, 'La página debe ser mayor que 0'),
     
   pageSize: z
     .string()
     .optional()
-    .default("15")
-    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
-    .transform(Number)
+    .refine(val => !val || /^\d+$/.test(val), { message: 'El tamaño de página debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : 15)
     .refine(val => val > 0 && val <= 100, 'El tamaño de página debe estar entre 1 y 100'),
     
   roleId: z
     .string()
-    .regex(/^\d+$/, 'El ID del rol debe ser un número')
-    .transform(Number)
-    .optional(),
+    .optional()
+    .refine(val => !val || /^\d+$/.test(val), { message: 'El ID del rol debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : undefined),
     
   status: z
     .enum(['active', 'inactive', 'pending', 'suspended'], {
