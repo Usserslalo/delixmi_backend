@@ -8,6 +8,7 @@ const RestaurantRepository = require('../repositories/restaurant.repository');
 const ProductRepository = require('../repositories/product.repository');
 const SubcategoryRepository = require('../repositories/subcategory.repository');
 const ScheduleRepository = require('../repositories/schedule.repository');
+const BranchRepository = require('../repositories/branch.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -3275,6 +3276,77 @@ const updateLocation = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene la información de la sucursal principal del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getPrimaryBranch = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return ResponseService.forbidden(
+        res, 
+        'No se encontró un restaurante asignado para este owner',
+        null,
+        'NO_RESTAURANT_ASSIGNED'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Buscar la sucursal principal usando BranchRepository
+    const primaryBranch = await BranchRepository.findPrimaryBranchByRestaurantId(restaurantId);
+
+    if (!primaryBranch) {
+      return ResponseService.notFound(
+        res,
+        'Sucursal principal no encontrada',
+        'PRIMARY_BRANCH_NOT_FOUND'
+      );
+    }
+
+    return ResponseService.success(
+      res,
+      'Sucursal principal obtenida exitosamente',
+      {
+        branch: primaryBranch
+      }
+    );
+
+  } catch (error) {
+    console.error('Error obteniendo sucursal principal:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3299,6 +3371,7 @@ module.exports = {
   formatOrderForSocket,
   deactivateProductsByTag,
   getLocationStatus,
-  updateLocation
+  updateLocation,
+  getPrimaryBranch
 };
 

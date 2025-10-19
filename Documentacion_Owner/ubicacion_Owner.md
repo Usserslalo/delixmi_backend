@@ -183,35 +183,92 @@ const updateLocationSchema = z.object({
 4. Llama a `RestaurantRepository.updateLocation(restaurantId, data)`
 
 **Repositorio**: `updateLocation` en `restaurant.repository.js`
+
+El método `updateLocation` ahora implementa un comportamiento mejorado que, además de actualizar la ubicación del restaurante, también gestiona automáticamente la sucursal principal asociada:
+
 ```javascript
 static async updateLocation(restaurantId, data) {
-  return await prisma.restaurant.update({
-    where: { id: restaurantId },
-    data: {
-      latitude: data.latitude,
-      longitude: data.longitude,
-      address: data.address || undefined,
-      updatedAt: new Date()
-    },
-    select: {
-      id: true,
-      name: true,
-      latitude: true,
-      longitude: true,
-      address: true,
-      updatedAt: true
+  return await prisma.$transaction(async (tx) => {
+    // 1. Actualizar el restaurante
+    const updatedRestaurant = await tx.restaurant.update({
+      where: { id: restaurantId },
+      data: {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        address: data.address || undefined,
+        updatedAt: new Date()
+      },
+      select: {
+        id: true,
+        name: true,
+        latitude: true,
+        longitude: true,
+        address: true,
+        updatedAt: true
+      }
+    });
+
+    // 2. Buscar si existe una sucursal asociada a este restaurante
+    const existingBranch = await tx.branch.findFirst({
+      where: {
+        restaurantId: restaurantId
+      }
+    });
+
+    if (existingBranch) {
+      // 3a. Si existe la sucursal, actualizarla con los mismos datos de ubicación
+      await tx.branch.update({
+        where: {
+          id: existingBranch.id
+        },
+        data: {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          address: data.address || undefined,
+          updatedAt: new Date()
+        }
+      });
+    } else {
+      // 3b. Si no existe la sucursal, crearla
+      await tx.branch.create({
+        data: {
+          restaurantId: restaurantId,
+          name: updatedRestaurant.name || 'Principal',
+          address: data.address || undefined,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          status: 'active'
+        }
+      });
     }
+
+    return updatedRestaurant;
   });
 }
 ```
+
+#### Gestión Automática de Sucursal Principal
+
+El método `updateLocation` ahora incluye lógica adicional para garantizar que la ubicación de la sucursal principal siempre esté sincronizada con la ubicación del restaurante:
+
+1. **Actualmente existe una sucursal**: Se actualiza automáticamente con los mismos datos de ubicación (latitude, longitude, address)
+
+2. **No existe sucursal**: Se crea automáticamente una nueva sucursal con:
+   - Nombre: "Principal" o el nombre del restaurante (si está disponible)
+   - Estado: `active`
+   - Mismos datos de ubicación que el restaurante
+
+3. **Transacción atómica**: Toda la operación se ejecuta dentro de una transacción de base de datos, garantizando consistencia en caso de errores.
+
+Esta simplificación elimina la necesidad de gestionar sucursales manualmente, ya que cada restaurante ahora tiene automáticamente una única sucursal que refleja su ubicación principal.
 
 ### Payload de Ejemplo
 
 ```json
 {
-  "latitude": 19.432608,
-  "longitude": -99.133209,
-  "address": "Plaza de la Constitución S/N, Centro Histórico, CDMX"
+  "latitude": 20.5880,
+  "longitude": -100.3899,
+  "address": "Calle Corregidora 1, Centro, Querétaro"
 }
 ```
 
@@ -221,15 +278,15 @@ static async updateLocation(restaurantId, data) {
 {
     "status": "success",
     "message": "Ubicación del restaurante actualizada exitosamente",
-    "timestamp": "2025-10-18T23:17:51.115Z",
+    "timestamp": "2025-10-19T17:20:51.271Z",
     "data": {
         "restaurant": {
             "id": 1,
-            "name": "Pizzería de Ana (Actualizado)",
-            "latitude": "19.432608",
-            "longitude": "-99.133209",
-            "address": "Plaza de la Constitución S/N, Centro Histórico, CDMX",
-            "updatedAt": "2025-10-18T23:17:50.682Z"
+            "name": "Pizzería de Ana",
+            "latitude": "20.588",
+            "longitude": "-100.3899",
+            "address": "Calle Corregidora 1, Centro, Querétaro",
+            "updatedAt": "2025-10-19T17:20:50.557Z"
         }
     }
 }
@@ -269,6 +326,166 @@ static async updateLocation(restaurantId, data) {
     "status": "error",
     "message": "Usuario no encontrado",
     "code": "NOT_FOUND"
+}
+```
+
+---
+
+## Endpoint GET /api/restaurant/primary-branch
+
+### Descripción
+Obtiene la información de la sucursal principal (única activa) asociada al restaurante del owner autenticado. Este endpoint es especialmente útil para aplicaciones Flutter que necesitan mostrar la información de la sucursal única del restaurante.
+
+### Middlewares
+- `authenticateToken`: Verifica que el usuario esté autenticado
+- `requireRole(['owner'])`: Verifica que el usuario tenga rol de owner
+
+### Lógica del Controlador y Repositorio
+
+**Controlador**: `getPrimaryBranch` en `restaurant-admin.controller.js`
+
+1. **Validación de Usuario**: Obtiene el `userId` del token autenticado y verifica que el usuario tenga rol de owner
+2. **Obtención del Restaurant**: Usa `UserService.getUserWithRoles()` para obtener el `restaurantId` asociado al owner
+3. **Búsqueda de Sucursal**: Llama a `BranchRepository.findPrimaryBranchByRestaurantId(restaurantId)` para obtener la sucursal principal
+4. **Validación de Resultado**: Si la sucursal no existe, devuelve error 404; si existe, devuelve la información completa
+
+**Repositorio**: Utiliza `BranchRepository.findPrimaryBranchByRestaurantId()` que:
+- Busca la primera sucursal activa (`status: 'active'`) asociada al restaurante
+- Devuelve información completa de la sucursal incluyendo ubicación, horarios de entrega, configuración, etc.
+
+### Respuesta Exitosa
+
+```json
+{
+    "status": "success",
+    "message": "Sucursal principal obtenida exitosamente",
+    "timestamp": "2025-10-19T17:30:00.000Z",
+    "data": {
+        "branch": {
+            "id": 1,
+            "restaurantId": 1,
+            "name": "Pizzería de Ana",
+            "address": "Calle Corregidora 1, Centro, Querétaro",
+            "latitude": "20.588",
+            "longitude": "-100.3899",
+            "phone": null,
+            "usesPlatformDrivers": true,
+            "deliveryFee": "25.00",
+            "estimatedDeliveryMin": 25,
+            "estimatedDeliveryMax": 35,
+            "deliveryRadius": "5.00",
+            "status": "active",
+            "createdAt": "2025-10-18T22:30:00.000Z",
+            "updatedAt": "2025-10-19T17:20:50.557Z"
+        }
+    }
+}
+```
+
+### Manejo de Errores
+
+**Error 404 - Sucursal Principal No Encontrada**
+```json
+{
+    "status": "error",
+    "message": "Sucursal principal no encontrada",
+    "code": "PRIMARY_BRANCH_NOT_FOUND"
+}
+```
+
+**Error 403 - Permisos Insuficientes**
+```json
+{
+    "status": "error",
+    "message": "Acceso denegado. Se requiere rol de owner",
+    "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+**Error 403 - Sin Restaurante Asignado**
+```json
+{
+    "status": "error",
+    "message": "No se encontró un restaurante asignado para este owner",
+    "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+**Error 404 - Usuario No Encontrado**
+```json
+{
+    "status": "error",
+    "message": "Usuario no encontrado",
+    "code": "NOT_FOUND"
+}
+```
+
+### Características del Endpoint
+
+- **Sin middleware de ubicación**: A diferencia de otros endpoints, este NO requiere `requireRestaurantLocation` ya que es información básica que puede necesitarse antes de configurar la ubicación
+- **Optimizado para Flutter**: Devuelve toda la información necesaria de la sucursal en una sola petición
+- **Información completa**: Incluye datos de ubicación, configuración de entrega, estado de la sucursal, etc.
+
+---
+
+## BranchRepository - Gestión de Sucursal Principal
+
+### Nuevo Repositorio Creado
+
+Se ha creado un nuevo repositorio `BranchRepository` en `src/repositories/branch.repository.js` para facilitar la gestión de la sucursal única de cada restaurante.
+
+### Método `findPrimaryBranchByRestaurantId()`
+
+Este método está diseñado para obtener fácilmente la sucursal principal (única) asociada a un restaurante:
+
+```javascript
+/**
+ * Busca la sucursal principal (única) asociada a un restaurante
+ * @param {number} restaurantId - ID del restaurante
+ * @returns {Promise<Object|null>} Sucursal encontrada o null
+ */
+static async findPrimaryBranchByRestaurantId(restaurantId) {
+  return await prisma.branch.findFirst({
+    where: {
+      restaurantId: restaurantId,
+      status: 'active'
+    },
+    select: {
+      id: true,
+      restaurantId: true,
+      name: true,
+      address: true,
+      latitude: true,
+      longitude: true,
+      phone: true,
+      usesPlatformDrivers: true,
+      deliveryFee: true,
+      estimatedDeliveryMin: true,
+      estimatedDeliveryMax: true,
+      deliveryRadius: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+}
+```
+
+### Uso en Otros Repositorios
+
+Este método es especialmente útil para otros repositorios que necesiten operar sobre la sucursal única, como:
+- **ProductRepository**: Para asociar productos a la sucursal principal automáticamente
+- **ScheduleRepository**: Para gestionar horarios de la sucursal principal
+- **OrderRepository**: Para procesar pedidos de la sucursal única
+
+**Ejemplo de uso:**
+```javascript
+const BranchRepository = require('./branch.repository');
+
+// En cualquier repositorio que necesite el branchId
+const primaryBranch = await BranchRepository.findPrimaryBranchByRestaurantId(restaurantId);
+if (primaryBranch) {
+  // Operar con primaryBranch.id
 }
 ```
 
