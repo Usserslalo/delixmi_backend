@@ -139,6 +139,32 @@ class RestaurantRepository {
   }
 
   /**
+   * Obtiene los datos completos de ubicación del restaurante
+   * @param {number} restaurantId - ID del restaurante
+   * @returns {Promise<Object|null>} Datos de ubicación o null si no está configurada
+   */
+  static async getLocationData(restaurantId) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        latitude: true,
+        longitude: true,
+        address: true
+      }
+    });
+
+    if (!restaurant || restaurant.latitude === null || restaurant.longitude === null) {
+      return null;
+    }
+
+    return {
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      address: restaurant.address
+    };
+  }
+
+  /**
    * Actualiza la ubicación del restaurante
    * @param {number} restaurantId - ID del restaurante
    * @param {Object} data - Datos de ubicación { latitude, longitude, address? }

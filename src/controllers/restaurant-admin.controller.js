@@ -3475,14 +3475,16 @@ const getLocationStatus = async (req, res) => {
 
     const restaurantId = ownerAssignment.restaurantId;
 
-    // 4. Verificar el estado de configuración de ubicación
+    // 4. Verificar el estado de configuración de ubicación y obtener datos completos
     const isLocationSet = await RestaurantRepository.getLocationStatus(restaurantId);
+    const locationData = await RestaurantRepository.getLocationData(restaurantId);
 
     return ResponseService.success(
       res,
       'Estado de ubicación obtenido exitosamente',
       {
-        isLocationSet: isLocationSet
+        isLocationSet: isLocationSet,
+        location: locationData
       }
     );
 
