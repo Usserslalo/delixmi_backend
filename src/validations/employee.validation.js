@@ -73,18 +73,18 @@ const employeeParamsSchema = z.object({
 const employeeQuerySchema = z.object({
   page: z
     .string()
+    .optional()
+    .default("1")
     .regex(/^\d+$/, 'La página debe ser un número')
     .transform(Number)
-    .optional()
-    .default(1)
     .refine(val => val > 0, 'La página debe ser mayor que 0'),
     
   pageSize: z
     .string()
+    .optional()
+    .default("15")
     .regex(/^\d+$/, 'El tamaño de página debe ser un número')
     .transform(Number)
-    .optional()
-    .default(15)
     .refine(val => val > 0 && val <= 100, 'El tamaño de página debe estar entre 1 y 100'),
     
   roleId: z
@@ -115,7 +115,7 @@ const assignmentParamsSchema = z.object({
     })
     .regex(/^\d+$/, 'El ID de asignación debe ser un número')
     .transform(Number)
-    .positive('ID de asignación inválido')
+    .refine(val => val > 0, 'ID de asignación inválido')
 });
 
 /**
