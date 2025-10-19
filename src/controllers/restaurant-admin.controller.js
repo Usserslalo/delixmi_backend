@@ -3454,6 +3454,48 @@ const getEmployees = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza el rol y/o estado de un empleado
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const updateEmployee = async (req, res) => {
+  try {
+    const assignmentId = req.params.assignmentId;
+    const ownerUserId = req.user.id;
+    const updateData = req.body;
+
+    // Delegar la lógica al repositorio
+    const result = await EmployeeRepository.updateEmployeeAssignment(
+      assignmentId,
+      updateData,
+      ownerUserId,
+      req.id
+    );
+
+    return ResponseService.success(
+      res,
+      'Empleado actualizado exitosamente',
+      result
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error actualizando empleado:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3481,6 +3523,7 @@ module.exports = {
   updateLocation,
   getPrimaryBranch,
   createEmployee,
-  getEmployees
+  getEmployees,
+  updateEmployee
 };
 

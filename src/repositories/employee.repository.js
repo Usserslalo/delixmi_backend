@@ -503,6 +503,260 @@ class EmployeeRepository {
       };
     }
   }
+
+  /**
+   * Actualiza el rol y/o estado de un empleado mediante su UserRoleAssignment
+   * @param {number} assignmentId - ID de la UserRoleAssignment a actualizar
+   * @param {Object} updateData - Datos a actualizar (roleId?, status?)
+   * @param {number} ownerUserId - ID del usuario owner que está actualizando
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Datos actualizados del empleado y asignación
+   */
+  static async updateEmployeeAssignment(assignmentId, updateData, ownerUserId, requestId) {
+    const { roleId, status } = updateData;
+
+    try {
+      logger.debug('Iniciando actualización de asignación de empleado', {
+        requestId,
+        meta: { assignmentId, roleId, status, ownerUserId }
+      });
+
+      // 1. Obtener información del owner y su restaurantId
+      const ownerUserWithRoles = await UserService.getUserWithRoles(ownerUserId, requestId);
+
+      if (!ownerUserWithRoles) {
+        throw { status: 404, message: 'Usuario owner no encontrado', code: 'OWNER_NOT_FOUND' };
+      }
+
+      const ownerAssignment = ownerUserWithRoles.userRoleAssignments.find(
+        assignment => assignment.role.name === 'owner' && assignment.restaurantId !== null
+      );
+
+      if (!ownerAssignment || !ownerAssignment.restaurantId) {
+        throw {
+          status: 403,
+          message: 'No tienes un restaurante asignado para actualizar empleados',
+          code: 'NO_RESTAURANT_ASSIGNED',
+          details: { userId: ownerUserId }
+        };
+      }
+      const ownerRestaurantId = ownerAssignment.restaurantId;
+
+      // 2. Buscar la UserRoleAssignment por ID (incluye el usuario)
+      const assignment = await prisma.userRoleAssignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true,
+              status: true,
+              emailVerifiedAt: true,
+              phoneVerifiedAt: true,
+              createdAt: true,
+              updatedAt: true
+            }
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              displayName: true,
+              description: true
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      if (!assignment) {
+        throw {
+          status: 404,
+          message: 'Asignación de empleado no encontrada',
+          code: 'ASSIGNMENT_NOT_FOUND',
+          details: { assignmentId }
+        };
+      }
+
+      // 3. Validar que la asignación pertenece al restaurante del owner
+      if (assignment.restaurantId !== ownerRestaurantId) {
+        throw {
+          status: 403,
+          message: 'No tienes permisos para actualizar este empleado',
+          code: 'FORBIDDEN_ACCESS',
+          details: { 
+            assignmentId, 
+            assignmentRestaurantId: assignment.restaurantId,
+            ownerRestaurantId 
+          }
+        };
+      }
+
+      // 4. Inicializar array de campos actualizados
+      const updatedFields = [];
+
+      // 5. Actualizar rol si se proporciona
+      if (roleId !== undefined) {
+        // Validar que el nuevo rol existe y es válido para empleados
+        const newRole = await prisma.role.findUnique({ where: { id: roleId } });
+        
+        if (!newRole) {
+          throw {
+            status: 400,
+            message: 'Rol no encontrado',
+            code: 'INVALID_ROLE_ID',
+            details: { roleId }
+          };
+        }
+
+        const allowedEmployeeRoles = ['branch_manager', 'order_manager', 'kitchen_staff', 'driver_restaurant'];
+        if (!allowedEmployeeRoles.includes(newRole.name)) {
+          throw {
+            status: 400,
+            message: 'Rol no válido para empleados',
+            code: 'INVALID_EMPLOYEE_ROLE',
+            details: { roleId, roleName: newRole.name, validRoles: allowedEmployeeRoles }
+          };
+        }
+
+        // Actualizar la asignación con el nuevo rol
+        await prisma.userRoleAssignment.update({
+          where: { id: assignmentId },
+          data: { roleId: roleId }
+        });
+
+        updatedFields.push('roleId');
+        logger.debug('Rol actualizado exitosamente', {
+          requestId,
+          meta: { assignmentId, oldRoleId: assignment.roleId, newRoleId: roleId }
+        });
+      }
+
+      // 6. Actualizar estado si se proporciona
+      if (status !== undefined) {
+        await prisma.user.update({
+          where: { id: assignment.user.id },
+          data: { status: status }
+        });
+
+        updatedFields.push('status');
+        logger.debug('Estado actualizado exitosamente', {
+          requestId,
+          meta: { assignmentId, userId: assignment.user.id, newStatus: status }
+        });
+      }
+
+      // 7. Obtener datos finales actualizados
+      const updatedAssignment = await prisma.userRoleAssignment.findUnique({
+        where: { id: assignmentId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true,
+              status: true,
+              emailVerifiedAt: true,
+              phoneVerifiedAt: true,
+              createdAt: true,
+              updatedAt: true
+            }
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              displayName: true,
+              description: true
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      logger.info('Asignación de empleado actualizada exitosamente', {
+        requestId,
+        meta: { 
+          assignmentId, 
+          updatedFields,
+          userId: assignment.user.id,
+          restaurantId: ownerRestaurantId
+        }
+      });
+
+      // 8. Formatear respuesta
+      return {
+        assignment: {
+          id: updatedAssignment.id,
+          roleId: updatedAssignment.roleId,
+          restaurantId: updatedAssignment.restaurantId,
+          branchId: updatedAssignment.branchId
+        },
+        employee: {
+          id: updatedAssignment.user.id,
+          name: updatedAssignment.user.name,
+          lastname: updatedAssignment.user.lastname,
+          email: updatedAssignment.user.email,
+          phone: updatedAssignment.user.phone,
+          status: updatedAssignment.user.status,
+          emailVerifiedAt: updatedAssignment.user.emailVerifiedAt,
+          phoneVerifiedAt: updatedAssignment.user.phoneVerifiedAt,
+          createdAt: updatedAssignment.user.createdAt,
+          updatedAt: updatedAssignment.user.updatedAt,
+          role: {
+            id: updatedAssignment.role.id,
+            name: updatedAssignment.role.name,
+            displayName: updatedAssignment.role.displayName,
+            description: updatedAssignment.role.description
+          },
+          restaurant: {
+            id: updatedAssignment.restaurant.id,
+            name: updatedAssignment.restaurant.name
+          }
+        },
+        updatedFields
+      };
+
+    } catch (error) {
+      logger.error('Error actualizando asignación de empleado', {
+        requestId,
+        meta: { 
+          assignmentId, 
+          updateData,
+          ownerUserId,
+          error: error.message 
+        }
+      });
+
+      // Si es un error controlado (con status), lo relanzamos
+      if (error.status) {
+        throw error;
+      }
+
+      // Error interno no controlado
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR',
+        originalError: error.message
+      };
+    }
+  }
 }
 
 module.exports = EmployeeRepository;

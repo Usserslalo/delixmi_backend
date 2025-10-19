@@ -8,8 +8,8 @@ const { createProductSchema, updateProductSchema, productParamsSchema } = requir
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
-const { createEmployeeSchema, employeeQuerySchema } = require('../validations/employee.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee, getEmployees } = require('../controllers/restaurant-admin.controller');
+const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updateEmployeeSchema } = require('../validations/employee.validation');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -134,6 +134,23 @@ router.get(
   requireRestaurantLocation,
   validateQuery(employeeQuerySchema),
   getEmployees
+);
+
+/**
+ * @route   PATCH /api/restaurant/employees/:assignmentId
+ * @desc    Actualizar el rol y/o estado de un empleado específico
+ * @access  Private (Owner Only)
+ * @param   assignmentId - ID de la UserRoleAssignment del empleado
+ * @body    roleId (opcional) - Nuevo ID del rol a asignar
+ * @body    status (opcional) - Nuevo estado del empleado (active, inactive, suspended)
+ */
+router.patch(
+  '/employees/:assignmentId',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validateParams(assignmentParamsSchema),
+  validate(updateEmployeeSchema),
+  updateEmployee
 );
 
 /**

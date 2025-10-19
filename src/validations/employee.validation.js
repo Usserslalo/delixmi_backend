@@ -105,8 +105,48 @@ const employeeQuerySchema = z.object({
     .optional()
 });
 
+/**
+ * Esquema de validación para parámetros de asignación de empleado (ID de UserRoleAssignment)
+ */
+const assignmentParamsSchema = z.object({
+  assignmentId: z
+    .string({
+      required_error: 'El ID de asignación es requerido'
+    })
+    .regex(/^\d+$/, 'El ID de asignación debe ser un número')
+    .transform(Number)
+    .positive('ID de asignación inválido')
+});
+
+/**
+ * Esquema de validación para actualizar empleado (rol y/o estado)
+ */
+const updateEmployeeSchema = z.object({
+  roleId: z
+    .number({
+      invalid_type_error: 'El rol debe ser un número'
+    })
+    .int('El rol debe ser un número entero')
+    .positive('Debe seleccionar un rol válido')
+    .optional(),
+    
+  status: z
+    .enum(['active', 'inactive', 'suspended'], {
+      errorMap: () => ({ message: 'Estado inválido. Debe ser: active, inactive o suspended' })
+    })
+    .optional()
+}).refine(
+  data => data.roleId !== undefined || data.status !== undefined,
+  {
+    message: 'Debe proporcionar al menos uno de los campos: roleId o status',
+    path: ['roleId']
+  }
+);
+
 module.exports = {
   createEmployeeSchema,
   employeeParamsSchema,
-  employeeQuerySchema
+  employeeQuerySchema,
+  assignmentParamsSchema,
+  updateEmployeeSchema
 };

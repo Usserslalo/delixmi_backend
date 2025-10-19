@@ -376,20 +376,42 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
 {
     "status": "success",
     "message": "Empleados obtenidos exitosamente",
-    "timestamp": "2025-10-19T19:00:00.000Z",
+    "timestamp": "2025-10-19T18:48:02.284Z",
     "data": {
         "employees": [
             {
                 "id": 2,
+                "name": "Ana",
+                "lastname": "García",
+                "email": "ana.garcia@pizzeria.com",
+                "phone": "2222222222",
+                "status": "active",
+                "emailVerifiedAt": "2025-10-19T17:52:40.913Z",
+                "phoneVerifiedAt": "2025-10-19T17:52:40.913Z",
+                "createdAt": "2025-10-19T17:52:40.914Z",
+                "updatedAt": "2025-10-19T17:52:40.914Z",
+                "role": {
+                    "id": 4,
+                    "name": "owner",
+                    "displayName": "Dueño de Restaurante",
+                    "description": "Control total sobre uno o más negocios en la app."
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                }
+            },
+            {
+                "id": 3,
                 "name": "Carlos",
                 "lastname": "Rodriguez",
                 "email": "carlos.rodriguez@pizzeria.com",
                 "phone": "3333333333",
                 "status": "active",
-                "emailVerifiedAt": "2025-10-18T22:30:00.000Z",
-                "phoneVerifiedAt": "2025-10-18T22:30:00.000Z",
-                "createdAt": "2025-10-18T22:30:00.000Z",
-                "updatedAt": "2025-10-18T22:30:00.000Z",
+                "emailVerifiedAt": "2025-10-19T17:52:41.175Z",
+                "phoneVerifiedAt": "2025-10-19T17:52:41.175Z",
+                "createdAt": "2025-10-19T17:52:41.177Z",
+                "updatedAt": "2025-10-19T17:52:41.177Z",
                 "role": {
                     "id": 5,
                     "name": "branch_manager",
@@ -427,7 +449,7 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
         "pagination": {
             "currentPage": 1,
             "pageSize": 15,
-            "totalItems": 2,
+            "totalItems": 3,
             "totalPages": 1,
             "hasNextPage": false,
             "hasPrevPage": false,
@@ -504,3 +526,242 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
 - **Metadatos Completos**: Información detallada de paginación y navegación
 - **Optimización**: Consultas paralelas para mejor rendimiento
 - **Seguridad**: Solo owners pueden consultar empleados de su restaurante
+
+---
+
+## Endpoint PATCH /api/restaurant/employees/:assignmentId
+
+### Descripción
+Permite al Owner actualizar el rol y/o estado de un empleado específico mediante el ID de su asignación (UserRoleAssignment). El endpoint valida que el empleado pertenezca al restaurante del owner y aplica las restricciones de roles permitidos.
+
+### Middlewares Aplicados
+
+1. **`authenticateToken`**: Verifica que el usuario esté autenticado mediante JWT
+2. **`requireRole(['owner'])`**: Verifica que el usuario tenga rol de owner
+3. **`requireRestaurantLocation`**: Verifica que el owner tenga configurada la ubicación de su restaurante
+4. **`validateParams(assignmentParamsSchema)`**: Valida el parámetro de ruta `:assignmentId`
+5. **`validate(updateEmployeeSchema)`**: Valida el body de la petición usando Zod
+
+### Esquemas Zod
+
+#### `assignmentParamsSchema` - Validación de Parámetros
+```javascript
+const assignmentParamsSchema = z.object({
+  assignmentId: z
+    .string({
+      required_error: 'El ID de asignación es requerido'
+    })
+    .regex(/^\d+$/, 'El ID de asignación debe ser un número')
+    .transform(Number)
+    .positive('ID de asignación inválido')
+});
+```
+
+#### `updateEmployeeSchema` - Validación del Body
+```javascript
+const updateEmployeeSchema = z.object({
+  roleId: z
+    .number({
+      invalid_type_error: 'El rol debe ser un número'
+    })
+    .int('El rol debe ser un número entero')
+    .positive('Debe seleccionar un rol válido')
+    .optional(),
+    
+  status: z
+    .enum(['active', 'inactive', 'suspended'], {
+      errorMap: () => ({ message: 'Estado inválido. Debe ser: active, inactive o suspended' })
+    })
+    .optional()
+}).refine(
+  data => data.roleId !== undefined || data.status !== undefined,
+  {
+    message: 'Debe proporcionar al menos uno de los campos: roleId o status',
+    path: ['roleId']
+  }
+);
+```
+
+### Lógica del Controlador
+
+**Controlador**: `updateEmployee` en `restaurant-admin.controller.js`
+
+1. **Extracción de Datos**: Obtiene `assignmentId` de `req.params`, `ownerUserId` de `req.user` y `updateData` de `req.body`
+2. **Delegación al Repositorio**: Llama a `EmployeeRepository.updateEmployeeAssignment(assignmentId, updateData, ownerUserId, req.id)`
+3. **Respuesta**: Devuelve `ResponseService.success()` con los datos actualizados del empleado
+
+### Lógica del Repositorio
+
+**Repositorio**: `EmployeeRepository.updateEmployeeAssignment()` en `employee.repository.js`
+
+#### Proceso de Validación:
+1. **Verificación de Owner**: Obtiene `restaurantId` del owner usando `UserService.getUserWithRoles()`
+2. **Búsqueda de Asignación**: Encuentra `UserRoleAssignment` por ID incluyendo datos del usuario, rol y restaurante
+3. **Validación de Pertenencia**: Verifica que `assignment.restaurantId === ownerRestaurantId`
+4. **Campos Actualizables**: Inicializa `updatedFields = []` para tracking
+
+#### Actualización de Rol:
+- **Validación del Rol**: Verifica que el nuevo `roleId` existe y pertenece a roles válidos de empleados
+- **Roles Permitidos**: `['branch_manager', 'order_manager', 'kitchen_staff', 'driver_restaurant']`
+- **Actualización**: `prisma.userRoleAssignment.update()` con nuevo `roleId`
+
+#### Actualización de Estado:
+- **Actualización Directa**: `prisma.user.update()` en el usuario para cambiar `status`
+- **Estados Válidos**: `'active'`, `'inactive'`, `'suspended'`
+
+#### Respuesta:
+- **Datos Finales**: Reconsulta la asignación actualizada con includes completos
+- **Estructura**: `{ assignment, employee, updatedFields }`
+
+### Payload de Ejemplo
+
+#### Actualizar Solo el Rol:
+```json
+{
+  "roleId": 6
+}
+```
+
+#### Actualizar Solo el Estado:
+```json
+{
+  "status": "suspended"
+}
+```
+
+#### Actualizar Ambos:
+```json
+{
+  "roleId": 7,
+  "status": "active"
+}
+```
+
+### Ejemplo de Respuesta Exitosa (200 OK)
+
+```json
+{
+    "status": "success",
+    "message": "Empleado actualizado exitosamente",
+    "timestamp": "2025-10-19T19:15:00.000Z",
+    "data": {
+        "assignment": {
+            "id": 5,
+            "roleId": 6,
+            "restaurantId": 1,
+            "branchId": null
+        },
+        "employee": {
+            "id": 7,
+            "name": "Empleado",
+            "lastname": "Prueba",
+            "email": "nuevo.empleado.test@pizzeria.com",
+            "phone": "9998887777",
+            "status": "active",
+            "emailVerifiedAt": "2025-10-19T18:38:27.570Z",
+            "phoneVerifiedAt": "2025-10-19T18:38:27.570Z",
+            "createdAt": "2025-10-19T18:38:27.571Z",
+            "updatedAt": "2025-10-19T19:15:00.000Z",
+            "role": {
+                "id": 6,
+                "name": "order_manager",
+                "displayName": "Gestor de Pedidos",
+                "description": "Acepta y gestiona los pedidos entrantes en una sucursal."
+            },
+            "restaurant": {
+                "id": 1,
+                "name": "Pizzería de Ana"
+            }
+        },
+        "updatedFields": ["roleId", "status"]
+    }
+}
+```
+
+### Manejo de Errores
+
+#### Error 400 - Validación de Request Body
+```json
+{
+  "status": "error",
+  "message": "Debe proporcionar al menos uno de los campos: roleId o status",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "roleId",
+      "message": "Debe proporcionar al menos uno de los campos: roleId o status"
+    }
+  ]
+}
+```
+
+#### Error 400 - Rol Inválido
+```json
+{
+  "status": "error",
+  "message": "Rol no válido para empleados",
+  "code": "INVALID_EMPLOYEE_ROLE",
+  "details": {
+    "roleId": 4,
+    "roleName": "owner",
+    "validRoles": ["branch_manager", "order_manager", "kitchen_staff", "driver_restaurant"]
+  }
+}
+```
+
+#### Error 404 - Asignación No Encontrada
+```json
+{
+  "status": "error",
+  "message": "Asignación de empleado no encontrada",
+  "code": "ASSIGNMENT_NOT_FOUND",
+  "details": {
+    "assignmentId": 999
+  }
+}
+```
+
+#### Error 403 - Acceso Denegado
+```json
+{
+  "status": "error",
+  "message": "No tienes permisos para actualizar este empleado",
+  "code": "FORBIDDEN_ACCESS",
+  "details": {
+    "assignmentId": 5,
+    "assignmentRestaurantId": 2,
+    "ownerRestaurantId": 1
+  }
+}
+```
+
+#### Error 404 - Owner No Encontrado
+```json
+{
+  "status": "error",
+  "message": "Usuario owner no encontrado",
+  "code": "OWNER_NOT_FOUND"
+}
+```
+
+#### Error 403 - Sin Restaurante Asignado
+```json
+{
+  "status": "error",
+  "message": "No tienes un restaurante asignado para actualizar empleados",
+  "code": "NO_RESTAURANT_ASSIGNED",
+  "details": {
+    "userId": 123
+  }
+}
+```
+
+### Características del Endpoint
+
+- **Validación Estricta**: Solo permite actualizar roles válidos para empleados, excluyendo 'owner'
+- **Flexibilidad**: Permite actualizar solo rol, solo estado, o ambos campos simultáneamente
+- **Seguridad**: Verificación de pertenencia al restaurante del owner
+- **Tracking**: Devuelve `updatedFields` para indicar qué campos fueron modificados
+- **Atomicidad**: Cada actualización es independiente, fallando solo la operación específica
+- **Logging Completo**: Registra todas las operaciones para auditoría
+- **Respuesta Completa**: Incluye datos actualizados del empleado, rol y restaurante
