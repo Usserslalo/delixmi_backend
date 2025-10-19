@@ -9,6 +9,7 @@ const ProductRepository = require('../repositories/product.repository');
 const SubcategoryRepository = require('../repositories/subcategory.repository');
 const ScheduleRepository = require('../repositories/schedule.repository');
 const BranchRepository = require('../repositories/branch.repository');
+const EmployeeRepository = require('../repositories/employee.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -3347,6 +3348,47 @@ const getPrimaryBranch = async (req, res) => {
   }
 };
 
+/**
+ * Crea un nuevo empleado para el restaurante del owner
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const createEmployee = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const employeeData = req.body;
+
+    // Delegar la lógica al repositorio
+    const result = await EmployeeRepository.createEmployeeForRestaurant(
+      employeeData, 
+      ownerUserId, 
+      req.id
+    );
+
+    return ResponseService.success(
+      res,
+      'Empleado creado exitosamente',
+      result,
+      201
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error creando empleado:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3372,6 +3414,7 @@ module.exports = {
   deactivateProductsByTag,
   getLocationStatus,
   updateLocation,
-  getPrimaryBranch
+  getPrimaryBranch,
+  createEmployee
 };
 

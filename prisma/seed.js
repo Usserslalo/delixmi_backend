@@ -459,141 +459,9 @@ async function main() {
     });
     console.log('✅ Restaurante Sushi creado');
 
-    // 6. CREAR SUCURSALES (4 sucursales: 3 pizza + 1 sushi)
-    console.log('🏢 Creando sucursales...');
-    
-    const centroBranch = await prisma.branch.create({
-      data: {
-        restaurantId: restaurant.id,
-        name: 'Sucursal Centro',
-        address: 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.484123,
-        longitude: -99.216345,
-        phone: '7711234567',
-        usesPlatformDrivers: true,
-        deliveryFee: 20.00,
-        estimatedDeliveryMin: 25,
-        estimatedDeliveryMax: 35,
-        deliveryRadius: 8.0, // Radio de 8 km - Zona céntrica amplia
-        status: 'active'
-      }
-    });
-    console.log('✅ Sucursal Centro creada (Radio: 8 km)');
 
-    const rioBranch = await prisma.branch.create({
-      data: {
-        restaurantId: restaurant.id,
-        name: 'Sucursal Río',
-        address: 'Paseo del Roble 205, Barrio del Río, Ixmiquilpan, Hgo.',
-        latitude: 20.475890,
-        longitude: -99.225678,
-        phone: '7717654321',
-        usesPlatformDrivers: true,
-        deliveryFee: 0.00, // Envío gratis - sucursal 24 horas
-        estimatedDeliveryMin: 20,
-        estimatedDeliveryMax: 30,
-        deliveryRadius: 10.0, // Radio de 10 km - Zona periférica amplia (envío gratis)
-        status: 'active'
-      }
-    });
-    console.log('✅ Sucursal Río creada (Radio: 10 km)');
 
-    const fitzhiBranch = await prisma.branch.create({
-      data: {
-        restaurantId: restaurant.id,
-        name: 'Sucursal El Fitzhi',
-        address: 'Calle Morelos 45, El Fitzhi, Ixmiquilpan, Hgo.',
-        latitude: 20.492345,
-        longitude: -99.208765,
-        phone: '7719876543',
-        usesPlatformDrivers: false,
-        deliveryFee: 30.00, // Repartidores propios
-        estimatedDeliveryMin: 30,
-        estimatedDeliveryMax: 45,
-        deliveryRadius: 5.0, // Radio de 5 km - Zona específica con repartidores propios
-        status: 'active'
-      }
-    });
-    console.log('✅ Sucursal El Fitzhi creada (Radio: 5 km)');
-
-    const sushiBranch = await prisma.branch.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        name: 'Sucursal Principal Sushi',
-        address: 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.486789,
-        longitude: -99.212345,
-        phone: '7714567890',
-        usesPlatformDrivers: true,
-        deliveryFee: 25.00,
-        estimatedDeliveryMin: 30,
-        estimatedDeliveryMax: 40,
-        deliveryRadius: 7.0, // Radio de 7 km - Zona premium sushi
-        status: 'active'
-      }
-    });
-    console.log('✅ Sucursal Sushi creada (Radio: 7 km)');
-
-    // 6.1. CREAR HORARIOS DE SUCURSALES
-    console.log('⏰ Creando horarios de sucursales...');
-    
-    // Horarios para Sucursal Centro (branchId: centroBranch.id) - 24 horas
-    await prisma.branchSchedule.createMany({
-      data: [
-        { branchId: centroBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Domingo
-        { branchId: centroBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Lunes
-        { branchId: centroBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Martes
-        { branchId: centroBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Miércoles
-        { branchId: centroBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Jueves
-        { branchId: centroBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Viernes
-        { branchId: centroBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }  // Sábado
-      ]
-    });
-    console.log('✅ Horarios Sucursal Centro creados (24 horas)');
-
-    // Horarios para Sucursal Río (branchId: rioBranch.id) - 24 horas
-    await prisma.branchSchedule.createMany({
-      data: [
-        { branchId: rioBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
-        { branchId: rioBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
-        { branchId: rioBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
-        { branchId: rioBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
-        { branchId: rioBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
-        { branchId: rioBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
-        { branchId: rioBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
-      ]
-    });
-    console.log('✅ Horarios Sucursal Río creados (24 horas)');
-
-    // Horarios para Sucursal El Fitzhi (branchId: fitzhiBranch.id) - 24 horas
-    await prisma.branchSchedule.createMany({
-      data: [
-        { branchId: fitzhiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59' }, // Lunes
-        { branchId: fitzhiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59' }, // Martes
-        { branchId: fitzhiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59' }, // Miércoles
-        { branchId: fitzhiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59' }, // Jueves
-        { branchId: fitzhiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59' }, // Viernes
-        { branchId: fitzhiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59' }, // Sábado
-        { branchId: fitzhiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59' }  // Domingo
-      ]
-    });
-    console.log('✅ Horarios Sucursal El Fitzhi creados (24 horas)');
-
-    // Horarios para Sucursal Sushi (branchId: sushiBranch.id) - 24 horas
-    await prisma.branchSchedule.createMany({
-      data: [
-        { branchId: sushiBranch.id, dayOfWeek: 0, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Domingo
-        { branchId: sushiBranch.id, dayOfWeek: 1, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Lunes
-        { branchId: sushiBranch.id, dayOfWeek: 2, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Martes
-        { branchId: sushiBranch.id, dayOfWeek: 3, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Miércoles
-        { branchId: sushiBranch.id, dayOfWeek: 4, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Jueves
-        { branchId: sushiBranch.id, dayOfWeek: 5, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }, // Viernes
-        { branchId: sushiBranch.id, dayOfWeek: 6, openingTime: '00:00:00', closingTime: '23:59:59', isClosed: false }  // Sábado
-      ]
-    });
-    console.log('✅ Horarios Sucursal Sushi creados (24 horas)');
-
-    // 7. CREAR CATEGORÍAS
+    // 6. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
     
     const pizzasCategory = await prisma.category.create({
@@ -616,7 +484,7 @@ async function main() {
     });
     console.log('✅ 6 categorías creadas');
 
-    // 8. CREAR SUBCATEGORÍAS
+    // 7. CREAR SUBCATEGORÍAS
     console.log('📁 Creando subcategorías...');
     
     const tradicionalesSub = await prisma.subcategory.create({
@@ -665,7 +533,7 @@ async function main() {
     });
     console.log('✅ 14 subcategorías creadas');
 
-    // 9. CREAR PRODUCTOS
+    // 8. CREAR PRODUCTOS
     console.log('🍕 Creando productos...');
     
     // Pizzas Tradicionales
@@ -896,7 +764,7 @@ async function main() {
 
     console.log('✅ 17 productos creados (10 pizza + 7 sushi)');
 
-    // 10. CREAR DIRECCIONES
+    // 9. CREAR DIRECCIONES
     console.log('📍 Creando direcciones...');
     
     const casaAddress = await prisma.address.create({
@@ -934,7 +802,7 @@ async function main() {
     });
     console.log('✅ Dirección Oficina creada');
 
-    // 11. CREAR ASIGNACIONES DE ROLES DE USUARIO
+    // 10. CREAR ASIGNACIONES DE ROLES DE USUARIO
     console.log('👤 Creando asignaciones de roles...');
     
     await prisma.userRoleAssignment.create({
@@ -944,7 +812,7 @@ async function main() {
       data: { userId: anaUser.id, roleId: ownerRole.id, restaurantId: restaurant.id }
     });
     await prisma.userRoleAssignment.create({
-      data: { userId: carlosUser.id, roleId: branchManagerRole.id, restaurantId: restaurant.id, branchId: centroBranch.id }
+      data: { userId: carlosUser.id, roleId: branchManagerRole.id, restaurantId: restaurant.id }
     });
     await prisma.userRoleAssignment.create({
       data: { userId: miguelUser.id, roleId: driverPlatformRole.id }
@@ -957,7 +825,7 @@ async function main() {
     });
     console.log('✅ 6 asignaciones de roles creadas');
 
-    // 12. CREAR PERFILES DE REPARTIDOR
+    // 11. CREAR PERFILES DE REPARTIDOR
     console.log('🚗 Creando perfiles de repartidor...');
     
     await prisma.driverProfile.create({
@@ -974,125 +842,8 @@ async function main() {
     });
     console.log('✅ Perfil de repartidor creado');
 
-    // 13. CREAR PEDIDOS (2 pedidos con diferentes estados)
-    console.log('📦 Creando pedidos...');
-    
-    const order1 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: centroBranch.id,
-        addressId: casaAddress.id,
-        status: 'confirmed',
-        subtotal: 175.50,
-        deliveryFee: 20.00,
-        total: 195.50,
-        commissionRateSnapshot: 12.50,
-        platformFee: 8.78,
-        restaurantPayout: 153.22,
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        specialInstructions: 'Entregar en la puerta principal. No tocar el timbre, solo llamar por teléfono.',
-        orderPlacedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 horas atrás
-      }
-    });
-    console.log('✅ Pedido 1 (confirmed) creado');
 
-    const order2 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: rioBranch.id,
-        addressId: oficinaAddress.id,
-        status: 'delivered',
-        subtotal: 225.00,
-        deliveryFee: 25.00,
-        total: 250.00,
-        commissionRateSnapshot: 12.50,
-        platformFee: 11.25,
-        restaurantPayout: 196.25,
-        paymentMethod: 'cash',
-        paymentStatus: 'completed',
-        specialInstructions: 'Por favor tocar el timbre fuerte, el timbre principal no funciona. Llamar al teléfono si no hay respuesta.',
-        deliveryDriverId: miguelUser.id,
-        orderPlacedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 día atrás
-        orderDeliveredAt: new Date(Date.now() - 23 * 60 * 60 * 1000) // 23 horas atrás
-      }
-    });
-    console.log('✅ Pedido 2 (delivered) creado');
-
-    // 14. CREAR ITEMS DE PEDIDO
-    console.log('🛒 Creando items de pedido...');
-    
-    // Pedido 1 (confirmed)
-    await prisma.orderItem.create({
-      data: {
-        orderId: order1.id,
-        productId: pizzaHawaiana.id,
-        quantity: 1,
-        pricePerUnit: 150.00
-      }
-    });
-    await prisma.orderItem.create({
-      data: {
-        orderId: order1.id,
-        productId: cocaCola.id,
-        quantity: 1,
-        pricePerUnit: 25.50
-      }
-    });
-
-    // Pedido 2 (delivered)
-    await prisma.orderItem.create({
-      data: {
-        orderId: order2.id,
-        productId: pizzaQuattro.id,
-        quantity: 1,
-        pricePerUnit: 180.00
-      }
-    });
-    await prisma.orderItem.create({
-      data: {
-        orderId: order2.id,
-        productId: sprite.id,
-        quantity: 1,
-        pricePerUnit: 25.00
-      }
-    });
-    await prisma.orderItem.create({
-      data: {
-        orderId: order2.id,
-        productId: tiramisu.id,
-        quantity: 1,
-        pricePerUnit: 55.00
-      }
-    });
-    console.log('✅ 5 items de pedido creados');
-
-    // 15. CREAR PAGOS
-    console.log('💳 Creando pagos...');
-    
-    await prisma.payment.create({
-      data: {
-        orderId: order1.id,
-        amount: 195.50,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'mp_test_123456789',
-        status: 'completed'
-      }
-    });
-    await prisma.payment.create({
-      data: {
-        orderId: order2.id,
-        amount: 250.00,
-        currency: 'MXN',
-        provider: 'cash',
-        providerPaymentId: 'cash_987654321',
-        status: 'completed'
-      }
-    });
-    console.log('✅ 2 pagos creados');
-
-    // 16. CREAR GRUPOS DE MODIFICADORES
+    // 12. CREAR GRUPOS DE MODIFICADORES
     console.log('🔧 Creando grupos de modificadores...');
     
     // Grupos para Pizzería de Ana
@@ -1147,7 +898,7 @@ async function main() {
     });
     console.log('✅ Grupo Extras Sushi creado');
 
-    // 17. CREAR OPCIONES DE MODIFICADORES
+    // 13. CREAR OPCIONES DE MODIFICADORES
     console.log('⚙️ Creando opciones de modificadores...');
     
     // Opciones para Tamaño (Pizzería)
@@ -1210,7 +961,7 @@ async function main() {
     });
     console.log('✅ Opciones Extras Sushi creadas');
 
-    // 18. CREAR ASOCIACIONES PRODUCTO-MODIFICADOR
+    // 14. CREAR ASOCIACIONES PRODUCTO-MODIFICADOR
     console.log('🔗 Creando asociaciones producto-modificador...');
     
     // Pizzas con grupos de modificadores
@@ -1270,7 +1021,7 @@ async function main() {
     });
     console.log('✅ Asociaciones Sushi-Modificadores creadas');
 
-    // 19. CREAR CARRITOS DE EJEMPLO CON MODIFICADORES
+    // 15. CREAR CARRITOS DE EJEMPLO CON MODIFICADORES
     console.log('🛒 Creando carritos de ejemplo...');
     
     // Crear carrito para Sofía (cliente) en Pizzería de Ana
@@ -1367,17 +1118,13 @@ async function main() {
     console.log('- 19 permisos');
     console.log('- 6 usuarios');
     console.log('- 2 restaurantes (Pizzería + Sushi)');
-    console.log('- 4 sucursales');
-    console.log('- 28 horarios de sucursales (7 días × 4 sucursales - 24 horas)');
+    console.log('  (Las sucursales se crearán automáticamente al configurar ubicación vía API)');
     console.log('- 6 categorías');
     console.log('- 14 subcategorías');
     console.log('- 17 productos (10 pizza + 7 sushi)');
     console.log('- 2 direcciones');
     console.log('- 6 asignaciones de roles');
     console.log('- 1 perfil de repartidor');
-    console.log('- 2 pedidos');
-    console.log('- 5 items de pedido');
-    console.log('- 2 pagos');
     console.log('- 5 grupos de modificadores');
     console.log('- 25 opciones de modificadores');
     console.log('- 20 asociaciones producto-modificador');

@@ -8,7 +8,8 @@ const { createProductSchema, updateProductSchema, productParamsSchema } = requir
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch } = require('../controllers/restaurant-admin.controller');
+const { createEmployeeSchema } = require('../validations/employee.validation');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -96,6 +97,25 @@ router.get(
   '/primary-branch',
   requireRole(['owner']),
   getPrimaryBranch
+);
+
+/**
+ * @route   POST /api/restaurant/employees
+ * @desc    Crear un nuevo empleado para el restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @body    email - Email del empleado (requerido)
+ * @body    password - Contraseña del empleado (mínimo 8 caracteres)
+ * @body    name - Nombre del empleado (requerido)
+ * @body    lastname - Apellido del empleado (requerido)
+ * @body    phone - Teléfono del empleado (10-15 dígitos)
+ * @body    roleId - ID del rol a asignar (requerido)
+ */
+router.post(
+  '/employees',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validate(createEmployeeSchema),
+  createEmployee
 );
 
 /**
