@@ -195,9 +195,9 @@ model Branch {
   id                   Int      @id @default(autoincrement())
   restaurantId         Int      @map("restaurant_id")
   name                 String   @db.VarChar(150)
-  address              String   @db.Text
-  latitude             Decimal  @db.Decimal(10, 8)
-  longitude            Decimal  @db.Decimal(11, 8)
+  address              String?  @db.Text
+  latitude             Decimal? @db.Decimal(10, 8)
+  longitude            Decimal? @db.Decimal(11, 8)
   phone                String?  @db.VarChar(20)
   usesPlatformDrivers  Boolean  @default(true) @map("uses_platform_drivers")
   deliveryFee          Decimal  @default(25.00) @map("delivery_fee") @db.Decimal(10, 2)

@@ -165,28 +165,67 @@ class RestaurantRepository {
   }
 
   /**
-   * Actualiza la ubicación del restaurante
+   * Actualiza la ubicación del restaurante y su sucursal principal
    * @param {number} restaurantId - ID del restaurante
    * @param {Object} data - Datos de ubicación { latitude, longitude, address? }
    * @returns {Promise<Object>} Restaurante actualizado
    */
   static async updateLocation(restaurantId, data) {
-    return await prisma.restaurant.update({
-      where: { id: restaurantId },
-      data: {
-        latitude: data.latitude,
-        longitude: data.longitude,
-        address: data.address || undefined,
-        updatedAt: new Date()
-      },
-      select: {
-        id: true,
-        name: true,
-        latitude: true,
-        longitude: true,
-        address: true,
-        updatedAt: true
+    return await prisma.$transaction(async (tx) => {
+      // 1. Actualizar el restaurante
+      const updatedRestaurant = await tx.restaurant.update({
+        where: { id: restaurantId },
+        data: {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          address: data.address || undefined,
+          updatedAt: new Date()
+        },
+        select: {
+          id: true,
+          name: true,
+          latitude: true,
+          longitude: true,
+          address: true,
+          updatedAt: true
+        }
+      });
+
+      // 2. Buscar si existe una sucursal asociada a este restaurante
+      const existingBranch = await tx.branch.findFirst({
+        where: {
+          restaurantId: restaurantId
+        }
+      });
+
+      if (existingBranch) {
+        // 3a. Si existe la sucursal, actualizarla con los mismos datos de ubicación
+        await tx.branch.update({
+          where: {
+            id: existingBranch.id
+          },
+          data: {
+            latitude: data.latitude,
+            longitude: data.longitude,
+            address: data.address || undefined,
+            updatedAt: new Date()
+          }
+        });
+      } else {
+        // 3b. Si no existe la sucursal, crearla
+        await tx.branch.create({
+          data: {
+            restaurantId: restaurantId,
+            name: updatedRestaurant.name || 'Principal',
+            address: data.address || undefined,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            status: 'active'
+          }
+        });
       }
+
+      return updatedRestaurant;
     });
   }
 }
