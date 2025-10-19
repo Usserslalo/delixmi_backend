@@ -7,6 +7,7 @@ const { updateProfileSchema, updateLocationSchema } = require('../validations/re
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
+const { scheduleParamsSchema } = require('../validations/schedule.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -246,25 +247,7 @@ router.get(
   '/branches/:branchId/schedule',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
-  [
-    param('branchId')
-      .notEmpty()
-      .withMessage('El ID de la sucursal es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la sucursal debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(scheduleParamsSchema),
   getBranchSchedule
 );
 

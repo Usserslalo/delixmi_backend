@@ -7,6 +7,7 @@ const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = r
 const RestaurantRepository = require('../repositories/restaurant.repository');
 const ProductRepository = require('../repositories/product.repository');
 const SubcategoryRepository = require('../repositories/subcategory.repository');
+const ScheduleRepository = require('../repositories/schedule.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -2568,166 +2569,29 @@ const getBranchSchedule = async (req, res) => {
   try {
     const { branchId } = req.params;
     const userId = req.user.id;
-    const branchIdNum = parseInt(branchId);
 
-    console.log(`🔍 Consultando horario de sucursal ${branchId} por usuario ${userId}`);
-
-    // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: restaurantRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Verificar que la sucursal existe y obtener información
-    const branch = await prisma.branch.findUnique({
-      where: { id: branchIdNum },
-      include: {
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
-        }
-      }
-    });
-
-    if (!branch) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        details: {
-          branchId: branchId,
-          suggestion: 'Verifica que el ID de la sucursal sea correcto'
-        }
-      });
-    }
-
-    // 4. Verificar autorización de acceso a la sucursal
-    let hasAccess = false;
-
-    // Verificar si es owner del restaurante
-    const ownerAssignment = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId === branch.restaurantId
-    );
-
-    if (ownerAssignment) {
-      hasAccess = true;
-    } else {
-      // Verificar si es branch_manager con acceso específico a esta sucursal
-      const branchManagerAssignment = userWithRoles.userRoleAssignments.find(
-        assignment => 
-          assignment.role.name === 'branch_manager' && 
-          assignment.restaurantId === branch.restaurantId &&
-          (assignment.branchId === branchIdNum || assignment.branchId === null)
-      );
-
-      if (branchManagerAssignment) {
-        hasAccess = true;
-      }
-    }
-
-    if (!hasAccess) {
-      console.log(`❌ Usuario ${userId} no tiene permisos para acceder a la sucursal ${branchId}`);
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permisos para acceder a esta sucursal',
-        details: {
-          branchId: branchId,
-          restaurantId: branch.restaurantId,
-          suggestion: 'Verifica que tienes permisos de owner o branch_manager para esta sucursal'
-        }
-      });
-    }
-
-    // Consultar horarios de la sucursal
-    const schedules = await prisma.branchSchedule.findMany({
-      where: {
-        branchId: parseInt(branchId)
-      },
-      orderBy: {
-        dayOfWeek: 'asc'
-      }
-    });
-
-    console.log(`✅ Horario de sucursal ${branchId} consultado exitosamente. ${schedules.length} registros encontrados`);
-
-    // Formatear respuesta
-    const formattedSchedules = schedules.map(schedule => ({
-      id: schedule.id,
-      dayOfWeek: schedule.dayOfWeek,
-      dayName: getDayName(schedule.dayOfWeek),
-      openingTime: schedule.openingTime,
-      closingTime: schedule.closingTime,
-      isClosed: schedule.isClosed
-    }));
+    // Delegar la lógica al repositorio
+    const scheduleData = await ScheduleRepository.getWeeklySchedule(branchId, userId, req.id);
 
     return ResponseService.success(
       res,
       'Horario de sucursal obtenido exitosamente',
-      {
-        branch: {
-          id: branch.id,
-          name: branch.name,
-          restaurant: {
-            id: branch.restaurant.id,
-            name: branch.restaurant.name
-          }
-        },
-        schedules: formattedSchedules
-      }
+      scheduleData
     );
 
   } catch (error) {
-    console.error('❌ Error obteniendo horario de sucursal:', error);
-
-    if (error.code === 'P2025') {
-      return ResponseService.notFound(
-        res, 
-        'Sucursal no encontrada',
-        {
-          branchId: req.params.branchId,
-          suggestion: 'Verifica que el ID de la sucursal sea correcto'
-        }
-      );
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
     }
 
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error obteniendo horario de sucursal:', error);
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
