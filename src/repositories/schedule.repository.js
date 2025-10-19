@@ -483,7 +483,246 @@ class ScheduleRepository {
    * @returns {Promise<Object>} Datos del horario actualizado para el día
    */
   static async updateSingleDaySchedule(branchId, dayOfWeek, dayData, userId, requestId) {
-    // TODO: Implementar para gestión día x día
+    try {
+      logger.debug('Actualizando horario de día específico', {
+        requestId,
+        meta: { branchId, dayOfWeek, userId }
+      });
+
+      // 1. Validar que dayOfWeek sea un número válido entre 0-6
+      if (typeof dayOfWeek !== 'number' || dayOfWeek < 0 || dayOfWeek > 6) {
+        throw {
+          status: 400,
+          message: 'El día de la semana debe ser un número entre 0 (Domingo) y 6 (Sábado)',
+          code: 'INVALID_DAY_OF_WEEK',
+          details: {
+            received: dayOfWeek,
+            expected: '0-6',
+            suggestion: '0=Domingo, 1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes, 6=Sábado'
+          }
+        };
+      }
+
+      // 2. Obtener información del usuario y verificar permisos
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+
+      if (!userWithRoles) {
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      // 3. Verificar que el usuario tenga roles de restaurante
+      const restaurantRoles = ['owner', 'branch_manager'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+
+      if (!hasRestaurantRole) {
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de restaurante',
+          code: 'INSUFFICIENT_PERMISSIONS',
+          details: {
+            required: restaurantRoles,
+            current: userRoles
+          }
+        };
+      }
+
+      // 4. Verificar que la sucursal existe y obtener información
+      const branch = await prisma.branch.findUnique({
+        where: { id: branchId },
+        include: {
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              ownerId: true
+            }
+          }
+        }
+      });
+
+      if (!branch) {
+        throw {
+          status: 404,
+          message: 'Sucursal no encontrada',
+          code: 'BRANCH_NOT_FOUND',
+          details: {
+            branchId: branchId,
+            suggestion: 'Verifica que el ID de la sucursal sea correcto'
+          }
+        };
+      }
+
+      // 5. Verificar autorización de acceso a la sucursal
+      let hasAccess = false;
+
+      // Verificar si es owner del restaurante
+      const ownerAssignment = userWithRoles.userRoleAssignments.find(
+        assignment => assignment.role.name === 'owner' && assignment.restaurantId === branch.restaurant.id
+      );
+
+      if (ownerAssignment) {
+        hasAccess = true;
+      } else {
+        // Verificar si es branch_manager con acceso específico a esta sucursal
+        const branchManagerAssignment = userWithRoles.userRoleAssignments.find(
+          assignment => 
+            assignment.role.name === 'branch_manager' && 
+            assignment.restaurantId === branch.restaurant.id &&
+            (assignment.branchId === branchId || assignment.branchId === null)
+        );
+
+        if (branchManagerAssignment) {
+          hasAccess = true;
+        }
+      }
+
+      if (!hasAccess) {
+        logger.warn('Acceso denegado para actualizar día de sucursal', {
+          requestId,
+          meta: { userId, branchId, dayOfWeek, restaurantId: branch.restaurant.id }
+        });
+        
+        throw {
+          status: 403,
+          message: 'No tienes permisos para actualizar esta sucursal',
+          code: 'BRANCH_UPDATE_DENIED',
+          details: {
+            branchId: branchId,
+            restaurantId: branch.restaurant.id,
+            suggestion: 'Verifica que tienes permisos de owner o branch_manager para esta sucursal'
+          }
+        };
+      }
+
+      // 6. Validar horarios lógicos (openingTime < closingTime si no está cerrado)
+      if (!dayData.isClosed) {
+        const openingTime = new Date(`1970-01-01T${dayData.openingTime}`);
+        const closingTime = new Date(`1970-01-01T${dayData.closingTime}`);
+        
+        if (openingTime >= closingTime) {
+          throw {
+            status: 400,
+            message: 'Horario inválido',
+            code: 'INVALID_TIME_RANGE',
+            details: {
+              dayOfWeek: dayOfWeek,
+              dayName: this.getDayName(dayOfWeek),
+              error: 'La hora de apertura debe ser anterior a la hora de cierre cuando el día no está cerrado'
+            }
+          };
+        }
+      }
+
+      // 7. Buscar si existe un horario para este día específico
+      const existingSchedule = await prisma.branchSchedule.findFirst({
+        where: {
+          branchId: branchId,
+          dayOfWeek: dayOfWeek
+        }
+      });
+
+      let updatedSchedule;
+
+      if (existingSchedule) {
+        // Actualizar el horario existente
+        updatedSchedule = await prisma.branchSchedule.update({
+          where: {
+            id: existingSchedule.id
+          },
+          data: {
+            openingTime: dayData.openingTime,
+            closingTime: dayData.closingTime,
+            isClosed: dayData.isClosed
+          }
+        });
+      } else {
+        // Crear un nuevo horario para el día
+        updatedSchedule = await prisma.branchSchedule.create({
+          data: {
+            branchId: branchId,
+            dayOfWeek: dayOfWeek,
+            openingTime: dayData.openingTime,
+            closingTime: dayData.closingTime,
+            isClosed: dayData.isClosed
+          }
+        });
+      }
+
+      logger.debug('Horario de día actualizado exitosamente', {
+        requestId,
+        meta: { branchId, dayOfWeek, scheduleId: updatedSchedule.id }
+      });
+
+      // 8. Formatear respuesta
+      const formattedSchedule = {
+        id: updatedSchedule.id,
+        dayOfWeek: updatedSchedule.dayOfWeek,
+        dayName: this.getDayName(updatedSchedule.dayOfWeek),
+        openingTime: updatedSchedule.openingTime,
+        closingTime: updatedSchedule.closingTime,
+        isClosed: updatedSchedule.isClosed
+      };
+
+      return {
+        branch: {
+          id: branch.id,
+          name: branch.name,
+          restaurant: {
+            id: branch.restaurant.id,
+            name: branch.restaurant.name
+          }
+        },
+        schedule: formattedSchedule
+      };
+
+    } catch (error) {
+      logger.error('Error actualizando horario de día específico', {
+        requestId,
+        meta: { branchId, dayOfWeek, userId, error: error.message }
+      });
+
+      // Si es un error controlado (con status), lo relanzamos
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores de Prisma, los mapeamos
+      if (error.code === 'P2025') {
+        throw {
+          status: 404,
+          message: 'Sucursal no encontrada',
+          code: 'BRANCH_NOT_FOUND',
+          details: {
+            branchId: branchId,
+            suggestion: 'Verifica que el ID de la sucursal sea correcto'
+          }
+        };
+      }
+
+      if (error.code === 'P2002') {
+        throw {
+          status: 409,
+          message: 'Conflicto de datos',
+          code: 'DUPLICATE_SCHEDULE',
+          details: {
+            suggestion: 'Ya existe un horario para este día de la semana en esta sucursal'
+          }
+        };
+      }
+
+      // Error interno no controlado
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR',
+        originalError: error.message
+      };
+    }
   }
 
   /**

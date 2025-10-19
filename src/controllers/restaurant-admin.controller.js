@@ -2634,6 +2634,49 @@ const updateBranchSchedule = async (req, res) => {
 };
 
 /**
+ * Actualiza el horario de un día específico de una sucursal
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const updateSingleDaySchedule = async (req, res) => {
+  try {
+    const { branchId, dayOfWeek } = req.params;
+    const userId = req.user.id;
+    const dayData = req.body;
+
+    // Delegar la lógica al repositorio
+    const updatedDayData = await ScheduleRepository.updateSingleDaySchedule(
+      branchId, 
+      parseInt(dayOfWeek), 
+      dayData, 
+      userId, 
+      req.id
+    );
+
+    return ResponseService.success(
+      res,
+      'Horario del día actualizado exitosamente',
+      updatedDayData
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error actualizando horario de día específico:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
+/**
  * Rechaza un pedido confirmado y procesa reembolso automático
  * @param {Object} req - Request object
  * @param {Object} res - Response object
@@ -3251,6 +3294,7 @@ module.exports = {
   deleteBranch,
   getBranchSchedule,
   updateBranchSchedule,
+  updateSingleDaySchedule,
   rejectOrder,
   formatOrderForSocket,
   deactivateProductsByTag,

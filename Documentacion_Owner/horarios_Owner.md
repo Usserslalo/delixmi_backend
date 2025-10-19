@@ -377,3 +377,556 @@ curl -X GET \
 4. **Manejo de Errores**: Errores estructurados con códigos específicos y detalles para mejor debugging.
 
 5. **Permisos**: Sistema granular de permisos que diferencia entre owners (acceso completo) y branch_managers (acceso específico por sucursal).
+
+---
+
+## Endpoint: PATCH /api/restaurant/branches/:branchId/schedule
+
+### Descripción
+Actualiza el horario semanal completo de una sucursal específica. Este endpoint ha sido refactorizado para seguir una arquitectura en capas con repositorio, controlador y validaciones Zod robustas.
+
+### Middlewares Aplicados
+
+El endpoint utiliza los siguientes middlewares en orden:
+
+1. **`authenticateToken`** - Verifica que el usuario esté autenticado mediante JWT
+2. **`requireRole(['owner', 'branch_manager'])`** - Valida que el usuario tenga rol de owner o branch_manager
+3. **`requireRestaurantLocation`** - Verifica que la ubicación del restaurante esté configurada
+4. **`validateParams(scheduleParamsSchema)`** - Valida los parámetros de la ruta usando esquema Zod
+5. **`validate(updateWeeklyScheduleSchema)`** - Valida el cuerpo de la petición con esquema Zod completo
+
+### Esquemas Zod
+
+#### Parámetros de la Ruta
+```javascript
+const scheduleParamsSchema = z.object({
+  branchId: z
+    .string({ required_error: 'El ID de la sucursal es requerido' })
+    .regex(/^\d+$/, 'El ID de la sucursal debe ser un número')
+    .transform(Number)
+    .refine(val => val > 0, 'El ID de la sucursal debe ser mayor que 0')
+});
+```
+
+#### Cuerpo de la Petición
+```javascript
+const scheduleDaySchema = z.object({
+  dayOfWeek: z
+    .number({
+      required_error: 'El día de la semana es requerido',
+      invalid_type_error: 'El día de la semana debe ser un número'
+    })
+    .int({ message: 'El día de la semana debe ser un número entero' })
+    .min(0, 'El día de la semana debe ser mayor o igual a 0 (Domingo)')
+    .max(6, 'El día de la semana debe ser menor o igual a 6 (Sábado)'),
+    
+  openingTime: z
+    .string({
+      required_error: 'La hora de apertura es requerida',
+      invalid_type_error: 'La hora de apertura debe ser un string'
+    })
+    .regex(
+      /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/,
+      'La hora de apertura debe estar en formato HH:MM:SS válido (ej: 09:30:00)'
+    ),
+    
+  closingTime: z
+    .string({
+      required_error: 'La hora de cierre es requerida',
+      invalid_type_error: 'La hora de cierre debe ser un string'
+    })
+    .regex(
+      /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/,
+      'La hora de cierre debe estar en formato HH:MM:SS válido (ej: 22:30:00)'
+    ),
+    
+  isClosed: z
+    .boolean({
+      required_error: 'El campo isClosed es requerido',
+      invalid_type_error: 'El campo isClosed debe ser un valor booleano'
+    })
+}).refine(data => {
+  // Validación de horarios lógicos: openingTime < closingTime si no está cerrado
+  if (data.isClosed) {
+    return true;
+  }
+  
+  const openingTime = new Date(`1970-01-01T${data.openingTime}`);
+  const closingTime = new Date(`1970-01-01T${data.closingTime}`);
+  
+  return openingTime < closingTime;
+}, {
+  message: "La hora de apertura debe ser anterior a la hora de cierre cuando el día no está cerrado",
+  path: ["openingTime"]
+});
+
+const updateWeeklyScheduleSchema = z.object({
+  schedules: z
+    .array(scheduleDaySchema, {
+      required_error: 'El campo schedules es requerido',
+      invalid_type_error: 'El campo schedules debe ser un array'
+    })
+    .length(7, 'Se deben proporcionar exactamente 7 días de horario (Domingo a Sábado)')
+    .refine(schedules => {
+      // Validar que todos los días 0-6 estén presentes y sean únicos
+      const dayOfWeeks = schedules.map(s => s.dayOfWeek);
+      const expectedDays = [0, 1, 2, 3, 4, 5, 6];
+      
+      // Verificar que no hay duplicados
+      const uniqueDays = [...new Set(dayOfWeeks)];
+      if (uniqueDays.length !== 7) {
+        return false;
+      }
+      
+      // Verificar que están todos los días esperados
+      return expectedDays.every(day => dayOfWeeks.includes(day));
+    }, {
+      message: 'Los horarios deben incluir exactamente un día para cada día de la semana (0=Domingo a 6=Sábado) sin duplicados',
+      path: ['schedules']
+    })
+});
+```
+
+**Validaciones Destacadas:**
+
+1. **Validación de Horarios Lógicos (`refine` en `scheduleDaySchema`):**
+   - Si `isClosed` es `false`, verifica que `openingTime < closingTime`
+   - Permite días cerrados sin validar horarios
+
+2. **Validación de 7 Días Únicos (`refine` en `updateWeeklyScheduleSchema`):**
+   - Verifica que se proporcionen exactamente 7 objetos
+   - Valida que cada día de la semana (0-6) esté presente una sola vez
+   - No permite días duplicados ni faltantes
+
+### Lógica del Controlador
+
+**Archivo**: `src/controllers/restaurant-admin.controller.js`
+
+La función `updateBranchSchedule` ha sido refactorizada para ser simple y delegar toda la lógica al repositorio:
+
+```javascript
+const updateBranchSchedule = async (req, res) => {
+  try {
+    const { branchId } = req.params;
+    const userId = req.user.id;
+    const { schedules } = req.body;
+
+    // Delegar la lógica al repositorio
+    const updatedScheduleData = await ScheduleRepository.updateWeeklySchedule(branchId, schedules, userId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Horario de sucursal actualizado exitosamente',
+      updatedScheduleData
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error actualizando horario de sucursal:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+**Características del Controlador:**
+- **Simplificación**: Solo 25 líneas vs 220+ líneas originales
+- **Delegación**: Toda la lógica de negocio se delega al repositorio
+- **Manejo de Errores**: Gestiona errores estructurados del repositorio y errores generales
+
+### Lógica del Repositorio
+
+**Archivo**: `src/repositories/schedule.repository.js`
+
+El método `ScheduleRepository.updateWeeklySchedule()` contiene toda la lógica de negocio:
+
+#### Flujo de Validación y Procesamiento:
+
+1. **Validación de Datos Básicos:**
+   - Verifica que se proporcionen exactamente 7 elementos
+   - Valida que los `dayOfWeek` sean únicos y cubran todos los días (0-6)
+
+2. **Validación de Permisos:**
+   ```javascript
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   ```
+   - Obtiene información completa del usuario con sus roles
+   - Verifica que tenga roles de restaurante (`owner` o `branch_manager`)
+
+3. **Validación de Acceso a la Sucursal:**
+   - Verifica que la sucursal existe
+   - **Para Owners**: Acceso completo al restaurante
+   - **Para Branch Managers**: Acceso específico a la sucursal asignada
+
+4. **Validación de Horarios Lógicos:**
+   ```javascript
+   // Validación: openingTime < closingTime cuando no está cerrado
+   if (!scheduleItem.isClosed) {
+     const openingTime = new Date(`1970-01-01T${scheduleItem.openingTime}`);
+     const closingTime = new Date(`1970-01-01T${scheduleItem.closingTime}`);
+     
+     if (openingTime >= closingTime) {
+       throw { /* error estructurado */ };
+     }
+   }
+   ```
+
+5. **Operación Transaccional:**
+   ```javascript
+   const result = await prisma.$transaction(async (tx) => {
+     // Eliminar todos los horarios existentes de la sucursal
+     await tx.branchSchedule.deleteMany({
+       where: { branchId: branchId }
+     });
+
+     // Crear los nuevos horarios
+     const newSchedules = scheduleData.map(item => ({
+       branchId: branchId,
+       dayOfWeek: item.dayOfWeek,
+       openingTime: item.openingTime,
+       closingTime: item.closingTime,
+       isClosed: item.isClosed
+     }));
+
+     return await tx.branchSchedule.createMany({
+       data: newSchedules
+     });
+   });
+   ```
+
+6. **Formateo de Respuesta:**
+   - Obtiene los horarios actualizados de la base de datos
+   - Añade `dayName` para cada día usando `getDayName()`
+   - Retorna estructura consistente con información de sucursal y restaurante
+
+### Payload de Ejemplo
+
+```json
+{
+  "schedules": [
+    {
+      "dayOfWeek": 0,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": true
+    },
+    {
+      "dayOfWeek": 1,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    },
+    {
+      "dayOfWeek": 2,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    },
+    {
+      "dayOfWeek": 3,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    },
+    {
+      "dayOfWeek": 4,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    },
+    {
+      "dayOfWeek": 5,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    },
+    {
+      "dayOfWeek": 6,
+      "openingTime": "09:00:00",
+      "closingTime": "22:00:00",
+      "isClosed": false
+    }
+  ]
+}
+```
+
+### Respuesta Exitosa
+
+```json
+{
+    "status": "success",
+    "message": "Horario de sucursal actualizado exitosamente",
+    "timestamp": "2025-10-19T16:32:12.001Z",
+    "data": {
+        "branch": {
+            "id": 1,
+            "name": "Sucursal Centro",
+            "restaurant": {
+                "id": 1,
+                "name": "Pizzería de Ana"
+            }
+        },
+        "schedules": [
+            {
+                "id": 29,
+                "dayOfWeek": 0,
+                "dayName": "Domingo",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": true
+            },
+            {
+                "id": 30,
+                "dayOfWeek": 1,
+                "dayName": "Lunes",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            },
+            {
+                "id": 31,
+                "dayOfWeek": 2,
+                "dayName": "Martes",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            },
+            {
+                "id": 32,
+                "dayOfWeek": 3,
+                "dayName": "Miércoles",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            },
+            {
+                "id": 33,
+                "dayOfWeek": 4,
+                "dayName": "Jueves",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            },
+            {
+                "id": 34,
+                "dayOfWeek": 5,
+                "dayName": "Viernes",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            },
+            {
+                "id": 35,
+                "dayOfWeek": 6,
+                "dayName": "Sábado",
+                "openingTime": "09:00:00",
+                "closingTime": "22:00:00",
+                "isClosed": false
+            }
+        ]
+    }
+}
+```
+
+**Estructura de la Respuesta:**
+- **`branch`**: Información de la sucursal y restaurante
+- **`schedules`**: Array con los 7 días actualizados, incluyendo:
+  - `id`: ID único del registro en base de datos
+  - `dayOfWeek`: Número del día (0-6)
+  - `dayName`: Nombre del día en español
+  - `openingTime`/`closingTime`: Horarios en formato `HH:MM:SS`
+  - `isClosed`: Estado del día (abierto/cerrado)
+
+### Manejo de Errores
+
+#### 1. Errores de Validación Zod
+
+**Parámetros inválidos (400):**
+```json
+{
+  "error": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "number",
+      "path": ["branchId"],
+      "message": "El ID de la sucursal debe ser un número"
+    }
+  ]
+}
+```
+
+**Datos del cuerpo inválidos (400):**
+```json
+{
+  "error": [
+    {
+      "code": "invalid_string",
+      "validation": "regex",
+      "path": ["schedules", 0, "openingTime"],
+      "message": "La hora de apertura debe estar en formato HH:MM:SS válido (ej: 09:30:00)"
+    }
+  ]
+}
+```
+
+**Validación refine - Horarios lógicos (400):**
+```json
+{
+  "error": [
+    {
+      "code": "custom",
+      "path": ["schedules", 1, "openingTime"],
+      "message": "La hora de apertura debe ser anterior a la hora de cierre cuando el día no está cerrado"
+    }
+  ]
+}
+```
+
+**Validación refine - 7 días únicos (400):**
+```json
+{
+  "error": [
+    {
+      "code": "custom",
+      "path": ["schedules"],
+      "message": "Los horarios deben incluir exactamente un día para cada día de la semana (0=Domingo a 6=Sábado) sin duplicados"
+    }
+  ]
+}
+```
+
+#### 2. Errores de Negocio (404/403)
+
+**Usuario no encontrado (404):**
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+**Sucursal no encontrada (404):**
+```json
+{
+  "status": "error",
+  "message": "Sucursal no encontrada",
+  "code": "BRANCH_NOT_FOUND",
+  "details": {
+    "branchId": 999,
+    "suggestion": "Verifica que el ID de la sucursal sea correcto"
+  }
+}
+```
+
+**Permisos insuficientes (403):**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de restaurante",
+  "code": "INSUFFICIENT_PERMISSIONS",
+  "details": {
+    "required": ["owner", "branch_manager"],
+    "current": ["customer"]
+  }
+}
+```
+
+**Sin acceso a la sucursal (403):**
+```json
+{
+  "status": "error",
+  "message": "No tienes permisos para actualizar esta sucursal",
+  "code": "BRANCH_UPDATE_DENIED",
+  "details": {
+    "branchId": 1,
+    "restaurantId": 1,
+    "suggestion": "Verifica que tienes permisos de owner o branch_manager para esta sucursal"
+  }
+}
+```
+
+#### 3. Errores de Transacción (409/500)
+
+**Conflicto de datos (409):**
+```json
+{
+  "status": "error",
+  "message": "Conflicto de datos",
+  "code": "DUPLICATE_SCHEDULE",
+  "details": {
+    "suggestion": "Ya existe un horario para este día de la semana en esta sucursal"
+  }
+}
+```
+
+**Error interno del servidor (500):**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "code": "INTERNAL_ERROR",
+  "originalError": "Transaction failed"
+}
+```
+
+### Ejemplo de Uso
+
+```bash
+curl -X PATCH \
+  'https://delixmi-backend.onrender.com/api/restaurant/branches/1/schedule' \
+  -H 'Authorization: Bearer <jwt_token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "schedules": [
+      {
+        "dayOfWeek": 0,
+        "openingTime": "09:00:00",
+        "closingTime": "22:00:00",
+        "isClosed": true
+      },
+      {
+        "dayOfWeek": 1,
+        "openingTime": "09:00:00",
+        "closingTime": "22:00:00",
+        "isClosed": false
+      }
+      // ... resto de los 7 días
+    ]
+  }'
+```
+
+### Notas Técnicas
+
+1. **Refactorización**: El endpoint ha sido completamente refactorizado siguiendo el patrón Repository, separando la lógica de negocio del controlador HTTP.
+
+2. **Validación Robusta**: Implementa validaciones Zod en múltiples capas:
+   - Middleware para parámetros y cuerpo de petición
+   - Validaciones de negocio en el repositorio
+   - Validaciones lógicas con `refine` para horarios
+
+3. **Transaccional**: Utiliza transacciones Prisma para garantizar consistencia:
+   - Elimina todos los horarios existentes
+   - Crea los nuevos registros
+   - Todo en una sola transacción atómica
+
+4. **Manejo de Errores**: Sistema estructurado de errores con:
+   - Códigos específicos para cada tipo de error
+   - Mensajes descriptivos en español
+   - Detalles adicionales para debugging
+
+5. **Logging**: Trazabilidad completa con `requestId` en todas las operaciones críticas.
+
+6. **Permisos Granulares**: Sistema de autorización que diferencia entre:
+   - **Owners**: Acceso completo a todas las sucursales del restaurante
+   - **Branch Managers**: Acceso específico solo a sucursales asignadas

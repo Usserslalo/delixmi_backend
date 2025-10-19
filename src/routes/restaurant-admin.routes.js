@@ -7,8 +7,8 @@ const { updateProfileSchema, updateLocationSchema } = require('../validations/re
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
-const { scheduleParamsSchema, updateWeeklyScheduleSchema } = require('../validations/schedule.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation } = require('../controllers/restaurant-admin.controller');
+const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -265,6 +265,25 @@ router.patch(
   validateParams(scheduleParamsSchema),
   validate(updateWeeklyScheduleSchema),
   updateBranchSchedule
+);
+
+/**
+ * @route   PATCH /api/restaurant/branches/:branchId/schedule/:dayOfWeek
+ * @desc    Actualizar el horario de un día específico de una sucursal
+ * @access  Private (Owner, Branch Manager Only)
+ * @params  branchId - ID de la sucursal
+ * @params  dayOfWeek - Día de la semana (0=Domingo, 1=Lunes, ..., 6=Sábado)
+ * @body    openingTime - Hora de apertura en formato HH:MM:SS
+ * @body    closingTime - Hora de cierre en formato HH:MM:SS
+ * @body    isClosed - Si el día está cerrado (boolean)
+ */
+router.patch(
+  '/branches/:branchId/schedule/:dayOfWeek',
+  requireRole(['owner', 'branch_manager']),
+  requireRestaurantLocation,
+  validateParams(singleDayParamsSchema),
+  validate(updateSingleDaySchema),
+  updateSingleDaySchedule
 );
 
 /**
