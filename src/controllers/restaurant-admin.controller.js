@@ -3350,6 +3350,83 @@ const getPrimaryBranch = async (req, res) => {
 };
 
 /**
+ * Actualiza los detalles operativos de la sucursal principal
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const updatePrimaryBranchDetails = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const updateData = req.body;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(ownerUserId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    // 3. Obtener el restaurantId del owner
+    const ownerAssignment = ownerAssignments.find(
+      assignment => assignment.restaurantId !== null
+    );
+
+    if (!ownerAssignment || !ownerAssignment.restaurantId) {
+      return ResponseService.forbidden(
+        res, 
+        'No se encontró un restaurante asignado para este owner',
+        null,
+        'NO_RESTAURANT_ASSIGNED'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 4. Delegar la lógica al repositorio
+    const result = await BranchRepository.updatePrimaryBranchDetails(
+      restaurantId,
+      updateData,
+      ownerUserId,
+      req.id
+    );
+
+    return ResponseService.success(
+      res,
+      'Detalles de sucursal principal actualizados exitosamente',
+      result
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    console.error('Error actualizando detalles de sucursal principal:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
+/**
  * Crea un nuevo empleado para el restaurante del owner
  * @param {Object} req - Request object
  * @param {Object} res - Response object
@@ -3522,6 +3599,7 @@ module.exports = {
   getLocationStatus,
   updateLocation,
   getPrimaryBranch,
+  updatePrimaryBranchDetails,
   createEmployee,
   getEmployees,
   updateEmployee

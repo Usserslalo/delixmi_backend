@@ -9,7 +9,8 @@ const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchem
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
 const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updateEmployeeSchema } = require('../validations/employee.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
+const { updateBranchDetailsSchema } = require('../validations/branch.validation');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -97,6 +98,27 @@ router.get(
   '/primary-branch',
   requireRole(['owner']),
   getPrimaryBranch
+);
+
+/**
+ * @route   PATCH /api/restaurant/primary-branch
+ * @desc    Actualizar los detalles operativos de la sucursal principal
+ * @access  Private (Owner Only)
+ * @body    name - Nombre de la sucursal (opcional)
+ * @body    phone - Teléfono de la sucursal (opcional)
+ * @body    usesPlatformDrivers - Usar drivers de la plataforma (opcional)
+ * @body    deliveryFee - Tarifa de entrega (opcional)
+ * @body    estimatedDeliveryMin - Tiempo mínimo de entrega en minutos (opcional)
+ * @body    estimatedDeliveryMax - Tiempo máximo de entrega en minutos (opcional)
+ * @body    deliveryRadius - Radio de entrega en km (opcional)
+ * @body    status - Estado de la sucursal (opcional)
+ */
+router.patch(
+  '/primary-branch',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validate(updateBranchDetailsSchema),
+  updatePrimaryBranchDetails
 );
 
 /**

@@ -627,3 +627,297 @@ Antes de usar esta funcionalidad, ejecutar:
 npx prisma migrate dev --name add_restaurant_location
 npx prisma generate
 ```
+
+---
+
+## Endpoint PATCH /api/restaurant/primary-branch
+
+### Descripción
+Permite al Owner actualizar los detalles operativos y de entrega de la sucursal principal de su restaurante, incluyendo configuración de entregas, tarifas, tiempos y estado de la sucursal.
+
+### Middlewares Aplicados
+
+1. **`authenticateToken`**: Verifica que el usuario esté autenticado mediante JWT
+2. **`requireRole(['owner'])`**: Verifica que el usuario tenga rol de owner
+3. **`requireRestaurantLocation`**: Verifica que el owner tenga configurada la ubicación de su restaurante
+4. **`validate(updateBranchDetailsSchema)`**: Valida el payload de la request usando Zod
+
+### Esquema Zod - `updateBranchDetailsSchema`
+
+```javascript
+const updateBranchDetailsSchema = z.object({
+  name: z
+    .string({
+      invalid_type_error: 'El nombre debe ser un texto'
+    })
+    .min(1, 'El nombre no puede estar vacío')
+    .max(150, 'El nombre no puede superar los 150 caracteres')
+    .trim()
+    .optional(),
+
+  phone: z
+    .string({
+      invalid_type_error: 'El teléfono debe ser un texto'
+    })
+    .regex(/^[0-9+()-.\s]{10,20}$/, 'Formato de teléfono inválido')
+    .nullable()
+    .optional(),
+
+  usesPlatformDrivers: z
+    .boolean({
+      invalid_type_error: 'usesPlatformDrivers debe ser verdadero o falso'
+    })
+    .optional(),
+
+  deliveryFee: z
+    .number({
+      invalid_type_error: 'La tarifa de entrega debe ser un número'
+    })
+    .min(0, 'La tarifa de entrega no puede ser negativa')
+    .optional(),
+
+  estimatedDeliveryMin: z
+    .number({
+      invalid_type_error: 'El tiempo mínimo debe ser un número'
+    })
+    .int('El tiempo mínimo debe ser un número entero')
+    .min(5, 'El tiempo mínimo de entrega debe ser al menos 5 minutos')
+    .optional(),
+
+  estimatedDeliveryMax: z
+    .number({
+      invalid_type_error: 'El tiempo máximo debe ser un número'
+    })
+    .int('El tiempo máximo debe ser un número entero')
+    .min(10, 'El tiempo máximo de entrega debe ser al menos 10 minutos')
+    .optional(),
+
+  deliveryRadius: z
+    .number({
+      invalid_type_error: 'El radio de entrega debe ser un número'
+    })
+    .min(0.5, 'El radio de entrega mínimo es 0.5 km')
+    .max(50, 'El radio de entrega máximo es 50 km')
+    .optional(),
+
+  status: z
+    .enum(['active', 'inactive', 'suspended'], {
+      errorMap: () => ({ message: 'Estado inválido. Debe ser: active, inactive o suspended' })
+    })
+    .optional()
+}).refine(
+  data => {
+    // Solo validar si ambos valores están presentes en la request
+    if (data.estimatedDeliveryMin !== undefined && data.estimatedDeliveryMax !== undefined) {
+      return data.estimatedDeliveryMin < data.estimatedDeliveryMax;
+    }
+    return true; // Si solo uno está presente, la validación se hará en el repositorio
+  },
+  {
+    message: 'El tiempo mínimo de entrega debe ser menor que el tiempo máximo',
+    path: ['estimatedDeliveryMin']
+  }
+).refine(
+  data => {
+    // Contar solo las propiedades que no son undefined
+    const definedFields = Object.keys(data).filter(key => data[key] !== undefined);
+    return definedFields.length > 0;
+  },
+  {
+    message: 'Debe proporcionar al menos un campo para actualizar',
+    path: ['name']
+  }
+);
+```
+
+### Lógica del Controlador
+
+**Controlador**: `updatePrimaryBranchDetails` en `restaurant-admin.controller.js`
+
+1. **Validación de Owner**: Obtiene `ownerUserId` de `req.user` y verifica que tenga rol de owner con restaurante asignado usando `UserService.getUserWithRoles()`
+2. **Obtención del RestaurantId**: Extrae el `restaurantId` de la asignación de rol del owner
+3. **Delegación al Repositorio**: Llama a `BranchRepository.updatePrimaryBranchDetails(restaurantId, updateData, ownerUserId, req.id)`
+4. **Respuesta**: Devuelve `ResponseService.success()` con los datos de la sucursal actualizada
+
+### Lógica del Repositorio
+
+**Repositorio**: `BranchRepository.updatePrimaryBranchDetails()` en `branch.repository.js`
+
+#### Proceso de Validación y Actualización:
+1. **Búsqueda de Sucursal Principal**: Usa `findPrimaryBranchByRestaurantId(restaurantId)`. Si no existe → Error 404
+2. **Validación de Tiempos**: Compara `estimatedDeliveryMin` vs `estimatedDeliveryMax` considerando valores existentes si solo se envía uno → Error 400 si min >= max
+3. **Preparación de Datos**: Construye `preparedData` solo con campos presentes en `updateData`, excluyendo `undefined`
+4. **Actualización**: `prisma.branch.update()` con la sucursal encontrada y datos preparados
+5. **Respuesta**: Devuelve `{ branch: updatedBranch, updatedFields: [...] }`
+
+### Payload de Ejemplo
+
+#### Actualizando Múltiples Campos:
+```json
+{
+  "name": "Sucursal Centro - Actualizada",
+  "phone": "+52 (442) 123-4567",
+  "usesPlatformDrivers": false,
+  "deliveryFee": 30.00,
+  "estimatedDeliveryMin": 20,
+  "estimatedDeliveryMax": 40,
+  "deliveryRadius": 8.5,
+  "status": "active"
+}
+```
+
+#### Actualizando Solo Tiempos de Entrega:
+```json
+{
+  "estimatedDeliveryMin": 15,
+  "estimatedDeliveryMax": 30
+}
+```
+
+#### Actualizando Solo Estado:
+```json
+{
+  "status": "inactive"
+}
+```
+
+### Ejemplo de Respuesta Exitosa (200 OK)
+
+```json
+{
+  "status": "success",
+  "message": "Detalles de sucursal principal actualizados exitosamente",
+  "timestamp": "2025-10-19T20:15:30.123Z",
+  "data": {
+    "branch": {
+      "id": 1,
+      "restaurantId": 1,
+      "name": "Sucursal Centro - Actualizada",
+      "address": "Calle Corregidora 1, Centro, Querétaro",
+      "latitude": "20.588",
+      "longitude": "-100.3899",
+      "phone": "+52 (442) 123-4567",
+      "usesPlatformDrivers": false,
+      "deliveryFee": "30.00",
+      "estimatedDeliveryMin": 20,
+      "estimatedDeliveryMax": 40,
+      "deliveryRadius": "8.50",
+      "status": "active",
+      "createdAt": "2025-10-19T17:20:50.557Z",
+      "updatedAt": "2025-10-19T20:15:30.123Z"
+    },
+    "updatedFields": [
+      "name",
+      "phone", 
+      "usesPlatformDrivers",
+      "deliveryFee",
+      "estimatedDeliveryMin",
+      "estimatedDeliveryMax",
+      "deliveryRadius",
+      "status"
+    ]
+  }
+}
+```
+
+### Manejo de Errores
+
+#### Error 400 - Validación de Zod
+```json
+{
+  "status": "error",
+  "message": "Validation error",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "estimatedDeliveryMin",
+      "message": "El tiempo mínimo de entrega debe ser menor que el tiempo máximo"
+    },
+    {
+      "field": "deliveryFee",
+      "message": "La tarifa de entrega no puede ser negativa"
+    }
+  ]
+}
+```
+
+#### Error 400 - Tiempos de Entrega Inválidos
+```json
+{
+  "status": "error",
+  "message": "El tiempo mínimo de entrega debe ser menor que el tiempo máximo",
+  "code": "INVALID_DELIVERY_TIMES",
+  "details": {
+    "estimatedDeliveryMin": 40,
+    "estimatedDeliveryMax": 30,
+    "suggestion": "El tiempo mínimo debe ser menor que el máximo"
+  }
+}
+```
+
+#### Error 400 - Sin Campos para Actualizar
+```json
+{
+  "status": "error",
+  "message": "No se proporcionó ningún campo válido para actualizar",
+  "code": "NO_FIELDS_TO_UPDATE"
+}
+```
+
+#### Error 403 - Permisos Insuficientes
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requiere rol de owner",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+#### Error 403 - Sin Restaurante Asignado
+```json
+{
+  "status": "error",
+  "message": "No se encontró un restaurante asignado para este owner",
+  "code": "NO_RESTAURANT_ASSIGNED"
+}
+```
+
+#### Error 404 - Sucursal Principal No Encontrada
+```json
+{
+  "status": "error",
+  "message": "Sucursal principal no encontrada",
+  "code": "PRIMARY_BRANCH_NOT_FOUND",
+  "details": {
+    "restaurantId": 1
+  }
+}
+```
+
+#### Error 404 - Usuario No Encontrado
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+#### Error 500 - Error Interno del Servidor
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "code": "INTERNAL_ERROR"
+}
+```
+
+### Características del Endpoint
+
+- **Actualización Flexible**: Permite actualizar cualquier combinación de campos operativos
+- **Validación Inteligente**: Valida tiempos de entrega considerando valores existentes y nuevos
+- **Seguridad**: Solo owners pueden modificar su sucursal principal
+- **Tracking**: Devuelve `updatedFields` para indicar qué campos fueron modificados
+- **Logging Completo**: Registra todas las operaciones para auditoría y debugging
+- **Transaccional**: Actualizaciones atómicas garantizando consistencia
+- **Respuesta Completa**: Incluye todos los datos actualizados de la sucursal
