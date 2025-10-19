@@ -338,30 +338,29 @@ class EmployeeRepository {
       }
 
       // 3. Añadir filtro de búsqueda por nombre, apellido o email
+      // Nota: MySQL no soporta mode: 'insensitive', por lo que usamos contains sin mode
+      // Esto hará búsqueda case-sensitive. Para case-insensitive se necesitaría usar SQL raw queries
       if (search && search.trim()) {
         const searchClause = {
           OR: [
             {
               user: {
                 name: {
-                  contains: search,
-                  mode: 'insensitive'
+                  contains: search
                 }
               }
             },
             {
               user: {
                 lastname: {
-                  contains: search,
-                  mode: 'insensitive'
+                  contains: search
                 }
               }
             },
             {
               user: {
                 email: {
-                  contains: search,
-                  mode: 'insensitive'
+                  contains: search
                 }
               }
             }

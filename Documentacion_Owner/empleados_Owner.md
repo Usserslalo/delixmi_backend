@@ -349,7 +349,7 @@ const employeeQuerySchema = z.object({
 1. **Filtro Base**: `{ restaurantId: restaurantId }`
 2. **Filtro por Rol**: Añade `roleId` si está presente en los filtros
 3. **Filtro por Estado**: Añade `user: { status: status }` si está presente
-4. **Filtro de Búsqueda**: Añade `OR` clause para buscar en `name`, `lastname`, y `email` con `contains` y `mode: 'insensitive'`
+4. **Filtro de Búsqueda**: Añade `OR` clause para buscar en `name`, `lastname`, y `email` con `contains` (case-sensitive para compatibilidad con MySQL)
 
 #### Consultas Paralelas:
 1. **Lista de Empleados**: `prisma.userRoleAssignment.findMany()` con:
@@ -618,22 +618,22 @@ const updateEmployeeSchema = z.object({
 #### Actualizar Solo el Rol:
 ```json
 {
-  "roleId": 6
+  "roleId": 5
 }
 ```
 
 #### Actualizar Solo el Estado:
 ```json
 {
-  "status": "suspended"
+  "status": "inactive"
 }
 ```
 
 #### Actualizar Ambos:
 ```json
 {
-  "roleId": 7,
-  "status": "active"
+  "roleId": 5,
+  "status": "inactive"
 }
 ```
 
@@ -643,11 +643,11 @@ const updateEmployeeSchema = z.object({
 {
     "status": "success",
     "message": "Empleado actualizado exitosamente",
-    "timestamp": "2025-10-19T19:15:00.000Z",
+    "timestamp": "2025-10-19T19:13:34.171Z",
     "data": {
         "assignment": {
-            "id": 5,
-            "roleId": 6,
+            "id": 7,
+            "roleId": 5,
             "restaurantId": 1,
             "branchId": null
         },
@@ -657,23 +657,26 @@ const updateEmployeeSchema = z.object({
             "lastname": "Prueba",
             "email": "nuevo.empleado.test@pizzeria.com",
             "phone": "9998887777",
-            "status": "active",
+            "status": "inactive",
             "emailVerifiedAt": "2025-10-19T18:38:27.570Z",
             "phoneVerifiedAt": "2025-10-19T18:38:27.570Z",
             "createdAt": "2025-10-19T18:38:27.571Z",
-            "updatedAt": "2025-10-19T19:15:00.000Z",
+            "updatedAt": "2025-10-19T19:13:33.601Z",
             "role": {
-                "id": 6,
-                "name": "order_manager",
-                "displayName": "Gestor de Pedidos",
-                "description": "Acepta y gestiona los pedidos entrantes en una sucursal."
+                "id": 5,
+                "name": "branch_manager",
+                "displayName": "Gerente de Sucursal",
+                "description": "Gestiona las operaciones diarias de una sucursal específica."
             },
             "restaurant": {
                 "id": 1,
                 "name": "Pizzería de Ana"
             }
         },
-        "updatedFields": ["roleId", "status"]
+        "updatedFields": [
+            "roleId",
+            "status"
+        ]
     }
 }
 ```
@@ -765,3 +768,52 @@ const updateEmployeeSchema = z.object({
 - **Atomicidad**: Cada actualización es independiente, fallando solo la operación específica
 - **Logging Completo**: Registra todas las operaciones para auditoría
 - **Respuesta Completa**: Incluye datos actualizados del empleado, rol y restaurante
+
+---
+
+## 🛠️ Notas Técnicas y Solución de Problemas
+
+### Error Crítico Solucionado - Búsqueda de Empleados (GET /employees)
+
+**Problema**: El endpoint `GET /api/restaurant/employees` fallaba con error 500 cuando se utilizaban filtros de búsqueda (`search` parameter).
+
+**Error Prisma Original**:
+```
+Unknown argument `mode`. Did you mean `lte`? Available options are marked with ?.
+```
+
+**Causa**: El código utilizaba `mode: 'insensitive'` en las consultas Prisma, que es específico de PostgreSQL y no soportado en MySQL.
+
+**Solución Implementada**: 
+1. **Eliminación de `mode: 'insensitive'`** en todas las cláusulas de búsqueda en `src/repositories/employee.repository.js`
+2. **Búsqueda case-sensitive**: Ahora se usa solo `contains` sin el parámetro `mode`
+3. **Compatibilidad MySQL**: Asegura que las consultas funcionen correctamente en la base de datos MySQL del proyecto
+
+**Código Corregido**:
+```javascript
+// ❌ ANTES (causaba error en MySQL):
+{
+  user: {
+    name: {
+      contains: search,
+      mode: 'insensitive'  // No soportado en MySQL
+    }
+  }
+}
+
+// ✅ DESPUÉS (funciona en MySQL):
+{
+  user: {
+    name: {
+      contains: search  // Case-sensitive pero funcional
+    }
+  }
+}
+```
+
+**Impacto**: 
+- ✅ **Búsqueda de empleados ahora funciona correctamente**
+- ✅ **Filtros por nombre, apellido y email operativos**
+- ⚠️ **Búsqueda es case-sensitive** (se puede mejorar en futuras versiones)
+
+**Nota**: Para implementar búsqueda case-insensitive en MySQL, se requeriría usar consultas SQL raw o modificar la configuración de la base de datos, lo cual está fuera del alcance de esta corrección inmediata.
