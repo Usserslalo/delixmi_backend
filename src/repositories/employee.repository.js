@@ -431,7 +431,8 @@ class EmployeeRepository {
 
       // 6. Formatear respuesta de empleados
       const employees = assignments.map(assignment => ({
-        id: assignment.user.id,
+        assignmentId: assignment.id, // ID de la UserRoleAssignment (CRÍTICO para PATCH)
+        id: assignment.user.id, // ID del usuario
         name: assignment.user.name,
         lastname: assignment.user.lastname,
         email: assignment.user.email,

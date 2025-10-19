@@ -755,14 +755,13 @@ const updateBranchDetailsSchema = z.object({
 #### Actualizando Múltiples Campos:
 ```json
 {
-  "name": "Sucursal Centro - Actualizada",
-  "phone": "+52 (442) 123-4567",
-  "usesPlatformDrivers": false,
+  "name": "Pizzería Ana - Centro Histórico",
+  "phone": "7715551234",
   "deliveryFee": 30.00,
   "estimatedDeliveryMin": 20,
   "estimatedDeliveryMax": 40,
-  "deliveryRadius": 8.5,
-  "status": "active"
+  "deliveryRadius": 6.5,
+  "status": "inactive"
 }
 ```
 
@@ -785,38 +784,37 @@ const updateBranchDetailsSchema = z.object({
 
 ```json
 {
-  "status": "success",
-  "message": "Detalles de sucursal principal actualizados exitosamente",
-  "timestamp": "2025-10-19T20:15:30.123Z",
-  "data": {
-    "branch": {
-      "id": 1,
-      "restaurantId": 1,
-      "name": "Sucursal Centro - Actualizada",
-      "address": "Calle Corregidora 1, Centro, Querétaro",
-      "latitude": "20.588",
-      "longitude": "-100.3899",
-      "phone": "+52 (442) 123-4567",
-      "usesPlatformDrivers": false,
-      "deliveryFee": "30.00",
-      "estimatedDeliveryMin": 20,
-      "estimatedDeliveryMax": 40,
-      "deliveryRadius": "8.50",
-      "status": "active",
-      "createdAt": "2025-10-19T17:20:50.557Z",
-      "updatedAt": "2025-10-19T20:15:30.123Z"
-    },
-    "updatedFields": [
-      "name",
-      "phone", 
-      "usesPlatformDrivers",
-      "deliveryFee",
-      "estimatedDeliveryMin",
-      "estimatedDeliveryMax",
-      "deliveryRadius",
-      "status"
-    ]
-  }
+    "status": "success",
+    "message": "Detalles de sucursal principal actualizados exitosamente",
+    "timestamp": "2025-10-19T20:00:01.974Z",
+    "data": {
+        "branch": {
+            "id": 1,
+            "restaurantId": 1,
+            "name": "Pizzería Ana - Centro Histórico",
+            "address": null,
+            "latitude": "20.47810846",
+            "longitude": "-99.22114793",
+            "phone": "7715551234",
+            "usesPlatformDrivers": true,
+            "deliveryFee": "30",
+            "estimatedDeliveryMin": 20,
+            "estimatedDeliveryMax": 40,
+            "deliveryRadius": "6.5",
+            "status": "inactive",
+            "createdAt": "2025-10-19T17:58:33.609Z",
+            "updatedAt": "2025-10-19T20:00:01.416Z"
+        },
+        "updatedFields": [
+            "name",
+            "phone",
+            "deliveryFee",
+            "estimatedDeliveryMin",
+            "estimatedDeliveryMax",
+            "deliveryRadius",
+            "status"
+        ]
+    }
 }
 ```
 

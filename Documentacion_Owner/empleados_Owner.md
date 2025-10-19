@@ -370,6 +370,15 @@ const employeeQuerySchema = z.object({
 GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=maria
 ```
 
+### Estructura de la Respuesta
+
+**Importante**: Cada empleado en la respuesta incluye:
+- **`assignmentId`**: ID de la `UserRoleAssignment` (CRÍTICO para actualizaciones)
+- **`id`**: ID del usuario empleado
+- **Resto de campos**: Información del usuario, rol y restaurante
+
+El campo `assignmentId` es esencial para realizar actualizaciones mediante `PATCH /api/restaurant/employees/:assignmentId`.
+
 ### Ejemplo de Respuesta Exitosa (200 OK)
 
 ```json
@@ -380,6 +389,7 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
     "data": {
         "employees": [
             {
+                "assignmentId": 2,
                 "id": 2,
                 "name": "Ana",
                 "lastname": "García",
@@ -402,6 +412,7 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
                 }
             },
             {
+                "assignmentId": 3,
                 "id": 3,
                 "name": "Carlos",
                 "lastname": "Rodriguez",
@@ -424,6 +435,7 @@ GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=m
                 }
             },
             {
+                "assignmentId": 7,
                 "id": 7,
                 "name": "Empleado",
                 "lastname": "Prueba",
@@ -817,3 +829,57 @@ Unknown argument `mode`. Did you mean `lte`? Available options are marked with ?
 - ⚠️ **Búsqueda es case-sensitive** (se puede mejorar en futuras versiones)
 
 **Nota**: Para implementar búsqueda case-insensitive en MySQL, se requeriría usar consultas SQL raw o modificar la configuración de la base de datos, lo cual está fuera del alcance de esta corrección inmediata.
+
+### 🚨 Error Crítico Solucionado - Falta assignmentId en GET /employees
+
+**Problema**: El endpoint `GET /api/restaurant/employees` no incluía el campo `assignmentId` necesario para que el frontend pudiera actualizar empleados usando `PATCH /api/restaurant/employees/:assignmentId`.
+
+**Error Frontend**:
+```
+Error: No se puede actualizar empleado - assignmentId es null
+```
+
+**Causa**: El repositorio `EmployeeRepository.getEmployeesByRestaurant()` mapeaba los resultados pero no incluía el `assignment.id` (ID de `UserRoleAssignment`).
+
+**Solución Implementada**: 
+1. **Añadido campo `assignmentId`** en el mapeo de la respuesta del método `getEmployeesByRestaurant()`
+2. **Documentación actualizada** para reflejar la nueva estructura de respuesta
+3. **Explicación clara** sobre la diferencia entre `assignmentId` (para PATCH) e `id` (ID del usuario)
+
+**Código Corregido**:
+```javascript
+// ❌ ANTES (faltaba assignmentId):
+const employees = assignments.map(assignment => ({
+  id: assignment.user.id, // Solo ID del usuario
+  name: assignment.user.name,
+  // ... resto de campos
+}));
+
+// ✅ DESPUÉS (incluye assignmentId crítico):
+const employees = assignments.map(assignment => ({
+  assignmentId: assignment.id, // ID de la UserRoleAssignment (CRÍTICO)
+  id: assignment.user.id, // ID del usuario
+  name: assignment.user.name,
+  // ... resto de campos
+}));
+```
+
+**Estructura de Respuesta Corregida**:
+```json
+{
+  "employees": [
+    {
+      "assignmentId": 2, // ← CRÍTICO para PATCH /employees/:assignmentId
+      "id": 2,           // ← ID del usuario
+      "name": "Ana",
+      // ... resto de campos
+    }
+  ]
+}
+```
+
+**Impacto**: 
+- ✅ **Frontend puede ahora actualizar empleados correctamente**
+- ✅ **PATCH /api/restaurant/employees/:assignmentId funciona como esperado**
+- ✅ **Documentación actualizada con la estructura correcta**
+- ✅ **Solución del problema reportado por el equipo de Flutter**
