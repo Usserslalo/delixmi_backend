@@ -2605,222 +2605,30 @@ const updateBranchSchedule = async (req, res) => {
   try {
     const { branchId } = req.params;
     const userId = req.user.id;
-    const branchIdNum = parseInt(branchId);
-    const scheduleData = req.body;
+    const { schedules } = req.body;
 
-    console.log(`🔧 Actualizando horario de sucursal ${branchId} por usuario ${userId}`);
-
-    // 1. Obtener información del usuario y sus roles
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de restaurante',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: restaurantRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Verificar que la sucursal existe y obtener información
-    const branch = await prisma.branch.findUnique({
-      where: { id: branchIdNum },
-      include: {
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
-        }
-      }
-    });
-
-    if (!branch) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Sucursal no encontrada',
-        details: {
-          branchId: branchId,
-          suggestion: 'Verifica que el ID de la sucursal sea correcto'
-        }
-      });
-    }
-
-    // 4. Verificar autorización de acceso a la sucursal
-    let hasAccess = false;
-
-    // Verificar si es owner del restaurante
-    const ownerAssignment = userWithRoles.userRoleAssignments.find(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId === branch.restaurantId
-    );
-
-    if (ownerAssignment) {
-      hasAccess = true;
-    } else {
-      // Verificar si es branch_manager con acceso específico a esta sucursal
-      const branchManagerAssignment = userWithRoles.userRoleAssignments.find(
-        assignment => 
-          assignment.role.name === 'branch_manager' && 
-          assignment.restaurantId === branch.restaurantId &&
-          (assignment.branchId === branchIdNum || assignment.branchId === null)
-      );
-
-      if (branchManagerAssignment) {
-        hasAccess = true;
-      }
-    }
-
-    if (!hasAccess) {
-      console.log(`❌ Usuario ${userId} no tiene permisos para actualizar la sucursal ${branchId}`);
-      return res.status(403).json({
-        status: 'error',
-        message: 'No tienes permisos para actualizar esta sucursal',
-        details: {
-          branchId: branchId,
-          restaurantId: branch.restaurantId,
-          suggestion: 'Verifica que tienes permisos de owner o branch_manager para esta sucursal'
-        }
-      });
-    }
-
-    // 5. Validar horarios lógicos (openingTime < closingTime cuando no está cerrado)
-    for (const scheduleItem of scheduleData) {
-      if (!scheduleItem.isClosed) {
-        const openingTime = new Date(`1970-01-01T${scheduleItem.openingTime}`);
-        const closingTime = new Date(`1970-01-01T${scheduleItem.closingTime}`);
-        
-        if (openingTime >= closingTime) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'Horario inválido',
-            details: {
-              dayOfWeek: scheduleItem.dayOfWeek,
-              dayName: getDayName(scheduleItem.dayOfWeek),
-              error: 'La hora de apertura debe ser anterior a la hora de cierre'
-            }
-          });
-        }
-      }
-    }
-
-    // 6. Actualización transaccional del horario
-    const result = await prisma.$transaction(async (tx) => {
-      // Eliminar todos los horarios existentes de la sucursal
-      await tx.branchSchedule.deleteMany({
-        where: {
-          branchId: branchIdNum
-        }
-      });
-
-      // Crear los nuevos horarios
-      const newSchedules = scheduleData.map(item => ({
-        branchId: branchIdNum,
-        dayOfWeek: item.dayOfWeek,
-        openingTime: item.openingTime,
-        closingTime: item.closingTime,
-        isClosed: item.isClosed
-      }));
-
-      const createdSchedules = await tx.branchSchedule.createMany({
-        data: newSchedules
-      });
-
-      return createdSchedules;
-    });
-
-    console.log(`✅ Horario de sucursal ${branchId} actualizado exitosamente. ${result.count} registros creados`);
-
-    // 7. Obtener el horario actualizado para la respuesta
-    const updatedSchedules = await prisma.branchSchedule.findMany({
-      where: {
-        branchId: branchIdNum
-      },
-      orderBy: {
-        dayOfWeek: 'asc'
-      }
-    });
-
-    // 8. Formatear respuesta
-    const formattedSchedules = updatedSchedules.map(schedule => ({
-      id: schedule.id,
-      dayOfWeek: schedule.dayOfWeek,
-      dayName: getDayName(schedule.dayOfWeek),
-      openingTime: schedule.openingTime,
-      closingTime: schedule.closingTime,
-      isClosed: schedule.isClosed
-    }));
+    // Delegar la lógica al repositorio
+    const updatedScheduleData = await ScheduleRepository.updateWeeklySchedule(branchId, schedules, userId, req.id);
 
     return ResponseService.success(
       res,
       'Horario de sucursal actualizado exitosamente',
-      {
-        branch: {
-          id: branch.id,
-          name: branch.name,
-          restaurant: {
-            id: branch.restaurant.id,
-            name: branch.restaurant.name
-          }
-        },
-        schedules: formattedSchedules
-      }
+      updatedScheduleData
     );
 
   } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
     console.error('❌ Error actualizando horario de sucursal:', error);
-
-    if (error.code === 'P2025') {
-      return ResponseService.notFound(
-        res, 
-        'Sucursal no encontrada',
-        {
-          branchId: req.params.branchId,
-          suggestion: 'Verifica que el ID de la sucursal sea correcto'
-        }
-      );
-    }
-
-    if (error.code === 'P2002') {
-      return ResponseService.badRequest(
-        res, 
-        'Conflicto de datos',
-        {
-          suggestion: 'Ya existe un horario para este día de la semana en esta sucursal'
-        }
-      );
-    }
-
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };

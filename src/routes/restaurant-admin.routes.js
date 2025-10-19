@@ -7,7 +7,7 @@ const { updateProfileSchema, updateLocationSchema } = require('../validations/re
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
-const { scheduleParamsSchema } = require('../validations/schedule.validation');
+const { scheduleParamsSchema, updateWeeklyScheduleSchema } = require('../validations/schedule.validation');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -262,71 +262,8 @@ router.patch(
   '/branches/:branchId/schedule',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
-  [
-    param('branchId')
-      .notEmpty()
-      .withMessage('El ID de la sucursal es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la sucursal debe ser un número entero válido'),
-    body()
-      .isArray({ min: 7, max: 7 })
-      .withMessage('Debe proporcionar exactamente 7 objetos de horario (uno por cada día de la semana)'),
-    body('*.dayOfWeek')
-      .isInt({ min: 0, max: 6 })
-      .withMessage('dayOfWeek debe ser un número entero entre 0 (Domingo) y 6 (Sábado)'),
-    body('*.openingTime')
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('openingTime debe estar en formato HH:MM:SS válido'),
-    body('*.closingTime')
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('closingTime debe estar en formato HH:MM:SS válido'),
-    body('*.isClosed')
-      .isBoolean()
-      .withMessage('isClosed debe ser un valor booleano (true/false)')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    
-    // Validación adicional: verificar que los dayOfWeek sean únicos y estén en orden
-    const dayOfWeeks = req.body.map(item => item.dayOfWeek);
-    const uniqueDayOfWeeks = [...new Set(dayOfWeeks)];
-    
-    if (uniqueDayOfWeeks.length !== 7) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Los dayOfWeek deben ser únicos y cubrir todos los días de la semana (0-6)',
-        errors: [{
-          msg: 'Cada día de la semana debe aparecer exactamente una vez',
-          param: 'dayOfWeek'
-        }]
-      });
-    }
-    
-    // Verificar que cubra todos los días de la semana
-    const expectedDays = [0, 1, 2, 3, 4, 5, 6];
-    const missingDays = expectedDays.filter(day => !dayOfWeeks.includes(day));
-    
-    if (missingDays.length > 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Faltan días de la semana en el horario',
-        errors: [{
-          msg: `Días faltantes: ${missingDays.join(', ')}`,
-          param: 'dayOfWeek'
-        }]
-      });
-    }
-    
-    next();
-  },
+  validateParams(scheduleParamsSchema),
+  validate(updateWeeklyScheduleSchema),
   updateBranchSchedule
 );
 
