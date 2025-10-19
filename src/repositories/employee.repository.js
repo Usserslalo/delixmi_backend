@@ -299,6 +299,210 @@ class EmployeeRepository {
       };
     }
   }
+
+  /**
+   * Obtiene la lista de empleados de un restaurante con filtros y paginación
+   * @param {number} restaurantId - ID del restaurante
+   * @param {Object} filters - Filtros de búsqueda (page, pageSize, roleId, status, search)
+   * @returns {Promise<Object>} Lista de empleados con metadatos de paginación
+   */
+  static async getEmployeesByRestaurant(restaurantId, filters) {
+    try {
+      logger.debug('Consultando empleados del restaurante', {
+        meta: { restaurantId, filters }
+      });
+
+      const {
+        page = 1,
+        pageSize = 15,
+        roleId,
+        status,
+        search
+      } = filters;
+
+      // 1. Construir cláusula where base
+      const whereClause = {
+        restaurantId: restaurantId
+      };
+
+      // 2. Añadir filtros opcionales
+      if (roleId) {
+        whereClause.roleId = roleId;
+      }
+
+      if (status) {
+        whereClause.user = {
+          ...whereClause.user,
+          status: status
+        };
+      }
+
+      // 3. Añadir filtro de búsqueda por nombre, apellido o email
+      if (search && search.trim()) {
+        const searchClause = {
+          OR: [
+            {
+              user: {
+                name: {
+                  contains: search,
+                  mode: 'insensitive'
+                }
+              }
+            },
+            {
+              user: {
+                lastname: {
+                  contains: search,
+                  mode: 'insensitive'
+                }
+              }
+            },
+            {
+              user: {
+                email: {
+                  contains: search,
+                  mode: 'insensitive'
+                }
+              }
+            }
+          ]
+        };
+
+        if (whereClause.user) {
+          // Si ya tenemos filtro de status, combinamos con OR
+          whereClause.AND = [
+            { user: { status: status } },
+            searchClause
+          ];
+          delete whereClause.user;
+        } else {
+          Object.assign(whereClause, searchClause);
+        }
+      }
+
+      // 4. Calcular paginación
+      const skip = (page - 1) * pageSize;
+      const take = Math.min(pageSize, 100); // Máximo 100 por página
+
+      // 5. Ejecutar consultas en paralelo
+      const [assignments, totalCount] = await Promise.all([
+        prisma.userRoleAssignment.findMany({
+          where: whereClause,
+          skip: skip,
+          take: take,
+          orderBy: [
+            { user: { name: 'asc' } },
+            { user: { lastname: 'asc' } }
+          ],
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                email: true,
+                phone: true,
+                status: true,
+                emailVerifiedAt: true,
+                phoneVerifiedAt: true,
+                createdAt: true,
+                updatedAt: true
+              }
+            },
+            role: {
+              select: {
+                id: true,
+                name: true,
+                displayName: true,
+                description: true
+              }
+            },
+            restaurant: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }),
+        prisma.userRoleAssignment.count({
+          where: whereClause
+        })
+      ]);
+
+      // 6. Formatear respuesta de empleados
+      const employees = assignments.map(assignment => ({
+        id: assignment.user.id,
+        name: assignment.user.name,
+        lastname: assignment.user.lastname,
+        email: assignment.user.email,
+        phone: assignment.user.phone,
+        status: assignment.user.status,
+        emailVerifiedAt: assignment.user.emailVerifiedAt,
+        phoneVerifiedAt: assignment.user.phoneVerifiedAt,
+        createdAt: assignment.user.createdAt,
+        updatedAt: assignment.user.updatedAt,
+        role: {
+          id: assignment.role.id,
+          name: assignment.role.name,
+          displayName: assignment.role.displayName,
+          description: assignment.role.description
+        },
+        restaurant: {
+          id: assignment.restaurant.id,
+          name: assignment.restaurant.name
+        }
+      }));
+
+      // 7. Calcular metadatos de paginación
+      const totalPages = Math.ceil(totalCount / pageSize);
+      const hasNextPage = page < totalPages;
+      const hasPrevPage = page > 1;
+
+      const pagination = {
+        currentPage: page,
+        pageSize: pageSize,
+        totalItems: totalCount,
+        totalPages: totalPages,
+        hasNextPage: hasNextPage,
+        hasPrevPage: hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null
+      };
+
+      logger.debug('Empleados obtenidos exitosamente', {
+        meta: { 
+          restaurantId, 
+          totalCount, 
+          returnedCount: employees.length,
+          page,
+          pageSize
+        }
+      });
+
+      return {
+        employees,
+        pagination
+      };
+
+    } catch (error) {
+      logger.error('Error obteniendo empleados del restaurante', {
+        meta: { 
+          restaurantId, 
+          filters, 
+          error: error.message 
+        }
+      });
+
+      // Error interno no controlado
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR',
+        originalError: error.message
+      };
+    }
+  }
 }
 
 module.exports = EmployeeRepository;

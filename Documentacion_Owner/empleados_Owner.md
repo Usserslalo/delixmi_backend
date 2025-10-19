@@ -105,12 +105,12 @@ const createEmployeeSchema = z.object({
 
 ```json
 {
-  "email": "maria.garcia@pizzeria.com",
-  "password": "contraseña123",
-  "name": "María",
-  "lastname": "García",
-  "phone": "7771234567",
-  "roleId": 5
+  "email": "nuevo.empleado.test@pizzeria.com",
+  "password": "passwordSeguro123",
+  "name": "Empleado",
+  "lastname": "Prueba",
+  "phone": "9998887777",
+  "roleId": 6
 }
 ```
 
@@ -124,33 +124,33 @@ const createEmployeeSchema = z.object({
 
 ```json
 {
-  "status": "success",
-  "message": "Empleado creado exitosamente",
-  "timestamp": "2025-10-19T18:00:00.000Z",
-  "data": {
-    "employee": {
-      "id": 7,
-      "name": "María",
-      "lastname": "García",
-      "email": "maria.garcia@pizzeria.com",
-      "phone": "7771234567",
-      "status": "active",
-      "emailVerifiedAt": "2025-10-19T18:00:00.000Z",
-      "phoneVerifiedAt": "2025-10-19T18:00:00.000Z",
-      "createdAt": "2025-10-19T18:00:00.000Z",
-      "updatedAt": "2025-10-19T18:00:00.000Z",
-      "role": {
-        "id": 5,
-        "name": "branch_manager",
-        "displayName": "Gerente de Sucursal",
-        "description": "Gestiona las operaciones diarias de una sucursal específica."
-      },
-      "restaurant": {
-        "id": 1,
-        "name": "Pizzería de Ana"
-      }
+    "status": "success",
+    "message": "Empleado creado exitosamente",
+    "timestamp": "2025-10-19T18:38:28.185Z",
+    "data": {
+        "employee": {
+            "id": 7,
+            "name": "Empleado",
+            "lastname": "Prueba",
+            "email": "nuevo.empleado.test@pizzeria.com",
+            "phone": "9998887777",
+            "status": "active",
+            "emailVerifiedAt": "2025-10-19T18:38:27.570Z",
+            "phoneVerifiedAt": "2025-10-19T18:38:27.570Z",
+            "createdAt": "2025-10-19T18:38:27.571Z",
+            "updatedAt": "2025-10-19T18:38:27.571Z",
+            "role": {
+                "id": 6,
+                "name": "order_manager",
+                "displayName": "Gestor de Pedidos",
+                "description": "Acepta y gestiona los pedidos entrantes en una sucursal."
+            },
+            "restaurant": {
+                "id": 1,
+                "name": "Pizzería de Ana"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -278,3 +278,229 @@ const createEmployeeSchema = z.object({
 - **Validación de Roles**: Solo permite roles específicos de empleados
 - **Transaccional**: Usa transacciones de Prisma para garantizar consistencia de datos
 - **Logging Completo**: Registra todas las operaciones para auditoría y debugging
+
+---
+
+## Endpoint GET /api/restaurant/employees
+
+### Descripción
+Permite al Owner obtener la lista de empleados de su restaurante con filtros opcionales y paginación. Incluye funcionalidades de búsqueda por nombre, apellido o email, y filtrado por rol y estado.
+
+### Middlewares Aplicados
+
+1. **`authenticateToken`**: Verifica que el usuario esté autenticado mediante JWT
+2. **`requireRole(['owner'])`**: Verifica que el usuario tenga rol de owner
+3. **`requireRestaurantLocation`**: Verifica que el owner tenga configurada la ubicación de su restaurante
+4. **`validateQuery(employeeQuerySchema)`**: Valida los query parameters usando Zod
+
+### Esquema Zod - `employeeQuerySchema`
+
+```javascript
+const employeeQuerySchema = z.object({
+  page: z
+    .string()
+    .regex(/^\d+$/, 'La página debe ser un número')
+    .transform(Number)
+    .optional()
+    .default(1)
+    .refine(val => val > 0, 'La página debe ser mayor que 0'),
+    
+  pageSize: z
+    .string()
+    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
+    .transform(Number)
+    .optional()
+    .default(15)
+    .refine(val => val > 0 && val <= 100, 'El tamaño de página debe estar entre 1 y 100'),
+    
+  roleId: z
+    .string()
+    .regex(/^\d+$/, 'El ID del rol debe ser un número')
+    .transform(Number)
+    .optional(),
+    
+  status: z
+    .enum(['active', 'inactive', 'pending', 'suspended'], {
+      errorMap: () => ({ message: 'El estado debe ser: active, inactive, pending o suspended' })
+    })
+    .optional(),
+    
+  search: z
+    .string()
+    .trim()
+    .optional()
+});
+```
+
+### Lógica del Controlador
+
+**Controlador**: `getEmployees` en `restaurant-admin.controller.js`
+
+1. **Validación de Owner**: Obtiene `ownerUserId` de `req.user` y verifica que tenga rol de owner con restaurante asignado
+2. **Obtención del RestaurantId**: Usa `UserService.getUserWithRoles()` para obtener el `restaurantId` asociado al owner
+3. **Delegación al Repositorio**: Llama a `EmployeeRepository.getEmployeesByRestaurant(restaurantId, filters)`
+4. **Respuesta**: Devuelve la lista de empleados con metadatos de paginación
+
+### Lógica del Repositorio
+
+**Repositorio**: `EmployeeRepository.getEmployeesByRestaurant()` en `employee.repository.js`
+
+#### Construcción de Filtros:
+1. **Filtro Base**: `{ restaurantId: restaurantId }`
+2. **Filtro por Rol**: Añade `roleId` si está presente en los filtros
+3. **Filtro por Estado**: Añade `user: { status: status }` si está presente
+4. **Filtro de Búsqueda**: Añade `OR` clause para buscar en `name`, `lastname`, y `email` con `contains` y `mode: 'insensitive'`
+
+#### Consultas Paralelas:
+1. **Lista de Empleados**: `prisma.userRoleAssignment.findMany()` con:
+   - `where`: Cláusula construida con filtros
+   - `skip`/`take`: Para paginación
+   - `orderBy`: Ordenamiento por nombre y apellido
+   - `include`: Usuario, rol y restaurante
+
+2. **Conteo Total**: `prisma.userRoleAssignment.count()` con la misma cláusula `where`
+
+#### Metadatos de Paginación:
+- `currentPage`, `pageSize`, `totalItems`, `totalPages`
+- `hasNextPage`, `hasPrevPage`, `nextPage`, `prevPage`
+
+### Ejemplo de Query Parameters
+
+```
+GET /api/restaurant/employees?page=1&pageSize=10&roleId=5&status=active&search=maria
+```
+
+### Ejemplo de Respuesta Exitosa (200 OK)
+
+```json
+{
+    "status": "success",
+    "message": "Empleados obtenidos exitosamente",
+    "timestamp": "2025-10-19T19:00:00.000Z",
+    "data": {
+        "employees": [
+            {
+                "id": 2,
+                "name": "Carlos",
+                "lastname": "Rodriguez",
+                "email": "carlos.rodriguez@pizzeria.com",
+                "phone": "3333333333",
+                "status": "active",
+                "emailVerifiedAt": "2025-10-18T22:30:00.000Z",
+                "phoneVerifiedAt": "2025-10-18T22:30:00.000Z",
+                "createdAt": "2025-10-18T22:30:00.000Z",
+                "updatedAt": "2025-10-18T22:30:00.000Z",
+                "role": {
+                    "id": 5,
+                    "name": "branch_manager",
+                    "displayName": "Gerente de Sucursal",
+                    "description": "Gestiona las operaciones diarias de una sucursal específica."
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                }
+            },
+            {
+                "id": 7,
+                "name": "Empleado",
+                "lastname": "Prueba",
+                "email": "nuevo.empleado.test@pizzeria.com",
+                "phone": "9998887777",
+                "status": "active",
+                "emailVerifiedAt": "2025-10-19T18:38:27.570Z",
+                "phoneVerifiedAt": "2025-10-19T18:38:27.570Z",
+                "createdAt": "2025-10-19T18:38:27.571Z",
+                "updatedAt": "2025-10-19T18:38:27.571Z",
+                "role": {
+                    "id": 6,
+                    "name": "order_manager",
+                    "displayName": "Gestor de Pedidos",
+                    "description": "Acepta y gestiona los pedidos entrantes en una sucursal."
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                }
+            }
+        ],
+        "pagination": {
+            "currentPage": 1,
+            "pageSize": 15,
+            "totalItems": 2,
+            "totalPages": 1,
+            "hasNextPage": false,
+            "hasPrevPage": false,
+            "nextPage": null,
+            "prevPage": null
+        }
+    }
+}
+```
+
+### Manejo de Errores
+
+#### Error 400 - Validación de Query Parameters
+```json
+{
+  "status": "error",
+  "message": "Validation error",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "pageSize",
+      "message": "El tamaño de página debe estar entre 1 y 100"
+    },
+    {
+      "field": "status", 
+      "message": "El estado debe ser: active, inactive, pending o suspended"
+    }
+  ]
+}
+```
+
+#### Error 403 - Permisos Insuficientes
+```json
+{
+  "status": "error",
+  "message": "No tienes permisos para consultar empleados. Se requiere rol de owner",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+#### Error 403 - Ubicación No Configurada
+```json
+{
+  "status": "error",
+  "message": "Debes configurar la ubicación de tu restaurante antes de poder consultar empleados",
+  "code": "RESTAURANT_LOCATION_REQUIRED"
+}
+```
+
+#### Error 404 - Usuario No Encontrado
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "NOT_FOUND"
+}
+```
+
+#### Error 500 - Error Interno del Servidor
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "code": "INTERNAL_ERROR"
+}
+```
+
+### Características del Endpoint
+
+- **Paginación Flexible**: Control de página y tamaño, máximo 100 items por página
+- **Filtrado Avanzado**: Por rol, estado y búsqueda de texto en múltiples campos
+- **Búsqueda Insensible**: Búsqueda por nombre, apellido y email sin distinción de mayúsculas
+- **Ordenamiento**: Lista ordenada por nombre y apellido
+- **Metadatos Completos**: Información detallada de paginación y navegación
+- **Optimización**: Consultas paralelas para mejor rendimiento
+- **Seguridad**: Solo owners pueden consultar empleados de su restaurante

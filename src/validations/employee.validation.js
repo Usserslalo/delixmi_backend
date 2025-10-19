@@ -67,7 +67,46 @@ const employeeParamsSchema = z.object({
     .refine(val => val > 0, 'El ID del empleado debe ser mayor que 0')
 });
 
+/**
+ * Esquema de validación para query parameters de listado de empleados
+ */
+const employeeQuerySchema = z.object({
+  page: z
+    .string()
+    .regex(/^\d+$/, 'La página debe ser un número')
+    .transform(Number)
+    .optional()
+    .default(1)
+    .refine(val => val > 0, 'La página debe ser mayor que 0'),
+    
+  pageSize: z
+    .string()
+    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
+    .transform(Number)
+    .optional()
+    .default(15)
+    .refine(val => val > 0 && val <= 100, 'El tamaño de página debe estar entre 1 y 100'),
+    
+  roleId: z
+    .string()
+    .regex(/^\d+$/, 'El ID del rol debe ser un número')
+    .transform(Number)
+    .optional(),
+    
+  status: z
+    .enum(['active', 'inactive', 'pending', 'suspended'], {
+      errorMap: () => ({ message: 'El estado debe ser: active, inactive, pending o suspended' })
+    })
+    .optional(),
+    
+  search: z
+    .string()
+    .trim()
+    .optional()
+});
+
 module.exports = {
   createEmployeeSchema,
-  employeeParamsSchema
+  employeeParamsSchema,
+  employeeQuerySchema
 };

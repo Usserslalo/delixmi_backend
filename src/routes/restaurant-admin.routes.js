@@ -8,8 +8,8 @@ const { createProductSchema, updateProductSchema, productParamsSchema } = requir
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
-const { createEmployeeSchema } = require('../validations/employee.validation');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee } = require('../controllers/restaurant-admin.controller');
+const { createEmployeeSchema, employeeQuerySchema } = require('../validations/employee.validation');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, createEmployee, getEmployees } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -116,6 +116,24 @@ router.post(
   requireRestaurantLocation,
   validate(createEmployeeSchema),
   createEmployee
+);
+
+/**
+ * @route   GET /api/restaurant/employees
+ * @desc    Obtener la lista de empleados del restaurante del dueño autenticado
+ * @access  Private (Owner Only)
+ * @query   page (opcional) - Número de página (default: 1)
+ * @query   pageSize (opcional) - Tamaño de página (default: 15, max: 100)
+ * @query   roleId (opcional) - ID del rol para filtrar empleados
+ * @query   status (opcional) - Estado del empleado (active, inactive, pending, suspended)
+ * @query   search (opcional) - Búsqueda por nombre, apellido o email
+ */
+router.get(
+  '/employees',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validateQuery(employeeQuerySchema),
+  getEmployees
 );
 
 /**

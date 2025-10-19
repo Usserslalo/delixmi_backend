@@ -3,6 +3,7 @@ const { getIo } = require('../config/socket');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const UserService = require('../services/user.service');
 const ResponseService = require('../services/response.service');
+const { logger } = require('../config/logger');
 const { checkRestaurantAccess, checkRestaurantOwnership, checkBranchAccess } = require('../middleware/restaurantAccess.middleware');
 const RestaurantRepository = require('../repositories/restaurant.repository');
 const ProductRepository = require('../repositories/product.repository');
@@ -3389,6 +3390,70 @@ const createEmployee = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene la lista de empleados del restaurante del owner
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getEmployees = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const filters = req.query;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(ownerUserId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignment = userWithRoles.userRoleAssignments.find(
+      assignment => assignment.role.name === 'owner' && assignment.restaurantId
+    );
+
+    if (!ownerAssignment) {
+      logger.warn('Usuario no tiene rol de owner o restaurante asignado', {
+        requestId: req.id,
+        meta: { ownerUserId }
+      });
+      
+      return ResponseService.forbidden(
+        res, 
+        'No tienes permisos para consultar empleados. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 3. Delegar la lógica al repositorio
+    const result = await EmployeeRepository.getEmployeesByRestaurant(restaurantId, filters);
+
+    return ResponseService.success(
+      res,
+      'Empleados obtenidos exitosamente',
+      result
+    );
+
+  } catch (error) {
+    // El repositorio maneja los errores con estructura específica
+    if (error.status) {
+      return res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        details: error.details || null
+      });
+    }
+
+    // Para errores no controlados, usar ResponseService
+    console.error('❌ Error obteniendo empleados:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3415,6 +3480,7 @@ module.exports = {
   getLocationStatus,
   updateLocation,
   getPrimaryBranch,
-  createEmployee
+  createEmployee,
+  getEmployees
 };
 
