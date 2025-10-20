@@ -1143,3 +1143,321 @@ const completeOrder = async (req, res) => {
 ```
 
 **Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el estado `delivered`, timestamp de entrega, y las estadísticas de tiempo de entrega. Los logs confirman que todas las correcciones críticas implementadas están funcionando perfectamente, incluyendo la actualización automática del estado del repartidor a `online` y las notificaciones duales.
+
+---
+
+## GET /api/driver/orders/current
+
+Obtiene la entrega activa actual del repartidor (pedido en estado `out_for_delivery`).
+
+### **Headers Requeridos**
+```http
+Authorization: Bearer <jwt_token>
+```
+
+### **Middlewares Aplicados**
+1. `authenticateToken` - Verificación de JWT válido
+2. `requireRole(['driver_platform', 'driver_restaurant'])` - Verificación de roles de repartidor
+3. Sin validación de query params (no acepta parámetros)
+
+### **Lógica Detallada**
+
+#### **Controlador**
+**Archivo**: `src/controllers/driver.controller.js`
+
+```javascript
+const getCurrentOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Llamar al método del repositorio para obtener entrega activa
+    const activeOrder = await DriverRepository.getCurrentOrderForDriver(
+      userId, 
+      req.id
+    );
+
+    // Manejar respuesta según si hay entrega activa o no
+    if (activeOrder) {
+      return ResponseService.success(
+        res,
+        'Entrega activa obtenida exitosamente',
+        { order: activeOrder },
+        200
+      );
+    } else {
+      return ResponseService.success(
+        res,
+        'No tienes una entrega activa en este momento',
+        { order: null },
+        200
+      );
+    }
+
+  } catch (error) {
+    // Manejo de errores específicos del repositorio (404, 403, 500)
+  }
+};
+```
+
+#### **Repositorio**
+**Archivo**: `src/repositories/driver.repository.js`
+
+```javascript
+static async getCurrentOrderForDriver(userId, requestId) {
+  try {
+    // 1. Validar que el usuario tenga roles de repartidor
+    const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+    
+    // 2. Buscar pedido activo del repartidor
+    const activeOrder = await prisma.order.findFirst({
+      where: {
+        deliveryDriverId: userId,
+        status: 'out_for_delivery' // Solo pedidos "en camino"
+      },
+      include: {
+        customer: { /* select: campos del cliente */ },
+        address: { /* select: campos de dirección */ },
+        branch: { 
+          include: { 
+            restaurant: { select: { id: true, name: true } }
+          }
+        },
+        deliveryDriver: { /* select: campos del repartidor */ },
+        payment: { /* select: campos de pago */ },
+        orderItems: {
+          include: {
+            product: { /* select: campos del producto */ },
+            modifiers: { // ¡CORRECCIÓN CRÍTICA! Include completo de modificadores
+              include: {
+                modifierOption: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    modifierGroup: {
+                      select: { id: true, name: true }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 3. Retornar null si no hay pedido activo o formatear respuesta completa
+    return activeOrder ? formattedOrder : null;
+
+  } catch (error) {
+    // Manejo de errores estructurados
+  }
+}
+```
+
+### **🔧 Características Críticas Implementadas**
+
+#### **Include Completo con Modificadores**
+El método del repositorio ahora incluye **TODOS** los modificadores del pedido:
+
+```javascript
+orderItems: {
+  include: {
+    product: { /* información del producto */ },
+    modifiers: { // ✅ CORRECCIÓN CRÍTICA
+      include: {
+        modifierOption: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            modifierGroup: {
+              select: { id: true, name: true }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### **Validación de Roles**
+- Verificación de roles `driver_platform` y `driver_restaurant`
+- Uso de `UserService.getUserWithRoles()` para validación robusta
+
+#### **Manejo de Respuesta Dual**
+- **Con pedido activo**: Status 200, `order: {...}` con datos completos
+- **Sin pedido activo**: Status 200, `order: null` (no 404)
+
+### **Ejemplos de Respuesta**
+
+#### **✅ Respuesta Exitosa - Con Entrega Activa**
+```json
+{
+  "status": "success",
+  "message": "Entrega activa obtenida exitosamente",
+  "timestamp": "2025-01-20T16:45:30.123Z",
+  "data": {
+    "order": {
+      "id": "5",
+      "status": "out_for_delivery",
+      "subtotal": 505.00,
+      "deliveryFee": 25.00,
+      "total": 530.00,
+      "paymentMethod": "card",
+      "paymentStatus": "completed",
+      "specialInstructions": "Entregar en la puerta principal",
+      "orderPlacedAt": "2025-01-20T16:30:00.000Z",
+      "orderDeliveredAt": null,
+      "customer": {
+        "id": 5,
+        "name": "Sofía",
+        "lastname": "López",
+        "fullName": "Sofía López",
+        "email": "sofia.lopez@email.com",
+        "phone": "4444444444"
+      },
+      "address": {
+        "id": 1,
+        "alias": "Casa",
+        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
+        "references": "Casa de dos pisos con portón de madera",
+        "coordinates": {
+          "latitude": 20.484123,
+          "longitude": -99.216345
+        }
+      },
+      "branch": {
+        "id": 1,
+        "name": "Pizzería de Ana",
+        "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
+        "phone": "7712345678",
+        "usesPlatformDrivers": true,
+        "restaurant": {
+          "id": 1,
+          "name": "Pizzería de Ana"
+        }
+      },
+      "deliveryDriver": {
+        "id": 4,
+        "name": "Miguel",
+        "lastname": "Hernández",
+        "fullName": "Miguel Hernández",
+        "email": "miguel.hernandez@repartidor.com",
+        "phone": "5555555555"
+      },
+      "payment": {
+        "id": "1",
+        "status": "completed",
+        "provider": "mercadopago",
+        "providerPaymentId": "MP-123456789-PIZZA",
+        "amount": 505.00,
+        "currency": "MXN"
+      },
+      "orderItems": [
+        {
+          "id": "1",
+          "productId": 1,
+          "quantity": 1,
+          "pricePerUnit": 210.00,
+          "product": {
+            "id": 1,
+            "name": "Pizza Hawaiana",
+            "description": "Pizza con jamón y piña",
+            "price": 150.00,
+            "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38",
+            "category": {
+              "subcategory": "Pizzas",
+              "category": "Platos Principales"
+            }
+          },
+          "modifiers": [
+            {
+              "id": "1",
+              "modifierOption": {
+                "id": 3,
+                "name": "Grande (12 pulgadas)",
+                "price": 45.00,
+                "modifierGroup": {
+                  "id": 1,
+                  "name": "Tamaño"
+                }
+              }
+            },
+            {
+              "id": "2",
+              "modifierOption": {
+                "id": 5,
+                "name": "Extra Queso",
+                "price": 15.00,
+                "modifierGroup": {
+                  "id": 2,
+                  "name": "Extras"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "deliveryInfo": {
+        "estimatedDeliveryTime": null,
+        "deliveryInstructions": "Casa de dos pisos con portón de madera"
+      }
+    }
+  }
+}
+```
+
+#### **✅ Respuesta Exitosa - Sin Entrega Activa**
+```json
+{
+  "status": "success",
+  "message": "No tienes una entrega activa en este momento",
+  "timestamp": "2025-01-20T16:45:30.123Z",
+  "data": {
+    "order": null
+  }
+}
+```
+
+### **Manejo de Errores**
+
+#### **401 Unauthorized - Token inválido**
+```json
+{
+  "status": "error",
+  "message": "Token inválido o expirado",
+  "timestamp": "2025-01-20T16:45:30.123Z",
+  "code": "INVALID_TOKEN"
+}
+```
+
+#### **403 Forbidden - Sin permisos de repartidor**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de repartidor",
+  "timestamp": "2025-01-20T16:45:30.123Z",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+#### **500 Internal Server Error**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "timestamp": "2025-01-20T16:45:30.123Z",
+  "code": "INTERNAL_ERROR"
+}
+```
+
+### **Características Técnicas**
+
+- **Include Completo**: Incluye modificadores, payment, cliente, dirección, sucursal y repartidor
+- **Validación de Roles**: Verificación robusta de permisos de repartidor
+- **Logging Estructurado**: Con `requestId` para trazabilidad completa
+- **Arquitectura Repository**: Separación clara de responsabilidades
+- **ResponseService**: Respuestas consistentes en toda la API
+- **Manejo de Null**: Respuesta 200 con `order: null` cuando no hay entrega activa

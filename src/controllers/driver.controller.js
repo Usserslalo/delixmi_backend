@@ -291,259 +291,65 @@ const getCurrentOrder = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 1. Obtener información del usuario y verificar autorización básica
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    // Llamar al método del repositorio para obtener entrega activa
+    const activeOrder = await DriverRepository.getCurrentOrderForDriver(
+      userId, 
+      req.id
+    );
 
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de repartidor
-    const driverRoles = ['driver_platform', 'driver_restaurant'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
-
-    if (!hasDriverRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de repartidor',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: driverRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. CONSULTA ESPECÍFICA - Buscar pedido activo del repartidor
-    const currentOrder = await prisma.order.findFirst({
-      where: {
-        deliveryDriverId: userId, // ✅ CRÍTICO: Solo pedidos asignados a este repartidor
-        status: 'out_for_delivery' // ✅ CRÍTICO: Solo pedidos en camino
-      },
-      select: {
-        id: true,
-        status: true,
-        subtotal: true,
-        deliveryFee: true,
-        total: true,
-        paymentMethod: true,
-        paymentStatus: true,
-        specialInstructions: true,
-        orderPlacedAt: true,
-        orderDeliveredAt: true,
-        createdAt: true,
-        updatedAt: true,
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
+    // Manejar respuesta según si hay entrega activa o no
+    if (activeOrder) {
+      // Respuesta exitosa con entrega activa
+      return ResponseService.success(
+        res,
+        'Entrega activa obtenida exitosamente',
+        {
+          order: activeOrder
         },
-        address: {
-          select: {
-            id: true,
-            alias: true,
-            street: true,
-            exteriorNumber: true,
-            interiorNumber: true,
-            neighborhood: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            references: true,
-            latitude: true,
-            longitude: true
-          }
-        },
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            latitude: true,
-            longitude: true,
-            phone: true,
-            usesPlatformDrivers: true,
-            restaurant: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        deliveryDriver: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        orderItems: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                imageUrl: true,
-                subcategory: {
-                  select: {
-                    name: true,
-                    category: {
-                      select: {
-                        name: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    // 4. Formatear respuesta
-    if (currentOrder) {
-      // Si hay una entrega activa, formatear los datos
-      const formattedOrder = {
-        id: currentOrder.id.toString(),
-        status: currentOrder.status,
-        subtotal: Number(currentOrder.subtotal),
-        deliveryFee: Number(currentOrder.deliveryFee),
-        total: Number(currentOrder.total),
-        specialInstructions: currentOrder.specialInstructions,
-        orderPlacedAt: currentOrder.orderPlacedAt,
-        orderDeliveredAt: currentOrder.orderDeliveredAt,
-        updatedAt: currentOrder.updatedAt,
-        customer: {
-          id: currentOrder.customer.id,
-          name: currentOrder.customer.name,
-          lastname: currentOrder.customer.lastname,
-          email: currentOrder.customer.email,
-          phone: currentOrder.customer.phone
-        },
-        address: {
-          id: currentOrder.address.id,
-          alias: currentOrder.address.alias,
-          fullAddress: `${currentOrder.address.street} ${currentOrder.address.exteriorNumber}${currentOrder.address.interiorNumber ? ' Int. ' + currentOrder.address.interiorNumber : ''}, ${currentOrder.address.neighborhood}, ${currentOrder.address.city}, ${currentOrder.address.state} ${currentOrder.address.zipCode}`,
-          references: currentOrder.address.references,
-          coordinates: {
-            latitude: Number(currentOrder.address.latitude),
-            longitude: Number(currentOrder.address.longitude)
-          }
-        },
-        branch: {
-          id: currentOrder.branch.id,
-          name: currentOrder.branch.name,
-          address: currentOrder.branch.address,
-          phone: currentOrder.branch.phone,
-          usesPlatformDrivers: currentOrder.branch.usesPlatformDrivers,
-          coordinates: {
-            latitude: Number(currentOrder.branch.latitude),
-            longitude: Number(currentOrder.branch.longitude)
-          },
-          restaurant: {
-            id: currentOrder.branch.restaurant.id,
-            name: currentOrder.branch.restaurant.name
-          }
-        },
-        driver: {
-          id: currentOrder.deliveryDriver.id,
-          name: currentOrder.deliveryDriver.name,
-          lastname: currentOrder.deliveryDriver.lastname,
-          email: currentOrder.deliveryDriver.email,
-          phone: currentOrder.deliveryDriver.phone
-        },
-        items: currentOrder.orderItems.map(item => ({
-          id: item.id.toString(),
-          product: {
-            id: item.product.id,
-            name: item.product.name,
-            description: item.product.description,
-            price: Number(item.product.price),
-            imageUrl: item.product.imageUrl,
-            category: {
-              subcategory: item.product.subcategory.name,
-              category: item.product.subcategory.category.name
-            }
-          },
-          quantity: item.quantity,
-          pricePerUnit: Number(item.pricePerUnit),
-          total: Number(item.pricePerUnit) * item.quantity
-        })),
-        deliveryInfo: {
-          estimatedDeliveryTime: null, // Se puede calcular basado en distancia
-          deliveryInstructions: currentOrder.address.references || 'Sin instrucciones especiales'
-        }
-      };
-
-      // 5. Respuesta exitosa con entrega activa
-      res.status(200).json({
-        status: 'success',
-        message: 'Entrega activa encontrada',
-        data: {
-          order: formattedOrder,
-          driverInfo: {
-            userId: userId,
-            driverTypes: userRoles.filter(role => driverRoles.includes(role)),
-            retrievedAt: new Date().toISOString()
-          }
-        }
-      });
+        200
+      );
     } else {
-      // 6. Respuesta exitosa sin entrega activa
-      res.status(200).json({
-        status: 'success',
-        message: 'No tienes una entrega activa en este momento',
-        data: {
-          order: null,
-          driverInfo: {
-            userId: userId,
-            driverTypes: userRoles.filter(role => driverRoles.includes(role)),
-            status: 'available_for_new_orders',
-            retrievedAt: new Date().toISOString()
-          }
-        }
-      });
+      // Respuesta exitosa sin entrega activa
+      return ResponseService.success(
+        res,
+        'No tienes una entrega activa en este momento',
+        {
+          order: null
+        },
+        200
+      );
     }
 
   } catch (error) {
-    console.error('Error obteniendo entrega activa:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    // Manejar errores específicos del repositorio
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+
+    // Error interno del servidor
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };
 

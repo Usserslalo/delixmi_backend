@@ -1852,6 +1852,310 @@ class DriverRepository {
   }
 
   /**
+   * Obtiene la entrega activa actual del repartidor
+   * @param {number} userId - ID del usuario repartidor
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object|null>} Pedido activo formateado o null si no hay entrega activa
+   */
+  static async getCurrentOrderForDriver(userId, requestId) {
+    try {
+      logger.debug('Iniciando búsqueda de entrega activa del repartidor', {
+        requestId,
+        meta: { userId }
+      });
+
+      // 1. Validar que el usuario tenga roles de repartidor
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        logger.error('Usuario no encontrado al buscar entrega activa', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        logger.error('Usuario no tiene permisos de repartidor para buscar entrega activa', {
+          requestId,
+          meta: { userId, userRoles, requiredRoles: driverRoles }
+        });
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // 2. Buscar pedido activo del repartidor
+      const activeOrder = await prisma.order.findFirst({
+        where: {
+          deliveryDriverId: userId,
+          status: 'out_for_delivery' // Solo pedidos "en camino"
+        },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          address: {
+            select: {
+              id: true,
+              alias: true,
+              street: true,
+              exteriorNumber: true,
+              interiorNumber: true,
+              neighborhood: true,
+              city: true,
+              state: true,
+              zipCode: true,
+              references: true,
+              latitude: true,
+              longitude: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phone: true,
+              usesPlatformDrivers: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          deliveryDriver: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          payment: {
+            select: {
+              id: true,
+              status: true,
+              provider: true,
+              providerPaymentId: true,
+              amount: true,
+              currency: true
+            }
+          },
+          orderItems: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  price: true,
+                  imageUrl: true,
+                  subcategory: {
+                    select: {
+                      name: true,
+                      category: {
+                        select: {
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!activeOrder) {
+        logger.debug('No se encontró entrega activa para el repartidor', {
+          requestId,
+          meta: { userId }
+        });
+        return null;
+      }
+
+      logger.info('Entrega activa encontrada para el repartidor', {
+        requestId,
+        meta: { 
+          userId,
+          orderId: activeOrder.id.toString(),
+          customerId: activeOrder.customer?.id,
+          restaurantId: activeOrder.branch?.restaurant?.id,
+          status: activeOrder.status
+        }
+      });
+
+      // 3. Formatear respuesta
+      const formattedOrder = {
+        id: activeOrder.id.toString(),
+        status: activeOrder.status,
+        subtotal: Number(activeOrder.subtotal),
+        deliveryFee: Number(activeOrder.deliveryFee),
+        total: Number(activeOrder.total),
+        paymentMethod: activeOrder.paymentMethod,
+        paymentStatus: activeOrder.paymentStatus,
+        specialInstructions: activeOrder.specialInstructions,
+        orderPlacedAt: activeOrder.orderPlacedAt,
+        orderDeliveredAt: activeOrder.orderDeliveredAt,
+        createdAt: activeOrder.createdAt,
+        updatedAt: activeOrder.updatedAt,
+        customer: activeOrder.customer ? {
+          id: activeOrder.customer.id,
+          name: activeOrder.customer.name,
+          lastname: activeOrder.customer.lastname,
+          fullName: `${activeOrder.customer.name} ${activeOrder.customer.lastname}`,
+          email: activeOrder.customer.email,
+          phone: activeOrder.customer.phone
+        } : null,
+        address: activeOrder.address ? {
+          id: activeOrder.address.id,
+          alias: activeOrder.address.alias,
+          street: activeOrder.address.street,
+          exteriorNumber: activeOrder.address.exteriorNumber,
+          interiorNumber: activeOrder.address.interiorNumber,
+          neighborhood: activeOrder.address.neighborhood,
+          city: activeOrder.address.city,
+          state: activeOrder.address.state,
+          zipCode: activeOrder.address.zipCode,
+          references: activeOrder.address.references,
+          fullAddress: `${activeOrder.address.street} ${activeOrder.address.exteriorNumber}${activeOrder.address.interiorNumber ? ' Int. ' + activeOrder.address.interiorNumber : ''}, ${activeOrder.address.neighborhood}, ${activeOrder.address.city}, ${activeOrder.address.state} ${activeOrder.address.zipCode}`,
+          coordinates: {
+            latitude: activeOrder.address.latitude ? Number(activeOrder.address.latitude) : null,
+            longitude: activeOrder.address.longitude ? Number(activeOrder.address.longitude) : null
+          }
+        } : null,
+        branch: activeOrder.branch ? {
+          id: activeOrder.branch.id,
+          name: activeOrder.branch.name,
+          address: activeOrder.branch.address,
+          phone: activeOrder.branch.phone,
+          usesPlatformDrivers: activeOrder.branch.usesPlatformDrivers,
+          coordinates: {
+            latitude: activeOrder.branch.latitude ? Number(activeOrder.branch.latitude) : null,
+            longitude: activeOrder.branch.longitude ? Number(activeOrder.branch.longitude) : null
+          },
+          restaurant: activeOrder.branch.restaurant ? {
+            id: activeOrder.branch.restaurant.id,
+            name: activeOrder.branch.restaurant.name
+          } : null
+        } : null,
+        deliveryDriver: activeOrder.deliveryDriver ? {
+          id: activeOrder.deliveryDriver.id,
+          name: activeOrder.deliveryDriver.name,
+          lastname: activeOrder.deliveryDriver.lastname,
+          fullName: `${activeOrder.deliveryDriver.name} ${activeOrder.deliveryDriver.lastname}`,
+          email: activeOrder.deliveryDriver.email,
+          phone: activeOrder.deliveryDriver.phone
+        } : null,
+        payment: activeOrder.payment ? {
+          id: activeOrder.payment.id.toString(),
+          status: activeOrder.payment.status,
+          provider: activeOrder.payment.provider,
+          providerPaymentId: activeOrder.payment.providerPaymentId,
+          amount: Number(activeOrder.payment.amount),
+          currency: activeOrder.payment.currency
+        } : null,
+        orderItems: activeOrder.orderItems ? activeOrder.orderItems.map(item => ({
+          id: item.id.toString(),
+          productId: item.productId,
+          quantity: item.quantity,
+          pricePerUnit: Number(item.pricePerUnit),
+          product: item.product ? {
+            id: item.product.id,
+            name: item.product.name,
+            description: item.product.description,
+            price: Number(item.product.price),
+            imageUrl: item.product.imageUrl,
+            category: {
+              subcategory: item.product.subcategory ? item.product.subcategory.name : null,
+              category: item.product.subcategory?.category ? item.product.subcategory.category.name : null
+            }
+          } : null,
+          modifiers: item.modifiers ? item.modifiers.map(modifier => ({
+            id: modifier.id.toString(),
+            modifierOption: modifier.modifierOption ? {
+              id: modifier.modifierOption.id,
+              name: modifier.modifierOption.name,
+              price: Number(modifier.modifierOption.price),
+              modifierGroup: modifier.modifierOption.modifierGroup ? {
+                id: modifier.modifierOption.modifierGroup.id,
+                name: modifier.modifierOption.modifierGroup.name
+              } : null
+            } : null
+          })) : []
+        })) : [],
+        deliveryInfo: {
+          estimatedDeliveryTime: null, // Se puede calcular basado en distancia
+          deliveryInstructions: activeOrder.address?.references || 'Sin instrucciones especiales'
+        }
+      };
+
+      return formattedOrder;
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error inesperado obteniendo entrega activa del repartidor', {
+        requestId,
+        meta: { 
+          userId,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
    * Función auxiliar para formatear el tiempo de entrega
    * @param {number} deliveryTimeMs - Tiempo de entrega en milisegundos
    * @returns {string} Tiempo formateado
