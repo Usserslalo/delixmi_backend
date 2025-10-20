@@ -690,6 +690,473 @@ class DriverRepository {
       };
     }
   }
+
+  /**
+   * Acepta un pedido disponible para entrega
+   * @param {BigInt} orderId - ID del pedido a aceptar
+   * @param {number} userId - ID del repartidor que acepta el pedido
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Pedido actualizado con información completa
+   */
+  static async acceptOrder(orderId, userId, requestId) {
+    try {
+      logger.debug('Iniciando aceptación de pedido por repartidor', {
+        requestId,
+        meta: { orderId: orderId.toString(), userId }
+      });
+
+      // 1. Validar que el usuario tenga roles de repartidor
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        logger.error('Usuario no encontrado', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        logger.error('Usuario no tiene permisos de repartidor', {
+          requestId,
+          meta: { userId, userRoles, requiredRoles: driverRoles }
+        });
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // 2. Determinar criterios de elegibilidad según el tipo de repartidor
+      const isPlatformDriver = userRoles.includes('driver_platform');
+      const isRestaurantDriver = userRoles.includes('driver_restaurant');
+
+      let orderEligibilityWhere = {};
+
+      if (isPlatformDriver && isRestaurantDriver) {
+        // Repartidor híbrido
+        const assignedRestaurantIds = userWithRoles.userRoleAssignments
+          .filter(assignment => assignment.restaurantId)
+          .map(assignment => assignment.restaurantId);
+
+        orderEligibilityWhere = {
+          OR: [
+            { branch: { usesPlatformDrivers: true } },
+            ...(assignedRestaurantIds.length > 0 ? [{
+              branch: { 
+                restaurantId: { in: assignedRestaurantIds },
+                usesPlatformDrivers: false 
+              }
+            }] : [])
+          ]
+        };
+      } else if (isPlatformDriver) {
+        // Solo repartidor de plataforma
+        orderEligibilityWhere = {
+          branch: { usesPlatformDrivers: true }
+        };
+      } else if (isRestaurantDriver) {
+        // Solo repartidor de restaurante
+        const assignedRestaurantIds = userWithRoles.userRoleAssignments
+          .filter(assignment => assignment.restaurantId)
+          .map(assignment => assignment.restaurantId);
+
+        if (assignedRestaurantIds.length === 0) {
+          logger.error('Repartidor de restaurante sin asignaciones', {
+            requestId,
+            meta: { userId, userRoles }
+          });
+          throw {
+            status: 403,
+            message: 'No tienes restaurantes asignados',
+            code: 'NO_RESTAURANTS_ASSIGNED'
+          };
+        }
+
+        orderEligibilityWhere = {
+          branch: { 
+            restaurantId: { in: assignedRestaurantIds },
+            usesPlatformDrivers: false 
+          }
+        };
+      }
+
+      logger.debug('Criterios de elegibilidad determinados', {
+        requestId,
+        meta: { 
+          userId, 
+          isPlatformDriver, 
+          isRestaurantDriver,
+          orderEligibilityWhere
+        }
+      });
+
+      // 3. TRANSACCIÓN CRÍTICA - Aceptar pedido y actualizar estado del repartidor
+      let updatedOrder;
+      try {
+        updatedOrder = await prisma.$transaction(async (tx) => {
+          // 3.1. Intentar asignar el pedido (esto actúa como select-for-update)
+          const assignedOrder = await tx.order.update({
+            where: {
+              id: orderId,
+              status: 'ready_for_pickup',
+              deliveryDriverId: null,
+              ...orderEligibilityWhere
+            },
+            data: {
+              deliveryDriverId: userId,
+              status: 'out_for_delivery',
+              updatedAt: new Date()
+            }
+          });
+
+          logger.info('Pedido asignado exitosamente en transacción', {
+            requestId,
+            meta: { 
+              orderId: orderId.toString(), 
+              userId,
+              newStatus: assignedOrder.status
+            }
+          });
+
+          // 3.2. Actualizar estado del repartidor a 'busy'
+          await tx.driverProfile.update({
+            where: { userId: userId },
+            data: { 
+              status: 'busy',
+              lastSeenAt: new Date(),
+              updatedAt: new Date()
+            }
+          });
+
+          logger.info('Estado del repartidor actualizado a busy', {
+            requestId,
+            meta: { userId }
+          });
+
+          return assignedOrder;
+        });
+
+      } catch (transactionError) {
+        // Manejo específico del error P2025 (Record to update not found)
+        if (transactionError.code === 'P2025') {
+          logger.warn('Pedido no pudo ser aceptado - ya fue tomado o no es elegible', {
+            requestId,
+            meta: { 
+              orderId: orderId.toString(), 
+              userId,
+              errorCode: transactionError.code
+            }
+          });
+          throw {
+            status: 409,
+            message: 'Este pedido ya fue tomado por otro repartidor o no está disponible para ti',
+            code: 'ORDER_ALREADY_TAKEN_OR_INVALID'
+          };
+        }
+        throw transactionError;
+      }
+
+      // 4. Obtener datos completos del pedido actualizado
+      const completeOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          address: {
+            select: {
+              id: true,
+              alias: true,
+              street: true,
+              exteriorNumber: true,
+              interiorNumber: true,
+              neighborhood: true,
+              city: true,
+              state: true,
+              zipCode: true,
+              references: true,
+              latitude: true,
+              longitude: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phone: true,
+              usesPlatformDrivers: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          deliveryDriver: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          orderItems: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  price: true,
+                  imageUrl: true,
+                  subcategory: {
+                    select: {
+                      name: true
+                    }
+                  }
+                }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!completeOrder) {
+        logger.error('Error obteniendo datos completos del pedido después de aceptarlo', {
+          requestId,
+          meta: { orderId: orderId.toString(), userId }
+        });
+        throw {
+          status: 500,
+          message: 'Error interno del servidor',
+          code: 'INTERNAL_ERROR'
+        };
+      }
+
+      // 5. Formatear respuesta
+      const formattedOrder = {
+        id: completeOrder.id.toString(),
+        status: completeOrder.status,
+        subtotal: Number(completeOrder.subtotal),
+        deliveryFee: Number(completeOrder.deliveryFee),
+        total: Number(completeOrder.total),
+        paymentMethod: completeOrder.paymentMethod,
+        paymentStatus: completeOrder.paymentStatus,
+        specialInstructions: completeOrder.specialInstructions,
+        orderPlacedAt: completeOrder.orderPlacedAt,
+        orderDeliveredAt: completeOrder.orderDeliveredAt,
+        updatedAt: completeOrder.updatedAt,
+        customer: completeOrder.customer ? {
+          id: completeOrder.customer.id,
+          name: completeOrder.customer.name,
+          lastname: completeOrder.customer.lastname,
+          fullName: `${completeOrder.customer.name} ${completeOrder.customer.lastname}`,
+          email: completeOrder.customer.email,
+          phone: completeOrder.customer.phone
+        } : null,
+        address: completeOrder.address ? {
+          id: completeOrder.address.id,
+          alias: completeOrder.address.alias,
+          street: completeOrder.address.street,
+          exteriorNumber: completeOrder.address.exteriorNumber,
+          interiorNumber: completeOrder.address.interiorNumber,
+          neighborhood: completeOrder.address.neighborhood,
+          city: completeOrder.address.city,
+          state: completeOrder.address.state,
+          zipCode: completeOrder.address.zipCode,
+          references: completeOrder.address.references,
+          fullAddress: `${completeOrder.address.street} ${completeOrder.address.exteriorNumber}${completeOrder.address.interiorNumber ? ' Int. ' + completeOrder.address.interiorNumber : ''}, ${completeOrder.address.neighborhood}, ${completeOrder.address.city}, ${completeOrder.address.state} ${completeOrder.address.zipCode}`,
+          coordinates: {
+            latitude: completeOrder.address.latitude ? Number(completeOrder.address.latitude) : null,
+            longitude: completeOrder.address.longitude ? Number(completeOrder.address.longitude) : null
+          }
+        } : null,
+        branch: completeOrder.branch ? {
+          id: completeOrder.branch.id,
+          name: completeOrder.branch.name,
+          address: completeOrder.branch.address,
+          phone: completeOrder.branch.phone,
+          usesPlatformDrivers: completeOrder.branch.usesPlatformDrivers,
+          coordinates: {
+            latitude: completeOrder.branch.latitude ? Number(completeOrder.branch.latitude) : null,
+            longitude: completeOrder.branch.longitude ? Number(completeOrder.branch.longitude) : null
+          },
+          restaurant: completeOrder.branch.restaurant ? {
+            id: completeOrder.branch.restaurant.id,
+            name: completeOrder.branch.restaurant.name
+          } : null
+        } : null,
+        deliveryDriver: completeOrder.deliveryDriver ? {
+          id: completeOrder.deliveryDriver.id,
+          name: completeOrder.deliveryDriver.name,
+          lastname: completeOrder.deliveryDriver.lastname,
+          fullName: `${completeOrder.deliveryDriver.name} ${completeOrder.deliveryDriver.lastname}`,
+          email: completeOrder.deliveryDriver.email,
+          phone: completeOrder.deliveryDriver.phone
+        } : null,
+        orderItems: completeOrder.orderItems ? completeOrder.orderItems.map(item => ({
+          id: item.id.toString(),
+          productId: item.productId,
+          quantity: item.quantity,
+          pricePerUnit: Number(item.pricePerUnit),
+          product: item.product ? {
+            id: item.product.id,
+            name: item.product.name,
+            description: item.product.description,
+            price: Number(item.product.price),
+            imageUrl: item.product.imageUrl,
+            category: item.product.subcategory ? item.product.subcategory.name : null
+          } : null,
+          modifiers: item.modifiers ? item.modifiers.map(modifier => ({
+            id: modifier.id.toString(),
+            modifierOption: modifier.modifierOption ? {
+              id: modifier.modifierOption.id,
+              name: modifier.modifierOption.name,
+              price: Number(modifier.modifierOption.price),
+              modifierGroup: modifier.modifierOption.modifierGroup ? {
+                id: modifier.modifierOption.modifierGroup.id,
+                name: modifier.modifierOption.modifierGroup.name
+              } : null
+            } : null
+          })) : []
+        })) : []
+      };
+
+      // 6. Enviar notificaciones WebSocket
+      try {
+        const { getIo } = require('../config/socket');
+        const io = getIo();
+
+        if (io && completeOrder.customer && completeOrder.branch) {
+          const customerId = completeOrder.customer.id;
+          const driverName = `${userWithRoles.name} ${userWithRoles.lastname}`;
+
+          // Notificar al cliente
+          io.to(`user_${customerId}`).emit('order_status_update', {
+            order: formattedOrder,
+            orderId: formattedOrder.id,
+            status: formattedOrder.status,
+            previousStatus: 'ready_for_pickup',
+            updatedAt: formattedOrder.updatedAt,
+            driver: formattedOrder.deliveryDriver,
+            message: `¡Tu pedido #${formattedOrder.id} está en camino! Repartidor: ${driverName}`
+          });
+
+          // Notificar al restaurante
+          if (completeOrder.branch.restaurant) {
+            const restaurantId = completeOrder.branch.restaurant.id;
+            io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
+              order: formattedOrder,
+              orderId: formattedOrder.id,
+              status: formattedOrder.status,
+              previousStatus: 'ready_for_pickup',
+              updatedAt: formattedOrder.updatedAt,
+              driver: formattedOrder.deliveryDriver,
+              message: `El repartidor ${driverName} aceptó el pedido #${formattedOrder.id}`
+            });
+          }
+
+          logger.info('Notificaciones WebSocket enviadas', {
+            requestId,
+            meta: { 
+              orderId: orderId.toString(), 
+              customerId,
+              restaurantId: completeOrder.branch.restaurant?.id
+            }
+          });
+        }
+      } catch (socketError) {
+        logger.error('Error enviando notificaciones WebSocket', {
+          requestId,
+          meta: { 
+            orderId: orderId.toString(), 
+            error: socketError.message,
+            stack: socketError.stack
+          }
+        });
+        // No fallar la respuesta por error de socket
+      }
+
+      logger.info('Pedido aceptado exitosamente por repartidor', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          userId,
+          orderStatus: formattedOrder.status
+        }
+      });
+
+      return {
+        order: formattedOrder,
+        driverInfo: {
+          userId: userId,
+          driverName: `${userWithRoles.name} ${userWithRoles.lastname}`,
+          driverTypes: userRoles.filter(role => driverRoles.includes(role)),
+          acceptedAt: new Date().toISOString()
+        }
+      };
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error aceptando pedido por repartidor', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          userId,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
 }
 
 module.exports = DriverRepository;

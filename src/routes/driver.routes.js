@@ -1,8 +1,9 @@
 const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
-const { validate, validateQuery } = require('../middleware/validate.middleware');
+const { validate, validateQuery, validateParams } = require('../middleware/validate.middleware');
 const { updateDriverStatusSchema, availableOrdersQuerySchema } = require('../validations/driver.validation');
+const { orderParamsSchema } = require('../validations/order.validation');
 const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
 
 const router = express.Router();
@@ -127,25 +128,7 @@ router.get('/orders/available',
  */
 router.patch('/orders/:orderId/accept',
   requireRole(['driver_platform', 'driver_restaurant']),
-  [
-    param('orderId')
-      .notEmpty()
-      .withMessage('El ID del pedido es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID del pedido debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(orderParamsSchema),
   acceptOrder
 );
 
