@@ -72,24 +72,18 @@ static async getWallet(userId, requestId) {
 }
 ```
 
-#### Ejemplo de Respuesta Exitosa (200)
+#### Ejemplo de Respuesta Exitosa (200) *(Respuesta real de prueba - Postman)*
 ```json
 {
   "status": "success",
   "message": "Billetera obtenida exitosamente",
-  "timestamp": "2025-01-27T10:30:00.000Z",
+  "timestamp": "2025-10-20T22:13:11.551Z",
   "data": {
     "wallet": {
       "id": 1,
-      "balance": 150.75,
-      "userId": 2,
-      "createdAt": "2025-01-20T08:00:00.000Z",
-      "updatedAt": "2025-01-27T09:45:00.000Z",
-      "user": {
-        "id": 2,
-        "name": "Miguel",
-        "lastname": "Hernández"
-      }
+      "driverId": 4,
+      "balance": 25,
+      "updatedAt": "2025-10-20T22:10:57.729Z"
     }
   }
 }
@@ -214,45 +208,32 @@ GET /api/driver/wallet/transactions?page=1&pageSize=10&dateFrom=2025-01-01T00:00
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-#### Ejemplo de Respuesta Exitosa (200)
+#### Ejemplo de Respuesta Exitosa (200) *(Respuesta real de prueba - Postman)*
 ```json
 {
   "status": "success",
-  "message": "Transacciones obtenidas exitosamente",
-  "timestamp": "2025-01-27T10:30:00.000Z",
+  "message": "Transacciones de billetera obtenidas exitosamente",
+  "timestamp": "2025-10-20T22:13:47.880Z",
   "data": {
     "transactions": [
       {
-        "id": 1,
-        "amount": 25.50,
-        "type": "earning",
-        "description": "Entrega completada - Pedido #5",
-        "orderId": "5",
-        "createdAt": "2025-01-27T09:45:00.000Z",
+        "id": "1",
+        "type": "EARNING_CARD",
+        "amount": 25,
+        "balanceAfter": 25,
+        "description": "Pedido #1",
+        "createdAt": "2025-10-20T22:10:57.541Z",
         "order": {
-          "id": "5",
-          "total": 205,
-          "status": "delivered"
-        }
-      },
-      {
-        "id": 2,
-        "amount": -5.00,
-        "type": "debt",
-        "description": "Pago en efectivo - Pedido #3",
-        "orderId": "3",
-        "createdAt": "2025-01-26T14:20:00.000Z",
-        "order": {
-          "id": "3",
-          "total": 180,
-          "status": "delivered"
+          "id": "1",
+          "status": "delivered",
+          "total": 505
         }
       }
     ],
     "pagination": {
       "currentPage": 1,
       "pageSize": 10,
-      "totalCount": 2,
+      "totalCount": 1,
       "totalPages": 1,
       "hasNextPage": false,
       "hasPreviousPage": false

@@ -494,97 +494,149 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
 ### **Ejemplo de Respuesta Exitosa** *(Respuesta real de prueba - Postman)*
 ```json
 {
-  "status": "success",
-  "message": "Pedido aceptado exitosamente",
-  "timestamp": "2025-10-20T18:56:15.489Z",
-  "data": {
-    "order": {
-      "id": "5",
-      "status": "out_for_delivery",
-      "subtotal": 180,
-      "deliveryFee": 25,
-      "total": 205,
-      "paymentMethod": "card",
-      "paymentStatus": "completed",
-      "specialInstructions": "¡Perfecto para probar acceptOrder!",
-      "orderPlacedAt": "2025-10-20T18:08:53.988Z",
-      "orderDeliveredAt": null,
-      "updatedAt": "2025-10-20T18:56:13.968Z",
-      "customer": {
-        "id": 5,
-        "name": "Sofía",
-        "lastname": "López",
-        "fullName": "Sofía López",
-        "email": "sofia.lopez@email.com",
-        "phone": "4444444444"
-      },
-      "address": {
-        "id": 1,
-        "alias": "Casa",
-        "street": "Av. Felipe Ángeles",
-        "exteriorNumber": "21",
-        "interiorNumber": null,
-        "neighborhood": "San Nicolás",
-        "city": "Ixmiquilpan",
-        "state": "Hidalgo",
-        "zipCode": "42300",
-        "references": "Casa de dos pisos con portón de madera.",
-        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
-        "coordinates": {
-          "latitude": 20.488765,
-          "longitude": -99.234567
-        }
-      },
-      "branch": {
-        "id": 1,
-        "name": "Pizzería de Ana",
-        "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
-        "phone": null,
-        "usesPlatformDrivers": true,
-        "coordinates": {
-          "latitude": 20.489,
-          "longitude": -99.23
+    "status": "success",
+    "message": "Pedido aceptado exitosamente",
+    "timestamp": "2025-10-20T22:10:19.071Z",
+    "data": {
+        "order": {
+            "id": "1",
+            "status": "out_for_delivery",
+            "subtotal": 480,
+            "deliveryFee": 25,
+            "total": 505,
+            "paymentMethod": "card",
+            "paymentStatus": "completed",
+            "specialInstructions": "Entregar en la puerta principal, tocar timbre",
+            "orderPlacedAt": "2025-10-20T19:50:45.867Z",
+            "orderDeliveredAt": null,
+            "updatedAt": "2025-10-20T22:10:17.362Z",
+            "customer": {
+                "id": 5,
+                "name": "Sofía",
+                "lastname": "López",
+                "fullName": "Sofía López",
+                "email": "sofia.lopez@email.com",
+                "phone": "4444444444"
+            },
+            "address": {
+                "id": 1,
+                "alias": "Casa",
+                "street": "Av. Felipe Ángeles",
+                "exteriorNumber": "21",
+                "interiorNumber": null,
+                "neighborhood": "San Nicolás",
+                "city": "Ixmiquilpan",
+                "state": "Hidalgo",
+                "zipCode": "42300",
+                "references": "Casa de dos pisos con portón de madera.",
+                "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
+                "coordinates": {
+                    "latitude": 20.488765,
+                    "longitude": -99.234567
+                }
+            },
+            "branch": {
+                "id": 1,
+                "name": "Pizzería de Ana",
+                "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
+                "phone": null,
+                "usesPlatformDrivers": true,
+                "coordinates": {
+                    "latitude": 20.489,
+                    "longitude": -99.23
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                }
+            },
+            "deliveryDriver": {
+                "id": 4,
+                "name": "Miguel",
+                "lastname": "Hernández",
+                "fullName": "Miguel Hernández",
+                "email": "miguel.hernandez@repartidor.com",
+                "phone": "5555555555"
+            },
+            "orderItems": [
+                {
+                    "id": "1",
+                    "productId": 1,
+                    "quantity": 1,
+                    "pricePerUnit": 210,
+                    "product": {
+                        "id": 1,
+                        "name": "Pizza Hawaiana",
+                        "description": "La clásica pizza con jamón y piña fresca.",
+                        "price": 150,
+                        "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+                        "category": "Pizzas Tradicionales"
+                    },
+                    "modifiers": [
+                        {
+                            "id": "1",
+                            "modifierOption": {
+                                "id": 3,
+                                "name": "Grande (12 pulgadas)",
+                                "price": 45,
+                                "modifierGroup": {
+                                    "id": 1,
+                                    "name": "Tamaño"
+                                }
+                            }
+                        },
+                        {
+                            "id": "2",
+                            "modifierOption": {
+                                "id": 5,
+                                "name": "Extra Queso",
+                                "price": 15,
+                                "modifierGroup": {
+                                    "id": 2,
+                                    "name": "Extras"
+                                }
+                            }
+                        },
+                        {
+                            "id": "3",
+                            "modifierOption": {
+                                "id": 11,
+                                "name": "Sin Cebolla",
+                                "price": 0,
+                                "modifierGroup": {
+                                    "id": 3,
+                                    "name": "Sin Ingredientes"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "2",
+                    "productId": 3,
+                    "quantity": 2,
+                    "pricePerUnit": 135,
+                    "product": {
+                        "id": 3,
+                        "name": "Pizza Margherita",
+                        "description": "Pizza clásica con mozzarella fresca, tomate y albahaca.",
+                        "price": 135,
+                        "imageUrl": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop",
+                        "category": "Pizzas Tradicionales"
+                    },
+                    "modifiers": []
+                }
+            ]
         },
-        "restaurant": {
-          "id": 1,
-          "name": "Pizzería de Ana"
+        "driverInfo": {
+            "userId": 4,
+            "driverName": "Miguel Hernández",
+            "driverTypes": [
+                "driver_platform"
+            ],
+            "acceptedAt": "2025-10-20T22:10:19.071Z"
         }
-      },
-      "deliveryDriver": {
-        "id": 4,
-        "name": "Miguel",
-        "lastname": "Hernández",
-        "fullName": "Miguel Hernández",
-        "email": "miguel.hernandez@repartidor.com",
-        "phone": "5555555555"
-      },
-      "orderItems": [
-        {
-          "id": "6",
-          "productId": 4,
-          "quantity": 1,
-          "pricePerUnit": 180,
-          "product": {
-            "id": 4,
-            "name": "Pizza Quattro Stagioni",
-            "description": "Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.",
-            "price": 180,
-            "imageUrl": "https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop",
-            "category": "Pizzas Gourmet"
-          },
-          "modifiers": []
-        }
-      ]
-    },
-    "driverInfo": {
-      "userId": 4,
-      "driverName": "Miguel Hernández",
-      "driverTypes": [
-        "driver_platform"
-      ],
-      "acceptedAt": "2025-10-20T18:56:15.489Z"
     }
-  }
 }
 ```
 
@@ -729,30 +781,61 @@ await prisma.$transaction(async (tx) => {
 
 ### **🧪 Prueba Exitosa Realizada**
 
-**✅ Prueba de Aceptación de Pedido** - `2025-10-20T18:56:15.489Z`:
+**✅ Prueba de Aceptación de Pedido** - `2025-10-20T22:10:19.071Z`:
 
-- **Endpoint**: `PATCH /api/driver/orders/5/accept`
+- **Endpoint**: `PATCH /api/driver/orders/1/accept`
 - **Usuario**: Miguel Hernández (ID: 4, driver_platform)
-- **Pedido**: #5 - Pizza Quattro Stagioni (Estado inicial: `ready_for_pickup`)
+- **Pedido**: #1 - Pizza Hawaiana + Pizza Margherita (Estado inicial: `ready_for_pickup`)
 - **Resultado**: **¡ÉXITO COMPLETO!**
 
 **Validaciones Pasadas:**
-- ✅ **Autenticación**: Token válido
-- ✅ **Autorización**: Rol `driver_platform` confirmado
+- ✅ **Autenticación**: Token válido confirmado
+- ✅ **Autorización**: Rol `driver_platform` verificado
 - ✅ **Validación Zod**: Parámetro `orderId` validado correctamente
 - ✅ **Estado del Pedido**: Pedido en `ready_for_pickup` y `deliveryDriverId: null`
 - ✅ **Elegibilidad**: Repartidor elegible para pedidos de plataforma
 - ✅ **Transacción**: Actualización atómica exitosa
 - ✅ **Estado Actualizado**: DriverProfile.status cambiado a `busy`
-- ✅ **Notificaciones**: WebSocket enviado a cliente y restaurante
+- ✅ **Notificaciones**: WebSocket enviado a cliente (ID: 5) y restaurante (ID: 1)
 
-**Cambios Realizados:**
+**Cambios Realizados (Confirmados por Logs):**
 - **Pedido**: Estado cambiado de `ready_for_pickup` → `out_for_delivery`
 - **Repartidor**: Asignado (deliveryDriverId: 4)
-- **DriverProfile**: Status actualizado a `busy`
-- **Timestamp**: updatedAt actualizado a `2025-10-20T18:56:13.968Z`
+- **DriverProfile**: Status actualizado de `online` → `busy`
+- **Timestamp**: updatedAt actualizado a `2025-10-20T22:10:17.362Z`
+- **Pedido Total**: $505 MXN (Pizza Hawaiana con modificadores: Grande + Extra Queso + Sin Cebolla, Pizza Margherita x2)
 
-**Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el repartidor correctamente asignado y el estado actualizado, confirmando que todas las funcionalidades críticas implementadas están funcionando perfectamente.
+**Logs de Confirmación:**
+```
+✅ "Iniciando aceptación de pedido por repartidor" - orderId: "1", userId: 4
+✅ "Criterios de elegibilidad determinados" - isPlatformDriver: true, orderEligibilityWhere: branch.usesPlatformDrivers: true
+✅ "Pedido asignado exitosamente en transacción" - newStatus: "out_for_delivery"
+✅ "Estado del repartidor actualizado a busy"
+✅ "Notificaciones WebSocket enviadas" - customerId: 5, restaurantId: 1
+✅ "Pedido aceptado exitosamente por repartidor" - orderStatus: "out_for_delivery"
+```
+
+**Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el repartidor correctamente asignado, el estado actualizado, y **datos completos de modificadores** en los OrderItems. Los logs confirman que todas las funcionalidades críticas implementadas están funcionando perfectamente.
+
+### **🔧 Características Críticas Implementadas**
+
+#### **✅ Actualización Automática del Estado del Repartidor**
+- **DriverProfile.status** se actualiza automáticamente de `'online'` a `'busy'` dentro de la transacción
+- **Disponibilidad**: El repartidor queda marcado como ocupado para evitar múltiples asignaciones simultáneas
+
+#### **✅ Notificaciones Duales**
+- **Cliente**: Recibe notificación que el pedido está en camino con datos del repartidor
+- **Restaurante**: Recibe confirmación de que un repartidor aceptó el pedido
+- **Logs**: `"Notificaciones WebSocket enviadas" - customerId: 5, restaurantId: 1`
+
+#### **✅ Transacción Atómica**
+- **Atomicidad**: Garantiza que la asignación del pedido y actualización del estado del repartidor se ejecuten juntos
+- **Concurrencia**: Previene race conditions cuando múltiples repartidores intentan aceptar el mismo pedido
+- **Logs**: `"Pedido asignado exitosamente en transacción" - newStatus: "out_for_delivery"`
+
+#### **✅ Sistema de Billeteras Integrado**
+- **Pago**: Registra automáticamente las transacciones cuando se completa el pedido (sistema downstream)
+- **Transparencia**: El repartidor puede consultar su billetera después de completar entregas
 
 ---
 
@@ -930,105 +1013,157 @@ const completeOrder = async (req, res) => {
 - **Funcionalidad**: Actualiza automáticamente las billeteras del repartidor y restaurante cuando se completa un pedido
 - **Resultado**: Gestión financiera automática de comisiones y ganancias
 
-### **📤 Ejemplo de Respuesta Exitosa**
+### **📤 Ejemplo de Respuesta Exitosa** *(Respuesta real de prueba - Postman)*
 
 ```json
 {
-  "status": "success",
-  "message": "Pedido marcado como entregado exitosamente",
-  "timestamp": "2025-10-20T19:17:45.921Z",
-  "data": {
-    "order": {
-      "id": "5",
-      "status": "delivered",
-      "subtotal": 180,
-      "deliveryFee": 25,
-      "total": 205,
-      "paymentMethod": "card",
-      "paymentStatus": "completed",
-      "specialInstructions": "¡Perfecto para probar acceptOrder!",
-      "orderPlacedAt": "2025-10-20T18:08:53.988Z",
-      "orderDeliveredAt": "2025-10-20T19:17:44.546Z",
-      "updatedAt": "2025-10-20T19:17:44.546Z",
-      "customer": {
-        "id": 5,
-        "name": "Sofía",
-        "lastname": "López",
-        "fullName": "Sofía López",
-        "email": "sofia.lopez@email.com",
-        "phone": "4444444444"
-      },
-      "address": {
-        "id": 1,
-        "alias": "Casa",
-        "street": "Av. Felipe Ángeles",
-        "exteriorNumber": "21",
-        "interiorNumber": null,
-        "neighborhood": "San Nicolás",
-        "city": "Ixmiquilpan",
-        "state": "Hidalgo",
-        "zipCode": "42300",
-        "references": "Casa de dos pisos con portón de madera.",
-        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
-        "coordinates": {
-          "latitude": 20.488765,
-          "longitude": -99.234567
-        }
-      },
-      "branch": {
-        "id": 1,
-        "name": "Pizzería de Ana",
-        "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
-        "phone": null,
-        "usesPlatformDrivers": true,
-        "coordinates": {
-          "latitude": 20.489,
-          "longitude": -99.23
+    "status": "success",
+    "message": "Pedido marcado como entregado exitosamente",
+    "timestamp": "2025-10-20T22:10:59.096Z",
+    "data": {
+        "order": {
+            "id": "1",
+            "status": "delivered",
+            "subtotal": 480,
+            "deliveryFee": 25,
+            "total": 505,
+            "paymentMethod": "card",
+            "paymentStatus": "completed",
+            "specialInstructions": "Entregar en la puerta principal, tocar timbre",
+            "orderPlacedAt": "2025-10-20T19:50:45.867Z",
+            "orderDeliveredAt": "2025-10-20T22:10:57.020Z",
+            "updatedAt": "2025-10-20T22:10:57.020Z",
+            "customer": {
+                "id": 5,
+                "name": "Sofía",
+                "lastname": "López",
+                "fullName": "Sofía López",
+                "email": "sofia.lopez@email.com",
+                "phone": "4444444444"
+            },
+            "address": {
+                "id": 1,
+                "alias": "Casa",
+                "street": "Av. Felipe Ángeles",
+                "exteriorNumber": "21",
+                "interiorNumber": null,
+                "neighborhood": "San Nicolás",
+                "city": "Ixmiquilpan",
+                "state": "Hidalgo",
+                "zipCode": "42300",
+                "references": "Casa de dos pisos con portón de madera.",
+                "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
+                "coordinates": {
+                    "latitude": 20.488765,
+                    "longitude": -99.234567
+                }
+            },
+            "branch": {
+                "id": 1,
+                "name": "Pizzería de Ana",
+                "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
+                "phone": null,
+                "usesPlatformDrivers": true,
+                "coordinates": {
+                    "latitude": 20.489,
+                    "longitude": -99.23
+                },
+                "restaurant": {
+                    "id": 1,
+                    "name": "Pizzería de Ana"
+                }
+            },
+            "deliveryDriver": {
+                "id": 4,
+                "name": "Miguel",
+                "lastname": "Hernández",
+                "fullName": "Miguel Hernández",
+                "email": "miguel.hernandez@repartidor.com",
+                "phone": "5555555555"
+            },
+            "orderItems": [
+                {
+                    "id": "1",
+                    "productId": 1,
+                    "quantity": 1,
+                    "pricePerUnit": 210,
+                    "product": {
+                        "id": 1,
+                        "name": "Pizza Hawaiana",
+                        "description": "La clásica pizza con jamón y piña fresca.",
+                        "price": 150,
+                        "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+                        "category": "Pizzas Tradicionales"
+                    },
+                    "modifiers": [
+                        {
+                            "id": "1",
+                            "modifierOption": {
+                                "id": 3,
+                                "name": "Grande (12 pulgadas)",
+                                "price": 45,
+                                "modifierGroup": {
+                                    "id": 1,
+                                    "name": "Tamaño"
+                                }
+                            }
+                        },
+                        {
+                            "id": "2",
+                            "modifierOption": {
+                                "id": 5,
+                                "name": "Extra Queso",
+                                "price": 15,
+                                "modifierGroup": {
+                                    "id": 2,
+                                    "name": "Extras"
+                                }
+                            }
+                        },
+                        {
+                            "id": "3",
+                            "modifierOption": {
+                                "id": 11,
+                                "name": "Sin Cebolla",
+                                "price": 0,
+                                "modifierGroup": {
+                                    "id": 3,
+                                    "name": "Sin Ingredientes"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "2",
+                    "productId": 3,
+                    "quantity": 2,
+                    "pricePerUnit": 135,
+                    "product": {
+                        "id": 3,
+                        "name": "Pizza Margherita",
+                        "description": "Pizza clásica con mozzarella fresca, tomate y albahaca.",
+                        "price": 135,
+                        "imageUrl": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop",
+                        "category": "Pizzas Tradicionales"
+                    },
+                    "modifiers": []
+                }
+            ]
         },
-        "restaurant": {
-          "id": 1,
-          "name": "Pizzería de Ana"
+        "driverInfo": {
+            "userId": 4,
+            "driverName": "Miguel Hernández",
+            "driverTypes": [
+                "driver_platform"
+            ],
+            "completedAt": "2025-10-20T22:10:57.020Z"
+        },
+        "deliveryStats": {
+            "deliveryTime": 8411153,
+            "deliveryTimeFormatted": "2h 20m"
         }
-      },
-      "deliveryDriver": {
-        "id": 4,
-        "name": "Miguel",
-        "lastname": "Hernández",
-        "fullName": "Miguel Hernández",
-        "email": "miguel.hernandez@repartidor.com",
-        "phone": "5555555555"
-      },
-      "orderItems": [
-        {
-          "id": "6",
-          "productId": 4,
-          "quantity": 1,
-          "pricePerUnit": 180,
-          "product": {
-            "id": 4,
-            "name": "Pizza Quattro Stagioni",
-            "description": "Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.",
-            "price": 180,
-            "imageUrl": "https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop",
-            "category": "Pizzas Gourmet"
-          },
-          "modifiers": []
-        }
-      ]
-    },
-    "driverInfo": {
-      "userId": 4,
-      "driverName": "Miguel Hernández",
-      "driverTypes": [
-        "driver_platform"
-      ],
-      "completedAt": "2025-10-20T19:17:44.546Z"
-    },
-    "deliveryStats": {
-      "deliveryTime": 4130558,
-      "deliveryTimeFormatted": "1h 8m"
     }
-  }
 }
 ```
 
@@ -1116,11 +1251,11 @@ const completeOrder = async (req, res) => {
 
 ### **🧪 Prueba Exitosa Realizada**
 
-**✅ Prueba de Completado de Pedido** - `2025-10-20T19:17:45.921Z`:
+**✅ Prueba de Completado de Pedido** - `2025-10-20T22:10:59.096Z`:
 
-- **Endpoint**: `PATCH /api/driver/orders/5/complete`
+- **Endpoint**: `PATCH /api/driver/orders/1/complete`
 - **Usuario**: Miguel Hernández (ID: 4, driver_platform)
-- **Pedido**: #5 - Pizza Quattro Stagioni (Estado inicial: `out_for_delivery`)
+- **Pedido**: #1 - Pizza Hawaiana + Pizza Margherita (Estado inicial: `out_for_delivery`)
 - **Resultado**: **¡ÉXITO COMPLETO!**
 
 **Validaciones Pasadas:**
@@ -1131,23 +1266,29 @@ const completeOrder = async (req, res) => {
 - ✅ **Transacción Atómica**: Actualización del pedido y estado del repartidor exitosa
 - ✅ **Estado Actualizado**: DriverProfile.status cambiado a `online` automáticamente
 - ✅ **Notificaciones**: WebSocket enviado a cliente (ID: 5) y restaurante (ID: 1)
+- ✅ **Sistema de Billeteras**: Actualización automática de billeteras del repartidor y restaurante
 
 **Cambios Realizados (Confirmados por Logs):**
 - **Pedido**: Estado cambiado de `out_for_delivery` → `delivered`
-- **Timestamp**: `orderDeliveredAt` establecido a `2025-10-20T19:17:44.546Z`
+- **Timestamp**: `orderDeliveredAt` establecido a `2025-10-20T22:10:57.020Z`
 - **DriverProfile**: Status actualizado de `busy` → `online`
-- **Tiempo de Entrega**: 1 hora 8 minutos (4,130,558 ms)
+- **Tiempo de Entrega**: 2 horas 20 minutos (8,411,153 ms)
+- **Billeteras**: Repartidor recibió $25 MXN, Restaurante recibió $420 MXN
 
 **Logs de Confirmación:**
 ```
-✅ "Pedido encontrado y validado" - orderStatus: "out_for_delivery"
+✅ "Iniciando completado de pedido por repartidor" - orderId: "1", userId: 4
+✅ "Pedido encontrado y validado" - customerId: 5, restaurantId: 1
 ✅ "Pedido marcado como entregado en transacción" - newStatus: "delivered"
 ✅ "Estado del repartidor actualizado a online"
+✅ "Billeteras obtenidas para procesamiento financiero" - driverWalletId: 1, restaurantWalletId: 1
+✅ "Transacción de repartidor de plataforma procesada" - driverAmount: "25", newDriverBalance: 25
+✅ "Ganancia del restaurante procesada" - restaurantAmount: 420, newRestaurantBalance: 420
 ✅ "Notificaciones WebSocket enviadas" - customerId: 5, restaurantId: 1
 ✅ "Pedido completado exitosamente por repartidor" - driverStatusUpdated: "online"
 ```
 
-**Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el estado `delivered`, timestamp de entrega, y las estadísticas de tiempo de entrega. Los logs confirman que todas las correcciones críticas implementadas están funcionando perfectamente, incluyendo la actualización automática del estado del repartidor a `online` y las notificaciones duales.
+**Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el estado `delivered`, timestamp de entrega, estadísticas de tiempo de entrega, y **datos de billeteras actualizados**. Los logs confirman que todas las correcciones críticas implementadas están funcionando perfectamente, incluyendo la actualización automática del estado del repartidor a `online`, las notificaciones duales, y el **sistema de billeteras virtuales**.
 
 ---
 

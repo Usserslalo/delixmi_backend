@@ -101,23 +101,22 @@ static async getWallet(restaurantId, requestId) {
 }
 ```
 
-#### Ejemplo de Respuesta Exitosa (200)
+#### Ejemplo de Respuesta Exitosa (200) *(Respuesta real de prueba - Postman)*
 ```json
 {
   "status": "success",
   "message": "Billetera del restaurante obtenida exitosamente",
-  "timestamp": "2025-01-27T10:30:00.000Z",
+  "timestamp": "2025-10-20T22:12:18.970Z",
   "data": {
     "wallet": {
       "id": 1,
-      "balance": 2450.80,
       "restaurantId": 1,
-      "createdAt": "2025-01-20T08:00:00.000Z",
-      "updatedAt": "2025-01-27T09:45:00.000Z",
+      "balance": 420,
+      "updatedAt": "2025-10-20T22:10:58.199Z",
       "restaurant": {
         "id": 1,
         "name": "Pizzería de Ana",
-        "ownerId": 1
+        "ownerId": 2
       }
     }
   }
@@ -267,49 +266,32 @@ GET /api/restaurant/wallet/transactions?page=1&pageSize=10&dateFrom=2025-01-01T0
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-#### Ejemplo de Respuesta Exitosa (200)
+#### Ejemplo de Respuesta Exitosa (200) *(Respuesta real de prueba - Postman)*
 ```json
 {
   "status": "success",
   "message": "Transacciones de billetera obtenidas exitosamente",
-  "timestamp": "2025-01-27T10:30:00.000Z",
+  "timestamp": "2025-10-20T22:14:35.474Z",
   "data": {
     "transactions": [
       {
-        "id": 1,
-        "amount": 420.00,
-        "type": "earning",
-        "description": "Ganancias del pedido #5",
-        "orderId": "5",
-        "createdAt": "2025-01-27T09:45:00.000Z",
+        "id": "1",
+        "type": "EARNING",
+        "amount": 420,
+        "balanceAfter": 420,
+        "description": "Ganancia Pedido #1",
+        "createdAt": "2025-10-20T22:10:58.011Z",
         "order": {
-          "id": "5",
-          "total": 505,
-          "restaurantPayout": 420,
+          "id": "1",
           "status": "delivered",
-          "paymentMethod": "card"
-        }
-      },
-      {
-        "id": 2,
-        "amount": 180.00,
-        "type": "earning",
-        "description": "Ganancias del pedido #3",
-        "orderId": "3",
-        "createdAt": "2025-01-26T14:20:00.000Z",
-        "order": {
-          "id": "3",
-          "total": 205,
-          "restaurantPayout": 180,
-          "status": "delivered",
-          "paymentMethod": "cash"
+          "total": 505
         }
       }
     ],
     "pagination": {
       "currentPage": 1,
       "pageSize": 10,
-      "totalCount": 2,
+      "totalCount": 1,
       "totalPages": 1,
       "hasNextPage": false,
       "hasPreviousPage": false
