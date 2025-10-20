@@ -2497,6 +2497,114 @@ class DriverRepository {
   }
 
   /**
+   * Obtiene el perfil completo del repartidor (datos de usuario y driverProfile)
+   * @param {number} userId - ID del usuario repartidor
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Perfil completo del repartidor
+   */
+  static async getDriverProfile(userId, requestId) {
+    try {
+      logger.debug('Iniciando búsqueda del perfil del repartidor', {
+        requestId,
+        meta: { userId }
+      });
+
+      // 1. Buscar el perfil del repartidor con datos del usuario
+      const driverProfile = await prisma.driverProfile.findUnique({
+        where: { userId: userId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true,
+              status: true
+            }
+          }
+        }
+      });
+
+      // 2. Validar que el perfil existe
+      if (!driverProfile) {
+        logger.error('Perfil de repartidor no encontrado', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Perfil de repartidor no encontrado',
+          code: 'DRIVER_PROFILE_NOT_FOUND',
+          details: {
+            userId: userId,
+            suggestion: 'Contacta al administrador para crear tu perfil de repartidor'
+          }
+        };
+      }
+
+      logger.info('Perfil de repartidor obtenido exitosamente', {
+        requestId,
+        meta: {
+          userId: userId,
+          driverStatus: driverProfile.status,
+          userName: driverProfile.user.name,
+          userEmail: driverProfile.user.email
+        }
+      });
+
+      // 3. Formatear el perfil combinando datos de user y driverProfile
+      const formattedProfile = {
+        userId: driverProfile.userId,
+        vehicleType: driverProfile.vehicleType,
+        licensePlate: driverProfile.licensePlate,
+        status: driverProfile.status,
+        currentLocation: {
+          latitude: driverProfile.currentLatitude ? Number(driverProfile.currentLatitude) : null,
+          longitude: driverProfile.currentLongitude ? Number(driverProfile.currentLongitude) : null
+        },
+        lastSeenAt: driverProfile.lastSeenAt,
+        kycStatus: driverProfile.kycStatus,
+        user: {
+          id: driverProfile.user.id,
+          name: driverProfile.user.name,
+          lastname: driverProfile.user.lastname,
+          fullName: `${driverProfile.user.name} ${driverProfile.user.lastname}`,
+          email: driverProfile.user.email,
+          phone: driverProfile.user.phone,
+          status: driverProfile.user.status
+        },
+        createdAt: driverProfile.createdAt,
+        updatedAt: driverProfile.updatedAt
+      };
+
+      return formattedProfile;
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error inesperado obteniendo perfil del repartidor', {
+        requestId,
+        meta: { 
+          userId,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
    * Función auxiliar para formatear el tiempo de entrega
    * @param {number} deliveryTimeMs - Tiempo de entrega en milisegundos
    * @returns {string} Tiempo formateado

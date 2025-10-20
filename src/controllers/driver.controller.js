@@ -478,6 +478,53 @@ const updateDriverLocation = async (req, res) => {
   }
 };
 
+/**
+ * Obtener el perfil completo del repartidor
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getDriverProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const profile = await DriverRepository.getDriverProfile(userId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Perfil del repartidor obtenido exitosamente',
+      { profile },
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
 module.exports = {
   getAvailableOrders,
   acceptOrder,
@@ -485,5 +532,6 @@ module.exports = {
   updateDriverStatus,
   getCurrentOrder,
   getDriverOrderHistory,
-  updateDriverLocation
+  updateDriverLocation,
+  getDriverProfile
 };

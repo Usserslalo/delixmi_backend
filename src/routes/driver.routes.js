@@ -4,7 +4,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth.middlewar
 const { validate, validateQuery, validateParams } = require('../middleware/validate.middleware');
 const { updateDriverStatusSchema, availableOrdersQuerySchema, historyQuerySchema, updateLocationSchema } = require('../validations/driver.validation');
 const { orderParamsSchema } = require('../validations/order.validation');
-const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
+const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation, getDriverProfile } = require('../controllers/driver.controller');
 
 const router = express.Router();
 
@@ -22,6 +22,17 @@ router.patch(
   requireRole(['driver_platform', 'driver_restaurant']),
   validate(updateDriverStatusSchema),
   updateDriverStatus
+);
+
+/**
+ * @route   GET /api/driver/profile
+ * @desc    Obtener el perfil completo del repartidor (datos de usuario y driverProfile)
+ * @access  Private (Driver Platform, Driver Restaurant)
+ */
+router.get(
+  '/profile',
+  requireRole(['driver_platform', 'driver_restaurant']),
+  getDriverProfile
 );
 
 /**
