@@ -7,311 +7,79 @@ const ResponseService = require('../services/response.service');
 const prisma = new PrismaClient();
 
 /**
- * Obtiene los pedidos disponibles para recoger por repartidores
+ * Obtiene los pedidos disponibles para el repartidor autenticado
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const getAvailableOrders = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { page = 1, pageSize = 10 } = req.query;
-
-    // Validar parámetros de paginación
-    const pageNum = parseInt(page);
-    const pageSizeNum = parseInt(pageSize);
-    
-    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 50) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
-          page: 'Debe ser un número mayor a 0',
-          pageSize: 'Debe ser un número entre 1 y 50'
-        }
-      });
-    }
-
-    // 1. Obtener información del usuario y verificar autorización
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de repartidor
-    const driverRoles = ['driver_platform', 'driver_restaurant'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
-
-    if (!hasDriverRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de repartidor',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: driverRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Determinar el tipo de repartidor y construir la consulta
-    const isPlatformDriver = userRoles.includes('driver_platform');
-    const isRestaurantDriver = userRoles.includes('driver_restaurant');
-
-    let whereClause = {
-      status: 'ready_for_pickup',
-      deliveryDriverId: null // Solo pedidos sin repartidor asignado
+    const filters = {
+      page: req.query.page,
+      pageSize: req.query.pageSize
     };
 
-    if (isPlatformDriver && isRestaurantDriver) {
-      // Usuario con ambos roles - puede ver pedidos de plataforma Y de sus sucursales asignadas
-      const assignedBranchIds = userWithRoles.userRoleAssignments
-        .filter(assignment => assignment.branchId)
-        .map(assignment => assignment.branchId);
+    // Llamar al método del repositorio para obtener pedidos disponibles
+    const result = await DriverRepository.getAvailableOrdersForDriver(
+      userId, 
+      filters, 
+      req.id
+    );
 
-      whereClause = {
-        status: 'ready_for_pickup',
-        deliveryDriverId: null,
-        OR: [
-          // Pedidos de sucursales que usan repartidores de plataforma
-          {
-            branch: {
-              usesPlatformDrivers: true
-            }
-          },
-          // Pedidos de las sucursales específicamente asignadas al repartidor
-          ...(assignedBranchIds.length > 0 ? [{
-            branchId: { in: assignedBranchIds }
-          }] : [])
-        ]
-      };
-    } else if (isPlatformDriver) {
-      // Solo repartidor de plataforma - solo pedidos de sucursales que usan repartidores de plataforma
-      whereClause = {
-        status: 'ready_for_pickup',
-        deliveryDriverId: null,
-        branch: {
-          usesPlatformDrivers: true
-        }
-      };
-    } else if (isRestaurantDriver) {
-      // Solo repartidor de restaurante - solo pedidos de sus sucursales asignadas
-      const assignedBranchIds = userWithRoles.userRoleAssignments
-        .filter(assignment => assignment.branchId)
-        .map(assignment => assignment.branchId);
-
-      if (assignedBranchIds.length === 0) {
-        return res.status(403).json({
-          status: 'error',
-          message: 'No se encontraron sucursales asignadas para este repartidor',
-          code: 'NO_BRANCH_ASSIGNED'
-        });
-      }
-
-      whereClause = {
-        status: 'ready_for_pickup',
-        deliveryDriverId: null,
-        branchId: { in: assignedBranchIds }
-      };
-    }
-
-    // 4. Calcular offset para paginación
-    const offset = (pageNum - 1) * pageSizeNum;
-
-    // 5. Obtener pedidos disponibles con filtros
-    const [orders, totalCount] = await Promise.all([
-      prisma.order.findMany({
-        where: whereClause,
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              lastname: true,
-              email: true,
-              phone: true
-            }
-          },
-          address: {
-            select: {
-              id: true,
-              alias: true,
-              street: true,
-              exteriorNumber: true,
-              interiorNumber: true,
-              neighborhood: true,
-              city: true,
-              state: true,
-              zipCode: true,
-              references: true,
-              latitude: true,
-              longitude: true
-            }
-          },
-          branch: {
-            select: {
-              id: true,
-              name: true,
-              address: true,
-              latitude: true,
-              longitude: true,
-              phone: true,
-              usesPlatformDrivers: true,
-              restaurant: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          orderItems: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  description: true,
-                  price: true,
-                  imageUrl: true,
-                  subcategory: {
-                    select: {
-                      name: true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        orderBy: {
-          orderPlacedAt: 'asc' // Pedidos más antiguos primero (FIFO)
-        },
-        skip: offset,
-        take: pageSizeNum
-      }),
-      prisma.order.count({
-        where: whereClause
-      })
-    ]);
-
-    // 6. Calcular información de paginación
-    const totalPages = Math.ceil(totalCount / pageSizeNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
-
-    // 7. Formatear respuesta
-    const formattedOrders = orders.map(order => ({
-      id: order.id.toString(),
-      status: order.status,
-      subtotal: Number(order.subtotal),
-      deliveryFee: Number(order.deliveryFee),
-      total: Number(order.total),
-      orderPlacedAt: order.orderPlacedAt,
-      customer: {
-        id: order.customer.id,
-        name: order.customer.name,
-        lastname: order.customer.lastname,
-        email: order.customer.email,
-        phone: order.customer.phone
-      },
-      address: {
-        id: order.address.id,
-        alias: order.address.alias,
-        fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`,
-        references: order.address.references,
-        coordinates: {
-          latitude: Number(order.address.latitude),
-          longitude: Number(order.address.longitude)
-        }
-      },
-      branch: {
-        id: order.branch.id,
-        name: order.branch.name,
-        address: order.branch.address,
-        phone: order.branch.phone,
-        usesPlatformDrivers: order.branch.usesPlatformDrivers,
-        coordinates: {
-          latitude: Number(order.branch.latitude),
-          longitude: Number(order.branch.longitude)
-        },
-        restaurant: {
-          id: order.branch.restaurant.id,
-          name: order.branch.restaurant.name
-        }
-      },
-      items: order.orderItems.map(item => ({
-        id: item.id.toString(),
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          description: item.product.description,
-          price: Number(item.product.price),
-          imageUrl: item.product.imageUrl,
-          category: item.product.subcategory.name
-        },
-        quantity: item.quantity,
-        pricePerUnit: Number(item.pricePerUnit),
-        total: Number(item.pricePerUnit) * item.quantity
-      }))
-    }));
-
-    // 8. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Pedidos disponibles obtenidos exitosamente',
-      data: {
-        orders: formattedOrders,
-        pagination: {
-          currentPage: pageNum,
-          pageSize: pageSizeNum,
-          totalCount: totalCount,
-          totalPages: totalPages,
-          hasNextPage: hasNextPage,
-          hasPrevPage: hasPrevPage
-        },
+    // Respuesta exitosa usando ResponseService
+    return ResponseService.success(
+      res,
+      `Pedidos disponibles obtenidos exitosamente`,
+      {
+        orders: result.orders,
+        pagination: result.pagination,
         driverInfo: {
           userId: userId,
-          driverTypes: userRoles.filter(role => driverRoles.includes(role)),
-          assignedBranches: userWithRoles.userRoleAssignments
-            .filter(assignment => assignment.branchId)
-            .map(assignment => ({
-              branchId: assignment.branchId,
-              role: assignment.role.name
-            }))
+          userName: `${req.user.name} ${req.user.lastname}`
         }
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error obteniendo pedidos disponibles:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    // Manejar errores específicos del repositorio
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+
+    if (error.status === 400) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+
+    // Error interno del servidor
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };
 

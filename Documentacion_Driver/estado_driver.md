@@ -48,7 +48,7 @@ const updateDriverStatus = async (req, res) => {
     );
 
     // Respuesta exitosa usando ResponseService
-    return ResponseService.success(res, `Estado actualizado a '${newStatus}'`, {
+    return ResponseService.success(res, `Estado del repartidor actualizado a '${newStatus}' exitosamente`, {
       profile: result.profile,
       statusChange: result.statusChange,
       updatedBy: { userId, userName: `${req.user.name} ${req.user.lastname}` }
@@ -102,41 +102,41 @@ static async updateDriverStatus(userId, newStatus, requestId) {
 
 ```json
 {
-  "status": "success",
-  "message": "Estado del repartidor actualizado a 'online' exitosamente",
-  "timestamp": "2025-01-20T18:30:45.123Z",
-  "data": {
-    "profile": {
-      "userId": 123,
-      "vehicleType": "moto",
-      "licensePlate": "ABC-123",
-      "status": "online",
-      "currentLocation": {
-        "latitude": 20.484123,
-        "longitude": -99.216345
-      },
-      "lastSeenAt": "2025-01-20T18:30:45.120Z",
-      "kycStatus": "approved",
-      "user": {
-        "id": 123,
-        "name": "Juan",
-        "lastname": "Pérez",
-        "email": "juan.perez@email.com",
-        "phone": "5551234567"
-      },
-      "createdAt": "2025-01-15T10:00:00.000Z",
-      "updatedAt": "2025-01-20T18:30:45.120Z"
-    },
-    "statusChange": {
-      "previousStatus": "offline",
-      "newStatus": "online",
-      "changedAt": "2025-01-20T18:30:45.120Z"
-    },
-    "updatedBy": {
-      "userId": 123,
-      "userName": "Juan Pérez"
+    "status": "success",
+    "message": "Estado del repartidor actualizado a 'online' exitosamente",
+    "timestamp": "2025-10-20T18:19:47.715Z",
+    "data": {
+        "profile": {
+            "userId": 4,
+            "vehicleType": "motorcycle",
+            "licensePlate": "HGO-ABC-123",
+            "status": "online",
+            "currentLocation": {
+                "latitude": 20.484123,
+                "longitude": -99.216345
+            },
+            "lastSeenAt": "2025-10-20T18:19:47.286Z",
+            "kycStatus": "approved",
+            "user": {
+                "id": 4,
+                "name": "Miguel",
+                "lastname": "Hernández",
+                "email": "miguel.hernandez@repartidor.com",
+                "phone": "5555555555"
+            },
+            "createdAt": "2025-10-20T16:31:58.950Z",
+            "updatedAt": "2025-10-20T18:19:47.286Z"
+        },
+        "statusChange": {
+            "previousStatus": "online",
+            "newStatus": "online",
+            "changedAt": "2025-10-20T18:19:47.286Z"
+        },
+        "updatedBy": {
+            "userId": 4,
+            "userName": "Miguel Hernández"
+        }
     }
-  }
 }
 ```
 
@@ -227,3 +227,13 @@ static async updateDriverStatus(userId, newStatus, requestId) {
 - ✅ **Estados completos**: Soporte para todos los valores del enum `DriverStatus`
 - ✅ **Logging estructurado**: Trazabilidad completa con `requestId`
 - ✅ **Manejo de errores mejorado**: Errores específicos y informativos
+
+### Pruebas Realizadas
+
+**✅ Prueba Exitosa** - `2025-10-20T18:19:47.715Z`:
+- **Usuario**: Miguel Hernández (ID: 4, driver_platform)
+- **Estado**: online → online (confirmación de estado)
+- **Response Time**: 1286ms
+- **Logging**: Funcionando correctamente con requestId y metadatos detallados
+
+
