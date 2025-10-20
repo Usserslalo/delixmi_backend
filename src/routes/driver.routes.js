@@ -2,7 +2,7 @@ const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateQuery, validateParams } = require('../middleware/validate.middleware');
-const { updateDriverStatusSchema, availableOrdersQuerySchema, updateLocationSchema } = require('../validations/driver.validation');
+const { updateDriverStatusSchema, availableOrdersQuerySchema, historyQuerySchema, updateLocationSchema } = require('../validations/driver.validation');
 const { orderParamsSchema } = require('../validations/order.validation');
 const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
 
@@ -59,28 +59,7 @@ router.get(
 router.get(
   '/orders/history',
   requireRole(['driver_platform', 'driver_restaurant']),
-  [
-    query('page')
-      .optional()
-      .isInt({ min: 1 })
-      .withMessage('El número de página debe ser un entero mayor a 0'),
-    query('pageSize')
-      .optional()
-      .isInt({ min: 1, max: 50 })
-      .withMessage('El tamaño de página debe ser un entero entre 1 y 50')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de consulta inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateQuery(historyQuerySchema),
   getDriverOrderHistory
 );
 

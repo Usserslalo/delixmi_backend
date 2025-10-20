@@ -2156,6 +2156,347 @@ class DriverRepository {
   }
 
   /**
+   * Obtiene el historial de pedidos del repartidor (entregados, cancelados, reembolsados)
+   * @param {number} userId - ID del usuario repartidor
+   * @param {Object} filters - Filtros de paginación
+   * @param {number} filters.page - Número de página
+   * @param {number} filters.pageSize - Tamaño de página
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Historial de pedidos con paginación
+   */
+  static async getDriverOrderHistory(userId, filters, requestId) {
+    try {
+      logger.debug('Iniciando búsqueda de historial de pedidos del repartidor', {
+        requestId,
+        meta: { userId, page: filters.page, pageSize: filters.pageSize }
+      });
+
+      // 1. Validar que el usuario tenga roles de repartidor
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        logger.error('Usuario no encontrado al buscar historial', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        logger.error('Usuario no tiene permisos de repartidor para buscar historial', {
+          requestId,
+          meta: { userId, userRoles, requiredRoles: driverRoles }
+        });
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // 2. Construir cláusula where
+      const where = {
+        deliveryDriverId: userId,
+        // ¡CORRECCIÓN LÓGICA! Incluir todos los pedidos finalizados
+        status: { in: ['delivered', 'cancelled', 'refunded'] }
+      };
+
+      // 3. Construir orderBy
+      const orderBy = {
+        orderDeliveredAt: 'desc' // Entregas más recientes primero
+      };
+
+      // 4. Calcular skip y take para paginación
+      const skip = (filters.page - 1) * filters.pageSize;
+      const take = filters.pageSize;
+
+      logger.debug('Ejecutando consulta de historial con filtros', {
+        requestId,
+        meta: { userId, where, orderBy, skip, take }
+      });
+
+      // 5. Ejecutar consultas en paralelo
+      const [orders, totalCount] = await prisma.$transaction([
+        // Consulta principal con include completo
+        prisma.order.findMany({
+          where,
+          orderBy,
+          skip,
+          take,
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                email: true,
+                phone: true
+              }
+            },
+            address: {
+              select: {
+                id: true,
+                alias: true,
+                street: true,
+                exteriorNumber: true,
+                interiorNumber: true,
+                neighborhood: true,
+                city: true,
+                state: true,
+                zipCode: true,
+                references: true,
+                latitude: true,
+                longitude: true
+              }
+            },
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+                latitude: true,
+                longitude: true,
+                phone: true,
+                usesPlatformDrivers: true,
+                restaurant: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            },
+            deliveryDriver: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                email: true,
+                phone: true
+              }
+            },
+            payment: {
+              select: {
+                id: true,
+                status: true,
+                provider: true,
+                providerPaymentId: true,
+                amount: true,
+                currency: true
+              }
+            },
+            orderItems: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    price: true,
+                    imageUrl: true,
+                    subcategory: {
+                      select: {
+                        name: true,
+                        category: {
+                          select: {
+                            name: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                modifiers: {
+                  include: {
+                    modifierOption: {
+                      select: {
+                        id: true,
+                        name: true,
+                        price: true,
+                        modifierGroup: {
+                          select: {
+                            id: true,
+                            name: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }),
+        // Contar total de registros
+        prisma.order.count({ where })
+      ]);
+
+      logger.info('Historial de pedidos obtenido exitosamente', {
+        requestId,
+        meta: { 
+          userId,
+          totalOrders: totalCount,
+          returnedOrders: orders.length,
+          currentPage: filters.page,
+          pageSize: filters.pageSize
+        }
+      });
+
+      // 6. Calcular metadatos de paginación
+      const totalPages = Math.ceil(totalCount / filters.pageSize);
+      const hasNextPage = filters.page < totalPages;
+      const hasPreviousPage = filters.page > 1;
+
+      // 7. Formatear pedidos
+      const formattedOrders = orders.map(order => ({
+        id: order.id.toString(),
+        status: order.status,
+        subtotal: Number(order.subtotal),
+        deliveryFee: Number(order.deliveryFee),
+        total: Number(order.total),
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        specialInstructions: order.specialInstructions,
+        orderPlacedAt: order.orderPlacedAt,
+        orderDeliveredAt: order.orderDeliveredAt,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        customer: order.customer ? {
+          id: order.customer.id,
+          name: order.customer.name,
+          lastname: order.customer.lastname,
+          fullName: `${order.customer.name} ${order.customer.lastname}`,
+          email: order.customer.email,
+          phone: order.customer.phone
+        } : null,
+        address: order.address ? {
+          id: order.address.id,
+          alias: order.address.alias,
+          street: order.address.street,
+          exteriorNumber: order.address.exteriorNumber,
+          interiorNumber: order.address.interiorNumber,
+          neighborhood: order.address.neighborhood,
+          city: order.address.city,
+          state: order.address.state,
+          zipCode: order.address.zipCode,
+          references: order.address.references,
+          fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`,
+          coordinates: {
+            latitude: order.address.latitude ? Number(order.address.latitude) : null,
+            longitude: order.address.longitude ? Number(order.address.longitude) : null
+          }
+        } : null,
+        branch: order.branch ? {
+          id: order.branch.id,
+          name: order.branch.name,
+          address: order.branch.address,
+          phone: order.branch.phone,
+          usesPlatformDrivers: order.branch.usesPlatformDrivers,
+          coordinates: {
+            latitude: order.branch.latitude ? Number(order.branch.latitude) : null,
+            longitude: order.branch.longitude ? Number(order.branch.longitude) : null
+          },
+          restaurant: order.branch.restaurant ? {
+            id: order.branch.restaurant.id,
+            name: order.branch.restaurant.name
+          } : null
+        } : null,
+        deliveryDriver: order.deliveryDriver ? {
+          id: order.deliveryDriver.id,
+          name: order.deliveryDriver.name,
+          lastname: order.deliveryDriver.lastname,
+          fullName: `${order.deliveryDriver.name} ${order.deliveryDriver.lastname}`,
+          email: order.deliveryDriver.email,
+          phone: order.deliveryDriver.phone
+        } : null,
+        payment: order.payment ? {
+          id: order.payment.id.toString(),
+          status: order.payment.status,
+          provider: order.payment.provider,
+          providerPaymentId: order.payment.providerPaymentId,
+          amount: Number(order.payment.amount),
+          currency: order.payment.currency
+        } : null,
+        orderItems: order.orderItems ? order.orderItems.map(item => ({
+          id: item.id.toString(),
+          productId: item.productId,
+          quantity: item.quantity,
+          pricePerUnit: Number(item.pricePerUnit),
+          product: item.product ? {
+            id: item.product.id,
+            name: item.product.name,
+            description: item.product.description,
+            price: Number(item.product.price),
+            imageUrl: item.product.imageUrl,
+            category: {
+              subcategory: item.product.subcategory ? item.product.subcategory.name : null,
+              category: item.product.subcategory?.category ? item.product.subcategory.category.name : null
+            }
+          } : null,
+          modifiers: item.modifiers ? item.modifiers.map(modifier => ({
+            id: modifier.id.toString(),
+            modifierOption: modifier.modifierOption ? {
+              id: modifier.modifierOption.id,
+              name: modifier.modifierOption.name,
+              price: Number(modifier.modifierOption.price),
+              modifierGroup: modifier.modifierOption.modifierGroup ? {
+                id: modifier.modifierOption.modifierGroup.id,
+                name: modifier.modifierOption.modifierGroup.name
+              } : null
+            } : null
+          })) : []
+        })) : [],
+        deliveryStats: order.orderDeliveredAt && order.orderPlacedAt ? {
+          deliveryTime: order.orderDeliveredAt - order.orderPlacedAt,
+          deliveryTimeFormatted: this.formatDeliveryTime(order.orderDeliveredAt - order.orderPlacedAt)
+        } : null
+      }));
+
+      return {
+        orders: formattedOrders,
+        pagination: {
+          currentPage: filters.page,
+          pageSize: filters.pageSize,
+          totalOrders: totalCount,
+          totalPages: totalPages,
+          hasNextPage: hasNextPage,
+          hasPreviousPage: hasPreviousPage
+        }
+      };
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error inesperado obteniendo historial de pedidos del repartidor', {
+        requestId,
+        meta: { 
+          userId,
+          filters,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
    * Función auxiliar para formatear el tiempo de entrega
    * @param {number} deliveryTimeMs - Tiempo de entrega en milisegundos
    * @returns {string} Tiempo formateado

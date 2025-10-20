@@ -1297,19 +1297,21 @@ orderItems: {
 {
   "status": "success",
   "message": "Entrega activa obtenida exitosamente",
-  "timestamp": "2025-01-20T16:45:30.123Z",
+  "timestamp": "2025-10-20T20:09:08.871Z",
   "data": {
     "order": {
-      "id": "5",
+      "id": "6",
       "status": "out_for_delivery",
-      "subtotal": 505.00,
-      "deliveryFee": 25.00,
-      "total": 530.00,
-      "paymentMethod": "card",
+      "subtotal": 160,
+      "deliveryFee": 25,
+      "total": 185,
+      "paymentMethod": "cash",
       "paymentStatus": "completed",
-      "specialInstructions": "Entregar en la puerta principal",
-      "orderPlacedAt": "2025-01-20T16:30:00.000Z",
+      "specialInstructions": "Pedido en entrega para pruebas",
+      "orderPlacedAt": "2025-10-20T17:53:54.760Z",
       "orderDeliveredAt": null,
+      "createdAt": "2025-10-20T18:53:54.762Z",
+      "updatedAt": "2025-10-20T18:53:54.762Z",
       "customer": {
         "id": 5,
         "name": "Sofía",
@@ -1321,19 +1323,30 @@ orderItems: {
       "address": {
         "id": 1,
         "alias": "Casa",
+        "street": "Av. Felipe Ángeles",
+        "exteriorNumber": "21",
+        "interiorNumber": null,
+        "neighborhood": "San Nicolás",
+        "city": "Ixmiquilpan",
+        "state": "Hidalgo",
+        "zipCode": "42300",
+        "references": "Casa de dos pisos con portón de madera.",
         "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
-        "references": "Casa de dos pisos con portón de madera",
         "coordinates": {
-          "latitude": 20.484123,
-          "longitude": -99.216345
+          "latitude": 20.488765,
+          "longitude": -99.234567
         }
       },
       "branch": {
         "id": 1,
         "name": "Pizzería de Ana",
         "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
-        "phone": "7712345678",
+        "phone": null,
         "usesPlatformDrivers": true,
+        "coordinates": {
+          "latitude": 20.489,
+          "longitude": -99.23
+        },
         "restaurant": {
           "id": 1,
           "name": "Pizzería de Ana"
@@ -1348,61 +1361,36 @@ orderItems: {
         "phone": "5555555555"
       },
       "payment": {
-        "id": "1",
+        "id": "6",
         "status": "completed",
-        "provider": "mercadopago",
-        "providerPaymentId": "MP-123456789-PIZZA",
-        "amount": 505.00,
+        "provider": "cash",
+        "providerPaymentId": null,
+        "amount": 185,
         "currency": "MXN"
       },
       "orderItems": [
         {
-          "id": "1",
-          "productId": 1,
+          "id": "7",
+          "productId": 5,
           "quantity": 1,
-          "pricePerUnit": 210.00,
+          "pricePerUnit": 160,
           "product": {
-            "id": 1,
-            "name": "Pizza Hawaiana",
-            "description": "Pizza con jamón y piña",
-            "price": 150.00,
-            "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38",
+            "id": 5,
+            "name": "Pizza Vegetariana",
+            "description": "Pizza con champiñones, pimientos, cebolla, aceitunas y queso de cabra.",
+            "price": 160,
+            "imageUrl": "https://images.unsplash.com/photo-1511689660979-10d2b1aada49?w=500&h=500&fit=crop",
             "category": {
-              "subcategory": "Pizzas",
-              "category": "Platos Principales"
+              "subcategory": "Pizzas Vegetarianas",
+              "category": "Pizzas"
             }
           },
-          "modifiers": [
-            {
-              "id": "1",
-              "modifierOption": {
-                "id": 3,
-                "name": "Grande (12 pulgadas)",
-                "price": 45.00,
-                "modifierGroup": {
-                  "id": 1,
-                  "name": "Tamaño"
-                }
-              }
-            },
-            {
-              "id": "2",
-              "modifierOption": {
-                "id": 5,
-                "name": "Extra Queso",
-                "price": 15.00,
-                "modifierGroup": {
-                  "id": 2,
-                  "name": "Extras"
-                }
-              }
-            }
-          ]
+          "modifiers": []
         }
       ],
       "deliveryInfo": {
         "estimatedDeliveryTime": null,
-        "deliveryInstructions": "Casa de dos pisos con portón de madera"
+        "deliveryInstructions": "Casa de dos pisos con portón de madera."
       }
     }
   }
@@ -1461,3 +1449,35 @@ orderItems: {
 - **Arquitectura Repository**: Separación clara de responsabilidades
 - **ResponseService**: Respuestas consistentes en toda la API
 - **Manejo de Null**: Respuesta 200 con `order: null` cuando no hay entrega activa
+
+### **🧪 Prueba Exitosa Realizada**
+
+**Endpoint**: `GET https://delixmi-backend.onrender.com/api/driver/orders/current`
+
+**Usuario**: Repartidor Miguel Hernández (ID: 4, rol: `driver_platform`)
+
+**Resultado**: ✅ **EXITOSO** - Status 200
+
+**Validaciones Pasadas**:
+- ✅ Autenticación JWT válida
+- ✅ Rol de repartidor verificado (`driver_platform`)
+- ✅ Existencia de pedido activo en estado `out_for_delivery`
+- ✅ Include completo ejecutado correctamente
+- ✅ Formateo de respuesta exitoso
+
+**Datos del Pedido Activo**:
+- **ID del Pedido**: 6
+- **Cliente**: Sofía López (ID: 5)
+- **Producto**: Pizza Vegetariana (ID: 5)
+- **Pago**: Efectivo (amount: 185 MXN)
+- **Estado**: `out_for_delivery`
+- **Especial**: "Pedido en entrega para pruebas"
+
+**Correcciones Confirmadas**:
+- ✅ **Include de modificadores funcionando**: Se incluye el array `modifiers` (vacío en este caso)
+- ✅ **Payment incluido**: Datos completos del pago con provider "cash"
+- ✅ **Address completo**: Con coordenadas y fullAddress formateado
+- ✅ **Branch y Restaurant**: Información completa de la sucursal
+- ✅ **Timestamps reales**: orderPlacedAt, createdAt, updatedAt correctos
+
+Esta prueba confirma que la refactorización del endpoint `GET /api/driver/orders/current` funciona correctamente, incluyendo el **include completo de modificadores** y toda la información necesaria para que el repartidor pueda gestionar su entrega activa.

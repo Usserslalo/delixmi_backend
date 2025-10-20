@@ -361,271 +361,46 @@ const getCurrentOrder = async (req, res) => {
 const getDriverOrderHistory = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { page = 1, pageSize = 10 } = req.query;
+    const filters = {
+      page: req.query.page,
+      pageSize: req.query.pageSize
+    };
 
-    // Validar parámetros de paginación
-    const pageNum = parseInt(page);
-    const pageSizeNum = parseInt(pageSize);
-    
-    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 50) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
-          page: 'Debe ser un número mayor a 0',
-          pageSize: 'Debe ser un número entre 1 y 50'
-        }
-      });
-    }
+    const result = await DriverRepository.getDriverOrderHistory(userId, filters, req.id);
 
-    // 1. Obtener información del usuario y verificar autorización básica
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
-
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de repartidor
-    const driverRoles = ['driver_platform', 'driver_restaurant'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
-
-    if (!hasDriverRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de repartidor',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: driverRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Obtener el total de entregas completadas para la paginación
-    const totalDeliveredOrders = await prisma.order.count({
-      where: {
-        deliveryDriverId: userId,
-        status: 'delivered'
-      }
-    });
-
-    // 4. Calcular información de paginación
-    const totalPages = Math.ceil(totalDeliveredOrders / pageSizeNum);
-    const skip = (pageNum - 1) * pageSizeNum;
-
-    // 5. CONSULTA DE HISTORIAL - Buscar pedidos entregados del repartidor
-    const deliveredOrders = await prisma.order.findMany({
-      where: {
-        deliveryDriverId: userId, // ✅ CRÍTICO: Solo pedidos entregados por este repartidor
-        status: 'delivered' // ✅ CRÍTICO: Solo pedidos completados
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        address: {
-          select: {
-            id: true,
-            alias: true,
-            street: true,
-            exteriorNumber: true,
-            interiorNumber: true,
-            neighborhood: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            references: true,
-            latitude: true,
-            longitude: true
-          }
-        },
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            latitude: true,
-            longitude: true,
-            phone: true,
-            usesPlatformDrivers: true,
-            restaurant: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        deliveryDriver: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        orderItems: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                imageUrl: true,
-                subcategory: {
-                  select: {
-                    name: true,
-                    category: {
-                      select: {
-                        name: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      orderBy: {
-        orderDeliveredAt: 'desc' // ✅ ORDENAMIENTO: Entregas más recientes primero
-      },
-      skip: skip,
-      take: pageSizeNum
-    });
-
-    // 6. Formatear las entregas del historial
-    const formattedOrders = deliveredOrders.map(order => ({
-      id: order.id.toString(),
-      status: order.status,
-      subtotal: Number(order.subtotal),
-      deliveryFee: Number(order.deliveryFee),
-      total: Number(order.total),
-      orderPlacedAt: order.orderPlacedAt,
-      orderDeliveredAt: order.orderDeliveredAt,
-      updatedAt: order.updatedAt,
-      customer: {
-        id: order.customer.id,
-        name: order.customer.name,
-        lastname: order.customer.lastname,
-        email: order.customer.email,
-        phone: order.customer.phone
-      },
-      address: {
-        id: order.address.id,
-        alias: order.address.alias,
-        fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`,
-        references: order.address.references,
-        coordinates: {
-          latitude: Number(order.address.latitude),
-          longitude: Number(order.address.longitude)
-        }
-      },
-      branch: {
-        id: order.branch.id,
-        name: order.branch.name,
-        address: order.branch.address,
-        phone: order.branch.phone,
-        usesPlatformDrivers: order.branch.usesPlatformDrivers,
-        coordinates: {
-          latitude: Number(order.branch.latitude),
-          longitude: Number(order.branch.longitude)
-        },
-        restaurant: {
-          id: order.branch.restaurant.id,
-          name: order.branch.restaurant.name
-        }
-      },
-      driver: {
-        id: order.deliveryDriver.id,
-        name: order.deliveryDriver.name,
-        lastname: order.deliveryDriver.lastname,
-        email: order.deliveryDriver.email,
-        phone: order.deliveryDriver.phone
-      },
-      items: order.orderItems.map(item => ({
-        id: item.id.toString(),
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          description: item.product.description,
-          price: Number(item.product.price),
-          imageUrl: item.product.imageUrl,
-          category: {
-            subcategory: item.product.subcategory.name,
-            category: item.product.subcategory.category.name
-          }
-        },
-        quantity: item.quantity,
-        pricePerUnit: Number(item.pricePerUnit),
-        total: Number(item.pricePerUnit) * item.quantity
-      })),
-      deliveryStats: {
-        deliveryTime: order.orderDeliveredAt ? order.orderDeliveredAt - order.orderPlacedAt : null,
-        deliveryTimeFormatted: order.orderDeliveredAt ? formatDeliveryTime(order.orderDeliveredAt - order.orderPlacedAt) : null
-      }
-    }));
-
-    // 7. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: 'Historial de entregas obtenido exitosamente',
-      data: {
-        orders: formattedOrders,
-        pagination: {
-          currentPage: pageNum,
-          pageSize: pageSizeNum,
-          totalOrders: totalDeliveredOrders,
-          totalPages: totalPages,
-          hasNextPage: pageNum < totalPages,
-          hasPrevPage: pageNum > 1
-        },
-        driverInfo: {
-          userId: userId,
-          driverTypes: userRoles.filter(role => driverRoles.includes(role)),
-          totalDeliveries: totalDeliveredOrders,
-          retrievedAt: new Date().toISOString()
-        }
-      }
-    });
+    return ResponseService.success(
+      res,
+      'Historial de pedidos obtenido exitosamente',
+      result,
+      200
+    );
 
   } catch (error) {
-    console.error('Error obteniendo historial de entregas:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };
 

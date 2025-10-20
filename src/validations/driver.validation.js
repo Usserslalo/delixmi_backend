@@ -35,6 +35,29 @@ const availableOrdersQuerySchema = z.object({
 });
 
 /**
+ * Esquema de validación para query parameters del endpoint GET /api/driver/orders/history
+ */
+const historyQuerySchema = z.object({
+  // Paginación
+  page: z
+    .string()
+    .regex(/^\d+$/, 'La página debe ser un número')
+    .transform(Number)
+    .refine(val => val > 0, 'La página debe ser mayor a 0')
+    .optional()
+    .default(1),
+
+  pageSize: z
+    .string()
+    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
+    .transform(Number)
+    .refine(val => val > 0, 'El tamaño de página debe ser mayor a 0')
+    .refine(val => val <= 50, 'El tamaño de página no puede ser mayor a 50')
+    .optional()
+    .default(10)
+});
+
+/**
  * Esquema de validación para parámetros de ruta del endpoint PATCH /api/driver/location
  */
 const updateLocationSchema = z.object({
@@ -64,7 +87,8 @@ const orderParamsSchema = z.object({
 
 module.exports = {
   updateDriverStatusSchema,
-  availableOrdersQuerySchema, 
+  availableOrdersQuerySchema,
+  historyQuerySchema,
   updateLocationSchema,
   orderParamsSchema
 };
