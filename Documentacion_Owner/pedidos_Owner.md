@@ -607,6 +607,9 @@ El repositorio implementa validaciones completas:
    - Verifica que pertenezca a la sucursal principal del usuario
 
 3. **Validación de Transición de Estado**:
+
+El sistema implementa transiciones de estado estrictas donde solo se permiten ciertos cambios según el estado actual y el rol del usuario:
+
 ```javascript
 const validTransitions = {
   'pending': {
@@ -631,6 +634,17 @@ const validTransitions = {
 const finalStates = ['delivered', 'cancelled', 'refunded'];
 ```
 
+**Reglas de Transición Implementadas:**
+- **`pending`** → Solo puede ir a `confirmed` o `cancelled` (Roles: owner, branch_manager, order_manager)
+- **`confirmed`** → Puede ir a `preparing` o `cancelled` (Roles: preparación permite kitchen_staff, cancelación requiere roles superiores)
+- **`preparing`** → Solo puede avanzar a `ready_for_pickup` (Todos los roles de cocina pueden marcar como listo)
+- **`ready_for_pickup`** → Solo puede ir a `out_for_delivery` (Requiere roles de gestión, no cocina)
+- **`out_for_delivery`** → Solo puede ir a `delivered` (Roles de gestión para marcar como entregado)
+
+**Estados Finales:** Los estados `delivered`, `cancelled`, y `refunded` no permiten más cambios.
+
+**Ejemplo de Transición Inválida:** Cuando intentas cambiar de `preparing` a `pending`, el sistema devuelve error 409 porque esta transición no está definida en el `validTransitions`.
+
 4. **Efectos Secundarios**:
    - **WebSocket**: Siempre emite evento `order_update` al cliente
    - **TODO - Reembolso**: Si se cancela un pedido con pago completado (no efectivo)
@@ -650,86 +664,123 @@ Content-Type: application/json
 #### Ejemplo de Respuesta Exitosa (200)
 ```json
 {
-  "status": "success",
-  "message": "Estado del pedido actualizado a 'preparing'",
-  "timestamp": "2025-10-20T17:30:45.123Z",
-  "data": {
-    "order": {
-      "id": "1",
-      "status": "preparing",
-      "subtotal": 480,
-      "deliveryFee": 25,
-      "total": 505,
-      "commissionRateSnapshot": 12.5,
-      "platformFee": 60,
-      "restaurantPayout": 420,
-      "paymentMethod": "card",
-      "paymentStatus": "completed",
-      "specialInstructions": "Entregar en la puerta principal, tocar timbre",
-      "orderPlacedAt": "2025-10-20T14:32:05.127Z",
-      "orderDeliveredAt": null,
-      "createdAt": "2025-10-20T16:32:05.128Z",
-      "updatedAt": "2025-10-20T17:30:45.124Z",
-      "customer": {
-        "id": 5,
-        "name": "Sofía",
-        "lastname": "López",
-        "fullName": "Sofía López",
-        "email": "sofia.lopez@email.com",
-        "phone": "4444444444"
-      },
-      "address": {
-        "id": 1,
-        "alias": "Casa",
-        "street": "Av. Felipe Ángeles",
-        "exteriorNumber": "21",
-        "interiorNumber": null,
-        "neighborhood": "San Nicolás",
-        "city": "Ixmiquilpan",
-        "state": "Hidalgo",
-        "zipCode": "42300",
-        "references": "Casa de dos pisos con portón de madera.",
-        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300"
-      },
-      "deliveryDriver": null,
-      "payment": {
-        "id": "1",
-        "status": "completed",
-        "provider": "mercadopago",
-        "providerPaymentId": "MP-123456789-PIZZA",
-        "amount": 505,
-        "currency": "MXN"
-      },
-      "orderItems": [
-        {
-          "id": "1",
-          "productId": 1,
-          "quantity": 1,
-          "pricePerUnit": 210,
-          "product": {
-            "id": 1,
-            "name": "Pizza Hawaiana",
-            "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
-            "price": 150
-          },
-          "modifiers": [
-            {
-              "id": "1",
-              "modifierOption": {
-                "id": 3,
-                "name": "Grande (12 pulgadas)",
-                "price": 45,
-                "modifierGroup": {
-                  "id": 1,
-                  "name": "Tamaño"
+    "status": "success",
+    "message": "Estado del pedido actualizado a 'preparing'",
+    "timestamp": "2025-10-20T17:14:10.819Z",
+    "data": {
+        "order": {
+            "id": "1",
+            "status": "preparing",
+            "subtotal": 480,
+            "deliveryFee": 25,
+            "total": 505,
+            "commissionRateSnapshot": 12.5,
+            "platformFee": 60,
+            "restaurantPayout": 420,
+            "paymentMethod": "card",
+            "paymentStatus": "completed",
+            "specialInstructions": "Entregar en la puerta principal, tocar timbre",
+            "orderPlacedAt": "2025-10-20T14:32:05.127Z",
+            "orderDeliveredAt": null,
+            "createdAt": "2025-10-20T16:32:05.128Z",
+            "updatedAt": "2025-10-20T17:14:09.633Z",
+            "customer": {
+                "id": 5,
+                "name": "Sofía",
+                "lastname": "López",
+                "fullName": "Sofía López",
+                "email": "sofia.lopez@email.com",
+                "phone": "4444444444"
+            },
+            "address": {
+                "id": 1,
+                "alias": "Casa",
+                "street": "Av. Felipe Ángeles",
+                "exteriorNumber": "21",
+                "interiorNumber": null,
+                "neighborhood": "San Nicolás",
+                "city": "Ixmiquilpan",
+                "state": "Hidalgo",
+                "zipCode": "42300",
+                "references": "Casa de dos pisos con portón de madera.",
+                "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300"
+            },
+            "deliveryDriver": null,
+            "payment": {
+                "id": "1",
+                "status": "completed",
+                "provider": "mercadopago",
+                "providerPaymentId": "MP-123456789-PIZZA",
+                "amount": 505,
+                "currency": "MXN"
+            },
+            "orderItems": [
+                {
+                    "id": "1",
+                    "productId": 1,
+                    "quantity": 1,
+                    "pricePerUnit": 210,
+                    "product": {
+                        "id": 1,
+                        "name": "Pizza Hawaiana",
+                        "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+                        "price": 150
+                    },
+                    "modifiers": [
+                        {
+                            "id": "1",
+                            "modifierOption": {
+                                "id": 3,
+                                "name": "Grande (12 pulgadas)",
+                                "price": 45,
+                                "modifierGroup": {
+                                    "id": 1,
+                                    "name": "Tamaño"
+                                }
+                            }
+                        },
+                        {
+                            "id": "2",
+                            "modifierOption": {
+                                "id": 5,
+                                "name": "Extra Queso",
+                                "price": 15,
+                                "modifierGroup": {
+                                    "id": 2,
+                                    "name": "Extras"
+                                }
+                            }
+                        },
+                        {
+                            "id": "3",
+                            "modifierOption": {
+                                "id": 11,
+                                "name": "Sin Cebolla",
+                                "price": 0,
+                                "modifierGroup": {
+                                    "id": 3,
+                                    "name": "Sin Ingredientes"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "2",
+                    "productId": 3,
+                    "quantity": 2,
+                    "pricePerUnit": 135,
+                    "product": {
+                        "id": 3,
+                        "name": "Pizza Margherita",
+                        "imageUrl": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop",
+                        "price": 135
+                    },
+                    "modifiers": []
                 }
-              }
-            }
-          ]
+            ]
         }
-      ]
     }
-  }
 }
 ```
 
@@ -791,12 +842,12 @@ Content-Type: application/json
 ```json
 {
   "status": "error",
-  "message": "Transición de estado inválida: delivered → preparing",
+  "message": "Transición de estado inválida: preparing → pending",
   "code": "INVALID_STATUS_TRANSITION",
   "details": {
-    "currentStatus": "delivered",
-    "newStatus": "preparing",
-    "validTransitions": []
+    "currentStatus": "preparing",
+    "newStatus": "pending",
+    "validTransitions": ["ready_for_pickup"]
   }
 }
 ```

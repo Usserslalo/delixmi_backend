@@ -704,7 +704,16 @@ class OrderRepository {
 
       // Si es un error controlado (con status), lo relanzamos
       if (error.status) {
-        throw error;
+        // Crear un nuevo objeto error sin referencias a BigInt que puedan causar problemas de serialización
+        throw {
+          status: error.status,
+          message: error.message,
+          code: error.code,
+          details: error.details ? JSON.parse(JSON.stringify(error.details, (key, value) => {
+            // Convertir cualquier BigInt a string para evitar problemas de serialización
+            return typeof value === 'bigint' ? value.toString() : value;
+          })) : undefined
+        };
       }
 
       // Error interno no controlado
