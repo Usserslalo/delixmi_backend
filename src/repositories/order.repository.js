@@ -2,6 +2,7 @@ const { prisma } = require('../config/database');
 const { logger } = require('../config/logger');
 const UserService = require('../services/user.service');
 const BranchRepository = require('./branch.repository');
+const NotificationService = require('../services/notification.service');
 
 /**
  * Repositorio para manejar operaciones de órdenes
@@ -513,13 +514,7 @@ class OrderRepository {
         });
       }
 
-      if (newStatus === 'preparing') {
-        // TODO: Implementar llamada a NotificationService.notifyAvailableOrder()
-        logger.info('Pedido listo para preparación - notificar drivers disponibles', {
-          requestId,
-          meta: { orderId: orderId.toString() }
-        });
-      }
+      // La notificación a repartidores se manejará después de obtener el updatedOrder completo
 
       // 10. Obtener el pedido actualizado con relaciones completas
       const updatedOrder = await prisma.order.findUnique({
@@ -545,7 +540,27 @@ class OrderRepository {
               city: true,
               state: true,
               zipCode: true,
-              references: true
+              references: true,
+              latitude: true,
+              longitude: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              restaurantId: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              usesPlatformDrivers: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true,
+                  logoUrl: true
+                }
+              }
             }
           },
           deliveryDriver: {
@@ -687,6 +702,23 @@ class OrderRepository {
           userId
         }
       });
+
+      // Notificar a repartidores si el estado cambió a 'preparing'
+      if (newStatus === 'preparing') {
+        try {
+          await NotificationService.notifyAvailableOrder(updatedOrder, requestId);
+        } catch (notificationError) {
+          // No fallamos el proceso principal si hay error en la notificación
+          logger.error('Error enviando notificación a repartidores', {
+            requestId,
+            meta: {
+              orderId: orderId.toString(),
+              error: notificationError.message,
+              stack: notificationError.stack
+            }
+          });
+        }
+      }
 
       return formattedOrder;
 

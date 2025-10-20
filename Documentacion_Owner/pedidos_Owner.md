@@ -791,6 +791,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "Parámetros de entrada inválidos",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "VALIDATION_ERROR",
   "details": [
     {
@@ -810,6 +811,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "Token de acceso requerido",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "MISSING_TOKEN"
 }
 ```
@@ -819,6 +821,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "Tu rol 'kitchen_staff' no tiene permisos para cambiar el estado de confirmed a cancelled",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "STATUS_UPDATE_NOT_ALLOWED_FOR_ROLE",
   "details": {
     "userRole": "kitchen_staff",
@@ -834,6 +837,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "Pedido no encontrado",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "ORDER_NOT_FOUND"
 }
 ```
@@ -841,14 +845,10 @@ Content-Type: application/json
 ##### Error 409 - Transición de Estado Inválida
 ```json
 {
-  "status": "error",
-  "message": "Transición de estado inválida: preparing → pending",
-  "code": "INVALID_STATUS_TRANSITION",
-  "details": {
-    "currentStatus": "preparing",
-    "newStatus": "pending",
-    "validTransitions": ["ready_for_pickup"]
-  }
+    "status": "error",
+    "message": "Transición de estado inválida: preparing → pending",
+    "timestamp": "2025-10-20T17:35:01.506Z",
+    "code": "INVALID_STATUS_TRANSITION"
 }
 ```
 
@@ -857,6 +857,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "No se puede cambiar el estado de un pedido finalizado",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "ORDER_IN_FINAL_STATE",
   "details": {
     "currentStatus": "delivered"
@@ -869,6 +870,7 @@ Content-Type: application/json
 {
   "status": "error",
   "message": "Error interno del servidor",
+  "timestamp": "2025-10-20T17:35:01.506Z",
   "code": "INTERNAL_ERROR"
 }
 ```
@@ -886,12 +888,19 @@ Content-Type: application/json
 
 3. **Efectos Secundarios Preparados**:
    - **TODO**: Reembolso automático para cancelaciones de pagos completados
-   - **TODO**: Notificación a drivers cuando el pedido está en preparación
+   - **✅ IMPLEMENTADO**: Notificación automática a repartidores cuando el pedido cambia a estado 'preparing'
 
-4. **Modelo de Negocio Simplificado**:
+4. **Sistema de Notificaciones a Repartidores**:
+   - **Estado 'preparing'**: Notifica automáticamente a repartidores disponibles
+   - **Repartidores de Plataforma**: Busca drivers con estado 'online' dentro de un radio de 10km de la sucursal
+   - **Repartidores del Restaurante**: Busca drivers asignados al restaurante con estado 'online'
+   - **Evento WebSocket**: `available_order` enviado a cada repartidor elegible con payload completo del pedido
+   - **Logging**: Registra todas las notificaciones enviadas y errores del proceso
+
+5. **Modelo de Negocio Simplificado**:
    - Implementa el modelo "one Owner = one primary branch"
    - Solo permite actualizar pedidos de la sucursal principal del restaurante
 
-5. **Logging Completo**:
+6. **Logging Completo**:
    - Registra todas las transiciones de estado
    - Incluye información de usuario y contexto para auditoría
