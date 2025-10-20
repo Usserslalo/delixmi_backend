@@ -5,6 +5,14 @@
 const winston = require('winston');
 const path = require('path');
 
+// Función helper para serializar JSON con soporte para BigInt
+const safeJsonStringify = (obj, space = null) => {
+  return JSON.stringify(obj, (key, value) => {
+    // Convertir BigInt a string para evitar errores de serialización
+    return typeof value === 'bigint' ? value.toString() : value;
+  }, space);
+};
+
 // Configuración de niveles de log personalizados
 const logLevels = {
   error: 0,
@@ -42,7 +50,7 @@ const logFormat = winston.format.combine(
       ...rest
     };
     
-    return JSON.stringify(logEntry, null, 2);
+    return safeJsonStringify(logEntry, 2);
   })
 );
 
@@ -54,8 +62,8 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message, requestId, meta, ...rest }) => {
     const requestIdStr = requestId ? `[${requestId}] ` : '';
-    const metaStr = meta ? ` ${JSON.stringify(meta)}` : '';
-    const restStr = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : '';
+    const metaStr = meta ? ` ${safeJsonStringify(meta)}` : '';
+    const restStr = Object.keys(rest).length > 0 ? ` ${safeJsonStringify(rest)}` : '';
     
     return `${timestamp} ${level}: ${requestIdStr}${message}${metaStr}${restStr}`;
   })

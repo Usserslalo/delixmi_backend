@@ -227,14 +227,17 @@ const updateOrderStatus = async (req, res) => {
     );
 
   } catch (error) {
+    // Asegurar que orderId se convierta a string para evitar problemas de BigInt
+    const orderIdStr = req.params.orderId ? req.params.orderId.toString() : String(req.params.orderId || 'unknown');
+    
     logger.error('Error en controlador updateOrderStatus', {
       requestId: req.id,
       meta: { 
-        orderId: req.params.orderId, 
+        orderId: orderIdStr, 
         status: req.body.status,
         userId: req.user.id,
-        error: error.message,
-        code: error.code
+        error: error.message || 'Error desconocido',
+        code: error.code || 'UNKNOWN_ERROR'
       }
     });
 

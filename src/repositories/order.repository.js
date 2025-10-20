@@ -691,14 +691,21 @@ class OrderRepository {
       return formattedOrder;
 
     } catch (error) {
+      // Serializar de forma segura para evitar problemas con BigInt
+      const safeError = {
+        message: error.message || 'Error desconocido',
+        code: error.code || 'UNKNOWN_ERROR',
+        status: error.status || undefined
+      };
+      
       logger.error('Error actualizando estado de pedido', {
         requestId,
         meta: { 
           orderId: orderId.toString(), 
           newStatus, 
           userId,
-          error: error.message,
-          code: error.code
+          error: safeError.message,
+          code: safeError.code
         }
       });
 
