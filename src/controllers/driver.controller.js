@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const { getIo } = require('../config/socket');
 const { formatOrderForSocket } = require('./restaurant-admin.controller');
+const DriverRepository = require('../repositories/driver.repository');
+const ResponseService = require('../services/response.service');
 
 const prisma = new PrismaClient();
 
@@ -1027,171 +1029,59 @@ const formatDeliveryTime = (deliveryTimeMs) => {
 const updateDriverStatus = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { status } = req.body;
+    const { status: newStatus } = req.body;
 
-    // 1. Obtener información del usuario y verificar autorización básica
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        email: true,
-        phone: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    // Llamar al método del repositorio para actualizar el estado
+    const result = await DriverRepository.updateDriverStatus(
+      userId, 
+      newStatus, 
+      req.id
+    );
 
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de repartidor
-    const driverRoles = ['driver_platform', 'driver_restaurant'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
-
-    if (!hasDriverRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de repartidor',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: driverRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Buscar el perfil del repartidor
-    const existingDriverProfile = await prisma.driverProfile.findUnique({
-      where: { userId: userId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        }
-      }
-    });
-
-    if (!existingDriverProfile) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Perfil de repartidor no encontrado',
-        code: 'DRIVER_PROFILE_NOT_FOUND',
-        details: {
-          userId: userId,
-          suggestion: 'Contacta al administrador para crear tu perfil de repartidor'
-        }
-      });
-    }
-
-    // 4. Actualizar el estado del repartidor
-    const updatedDriverProfile = await prisma.driverProfile.update({
-      where: { userId: userId },
-      data: {
-        status: status,
-        lastSeenAt: new Date(),
-        updatedAt: new Date()
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        }
-      }
-    });
-
-    // 5. Formatear respuesta
-    const formattedDriverProfile = {
-      userId: updatedDriverProfile.userId,
-      vehicleType: updatedDriverProfile.vehicleType,
-      licensePlate: updatedDriverProfile.licensePlate,
-      status: updatedDriverProfile.status,
-      currentLocation: updatedDriverProfile.currentLatitude && updatedDriverProfile.currentLongitude ? {
-        latitude: Number(updatedDriverProfile.currentLatitude),
-        longitude: Number(updatedDriverProfile.currentLongitude)
-      } : null,
-      lastSeenAt: updatedDriverProfile.lastSeenAt,
-      kycStatus: updatedDriverProfile.kycStatus,
-      user: {
-        id: updatedDriverProfile.user.id,
-        name: updatedDriverProfile.user.name,
-        lastname: updatedDriverProfile.user.lastname,
-        email: updatedDriverProfile.user.email,
-        phone: updatedDriverProfile.user.phone
-      },
-      roles: userRoles.filter(role => driverRoles.includes(role)),
-      createdAt: updatedDriverProfile.createdAt,
-      updatedAt: updatedDriverProfile.updatedAt
-    };
-
-    // 6. Respuesta exitosa
-    res.status(200).json({
-      status: 'success',
-      message: `Estado de repartidor actualizado a ${status}`,
-      data: {
-        driverProfile: formattedDriverProfile,
-        statusChange: {
-          previousStatus: existingDriverProfile.status,
-          newStatus: status,
-          changedAt: updatedDriverProfile.lastSeenAt
-        },
+    // Respuesta exitosa usando ResponseService
+    return ResponseService.success(
+      res,
+      `Estado del repartidor actualizado a '${newStatus}' exitosamente`,
+      {
+        profile: result.profile,
+        statusChange: result.statusChange,
         updatedBy: {
           userId: userId,
-          userName: `${userWithRoles.name} ${userWithRoles.lastname}`
+          userName: `${req.user.name} ${req.user.lastname}`
         }
       }
-    });
+    );
 
   } catch (error) {
-    console.error('Error actualizando estado del repartidor:', error);
-    
-    // Manejar errores específicos de Prisma
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Perfil de repartidor no encontrado',
-        code: 'DRIVER_PROFILE_NOT_FOUND'
-      });
+    // Manejar errores específicos del repositorio
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
     }
 
-    if (error.code === 'P2002') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'Conflicto en la actualización del perfil',
-        code: 'UPDATE_CONFLICT'
-      });
+    if (error.status === 409) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    // Error interno del servidor
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };
 

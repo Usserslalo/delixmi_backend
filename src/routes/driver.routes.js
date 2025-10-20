@@ -1,6 +1,8 @@
 const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
+const { validate } = require('../middleware/validate.middleware');
+const { updateDriverStatusSchema } = require('../validations/driver.validation');
 const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
 
 const router = express.Router();
@@ -12,30 +14,12 @@ router.use(authenticateToken);
  * @route   PATCH /api/driver/status
  * @desc    Actualizar el estado de disponibilidad del repartidor
  * @access  Private (Driver Platform, Driver Restaurant)
- * @body    status - Estado del repartidor (online, offline)
+ * @body    status - Estado del repartidor (online, offline, busy, unavailable)
  */
 router.patch(
   '/status',
   requireRole(['driver_platform', 'driver_restaurant']),
-  [
-    body('status')
-      .notEmpty()
-      .withMessage('El estado es requerido')
-      .isIn(['online', 'offline'])
-      .withMessage('El estado debe ser "online" o "offline"')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validate(updateDriverStatusSchema),
   updateDriverStatus
 );
 
