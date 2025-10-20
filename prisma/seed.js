@@ -28,6 +28,9 @@ async function main() {
     await prisma.modifierGroup.deleteMany({});
     console.log('✅ ModifierGroups eliminados');
     
+    await prisma.orderItemModifier.deleteMany({});
+    console.log('✅ OrderItemModifiers eliminados');
+    
     await prisma.orderItem.deleteMany({});
     console.log('✅ OrderItems eliminados');
     
@@ -436,6 +439,8 @@ async function main() {
         phone: '+52 771 123 4567',
         email: 'contacto@pizzeriadeana.com',
         address: 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.484123,
+        longitude: -99.216345,
         commissionRate: 12.50,
         status: 'active'
       }
@@ -453,13 +458,52 @@ async function main() {
         phone: '+52 771 456 7890',
         email: 'contacto@sushimasterkenji.com',
         address: 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.486789,
+        longitude: -99.212345,
         commissionRate: 15.00,
         status: 'active'
       }
     });
     console.log('✅ Restaurante Sushi creado');
 
+    // 5.1. CREAR/OBTENER SUCURSALES PRINCIPALES
+    console.log('🏢 Creando sucursales principales para restaurantes...');
+    
+    // Sucursal principal para Pizzería de Ana
+    const anaPrimaryBranch = await prisma.branch.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: restaurant.name || 'Principal',
+        address: restaurant.address || 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.484123,
+        longitude: -99.216345,
+        status: 'active',
+        deliveryFee: 25.00,
+        estimatedDeliveryMin: 30,
+        estimatedDeliveryMax: 45,
+        deliveryRadius: 5.0,
+        usesPlatformDrivers: true
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Pizzería con ID: ${anaPrimaryBranch.id}`);
 
+    // Sucursal principal para Sushi Master Kenji
+    const kenjiPrimaryBranch = await prisma.branch.create({
+      data: {
+        restaurantId: sushiRestaurant.id,
+        name: sushiRestaurant.name || 'Principal Sushi',
+        address: sushiRestaurant.address || 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.486789,
+        longitude: -99.212345,
+        status: 'active',
+        deliveryFee: 30.00,
+        estimatedDeliveryMin: 25,
+        estimatedDeliveryMax: 40,
+        deliveryRadius: 4.5,
+        usesPlatformDrivers: true
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Sushi con ID: ${kenjiPrimaryBranch.id}`);
 
     // 6. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -1112,13 +1156,144 @@ async function main() {
 
     console.log('✅ Items del carrito con modificadores creados');
 
+    // 16. CREAR PEDIDOS DE EJEMPLO
+    console.log('📦 Creando pedidos de ejemplo...');
+    
+    // Pedido 1: Sofía hace un pedido en Pizzería de Ana
+    const order1 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: casaAddress.id,
+        status: 'confirmed',
+        subtotal: 480.00, // Pizza Hawaiana (150 + 15 + 45) + 2x Margherita (135 x 2) = 210 + 270 = 480
+        deliveryFee: anaPrimaryBranch.deliveryFee, // 25.00
+        total: 505.00, // 480 + 25
+        commissionRateSnapshot: restaurant.commissionRate, // 12.50
+        platformFee: 60.00, // (480 * 12.50 / 100)
+        restaurantPayout: 420.00, // 480 - 60
+        paymentMethod: 'card',
+        paymentStatus: 'completed',
+        specialInstructions: 'Entregar en la puerta principal, tocar timbre',
+        orderPlacedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 horas atrás
+      }
+    });
+    console.log(`✅ Pedido 1 creado con ID: ${order1.id}`);
+
+    // Pedido 2: Sofía hace un pedido en Sushi Master Kenji
+    const order2 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: kenjiPrimaryBranch.id,
+        addressId: oficinaAddress.id,
+        status: 'preparing',
+        subtotal: 93.00, // Nigiri de Salmón (85 + 0 + 8) = 93
+        deliveryFee: kenjiPrimaryBranch.deliveryFee, // 30.00
+        total: 123.00,
+        commissionRateSnapshot: sushiRestaurant.commissionRate, // 15.00
+        platformFee: 13.95, // (93 * 15 / 100)
+        restaurantPayout: 79.05, // 93 - 13.95
+        paymentMethod: 'cash',
+        paymentStatus: 'pending',
+        specialInstructions: 'Llamar al llegar a la oficina',
+        orderPlacedAt: new Date(Date.now() - 30 * 60 * 1000) // 30 minutos atrás
+      }
+    });
+    console.log(`✅ Pedido 2 creado con ID: ${order2.id}`);
+
+    // 17. CREAR ITEMS DE LOS PEDIDOS
+    console.log('🛍️ Creando items de los pedidos...');
+    
+    // Items para Order 1 (Pizzería)
+    const orderItem1PizzaHaw = await prisma.orderItem.create({
+      data: {
+        orderId: order1.id,
+        productId: pizzaHawaiana.id,
+        quantity: 1,
+        pricePerUnit: 210.00 // 150 + 15 + 45 (base + extra queso + grande)
+      }
+    });
+    console.log(`✅ OrderItem Pizza Hawaiana creado con ID: ${orderItem1PizzaHaw.id}`);
+
+    const orderItem1PizzaMarg = await prisma.orderItem.create({
+      data: {
+        orderId: order1.id,
+        productId: pizzaMargherita.id,
+        quantity: 2,
+        pricePerUnit: 135.00
+      }
+    });
+    console.log(`✅ OrderItem Pizza Margherita creado con ID: ${orderItem1PizzaMarg.id}`);
+
+    // Items para Order 2 (Sushi)
+    const orderItem2Nigiri = await prisma.orderItem.create({
+      data: {
+        orderId: order2.id,
+        productId: salmonNigiri.id,
+        quantity: 1,
+        pricePerUnit: 93.00 // 85 + 0 + 8 (base + poco picante + extra wasabi)
+      }
+    });
+    console.log(`✅ OrderItem Nigiri de Salmón creado con ID: ${orderItem2Nigiri.id}`);
+
+    // 18. CREAR MODIFICADORES DE ITEMS DE PEDIDO
+    console.log('⚙️ Creando modificadores de items de pedido...');
+    
+    // Modificadores para Pizza Hawaiana en Order 1
+    await prisma.orderItemModifier.createMany({
+      data: [
+        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: grandeOption.id },
+        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: extraQuesoOption.id },
+        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: sinCebollaOption.id }
+      ]
+    });
+    console.log('✅ Modificadores para Pizza Hawaiana creados');
+
+    // Modificadores para Nigiri de Salmón en Order 2
+    await prisma.orderItemModifier.createMany({
+      data: [
+        { orderItemId: orderItem2Nigiri.id, modifierOptionId: pocoPicanteOption.id },
+        { orderItemId: orderItem2Nigiri.id, modifierOptionId: extraWasabiOption.id }
+      ]
+    });
+    console.log('✅ Modificadores para Nigiri de Salmón creados');
+
+    // 19. CREAR PAGOS PARA LOS PEDIDOS
+    console.log('💳 Creando pagos para los pedidos...');
+    
+    // Pago para Order 1 (Pizzería) - Completado
+    await prisma.payment.create({
+      data: {
+        orderId: order1.id,
+        amount: 505.00, // Total del order1
+        currency: 'MXN',
+        provider: 'mercadopago',
+        providerPaymentId: 'MP-123456789-PIZZA',
+        status: 'completed'
+      }
+    });
+    console.log('✅ Pago para Order 1 creado (completado)');
+
+    // Pago para Order 2 (Sushi) - Pendiente (efectivo)
+    await prisma.payment.create({
+      data: {
+        orderId: order2.id,
+        amount: order2.total,
+        currency: 'MXN',
+        provider: 'cash',
+        providerPaymentId: null,
+        status: 'pending'
+      }
+    });
+    console.log('✅ Pago para Order 2 creado (pendiente - efectivo)');
+
     console.log('🎉 ¡Seeding completado exitosamente!');
     console.log('\n📊 Resumen de datos creados:');
     console.log('- 10 roles');
     console.log('- 19 permisos');
     console.log('- 6 usuarios');
     console.log('- 2 restaurantes (Pizzería + Sushi)');
-    console.log('  (Las sucursales se crearán automáticamente al configurar ubicación vía API)');
+    console.log('- 2 sucursales principales (una por restaurante)');
     console.log('- 6 categorías');
     console.log('- 14 subcategorías');
     console.log('- 17 productos (10 pizza + 7 sushi)');
@@ -1131,6 +1306,10 @@ async function main() {
     console.log('- 2 carritos de ejemplo');
     console.log('- 3 items de carrito (2 con modificadores, 1 sin)');
     console.log('- 5 modificadores aplicados a items del carrito');
+    console.log('- 2 pedidos de ejemplo');
+    console.log('- 3 items de pedido (con modificadores incluidos)');
+    console.log('- 5 modificadores aplicados a items de pedido');
+    console.log('- 2 pagos (1 completado, 1 pendiente)');
 
     console.log('\n👥 Usuarios de prueba creados:');
     console.log('- Admin (admin@delixmi.com) - Super Administrador');
