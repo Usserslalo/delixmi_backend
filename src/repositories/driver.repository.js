@@ -1157,6 +1157,502 @@ class DriverRepository {
       };
     }
   }
+
+  /**
+   * Marca un pedido como entregado/completado por el repartidor
+   * @param {BigInt} orderId - ID del pedido a completar
+   * @param {number} userId - ID del repartidor que completa el pedido
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Pedido completado con información completa
+   */
+  static async completeOrder(orderId, userId, requestId) {
+    try {
+      logger.debug('Iniciando completado de pedido por repartidor', {
+        requestId,
+        meta: { orderId: orderId.toString(), userId }
+      });
+
+      // 1. Validar que el usuario tenga roles de repartidor
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        logger.error('Usuario no encontrado', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        logger.error('Usuario no tiene permisos de repartidor', {
+          requestId,
+          meta: { userId, userRoles, requiredRoles: driverRoles }
+        });
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // 2. Buscar pedido y validar asignación
+      const existingOrder = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          status: 'out_for_delivery',
+          deliveryDriverId: userId
+        },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phone: true,
+              usesPlatformDrivers: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!existingOrder) {
+        logger.warn('Pedido no encontrado o no asignado al repartidor', {
+          requestId,
+          meta: { orderId: orderId.toString(), userId }
+        });
+        throw {
+          status: 404,
+          message: 'Pedido no encontrado, no te pertenece o ya fue entregado',
+          code: 'ORDER_NOT_FOUND_OR_NOT_ASSIGNED',
+          details: {
+            orderId: orderId.toString(),
+            userId: userId,
+            possibleReasons: [
+              'El pedido no existe',
+              'El pedido no está asignado a este repartidor',
+              'El pedido ya fue entregado',
+              'El pedido no está en estado "out_for_delivery"'
+            ]
+          }
+        };
+      }
+
+      logger.debug('Pedido encontrado y validado', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          userId,
+          orderStatus: existingOrder.status,
+          customerId: existingOrder.customer?.id,
+          restaurantId: existingOrder.branch?.restaurant?.id
+        }
+      });
+
+      // 3. TRANSACCIÓN CRÍTICA - Completar pedido y actualizar estado del repartidor
+      let completedOrder;
+      try {
+        completedOrder = await prisma.$transaction(async (tx) => {
+          // 3.1. Actualizar pedido a 'delivered'
+          const updatedOrder = await tx.order.update({
+            where: { id: orderId },
+            data: {
+              status: 'delivered',
+              orderDeliveredAt: new Date(),
+              updatedAt: new Date()
+            }
+          });
+
+          logger.info('Pedido marcado como entregado en transacción', {
+            requestId,
+            meta: { 
+              orderId: orderId.toString(), 
+              userId,
+              newStatus: updatedOrder.status,
+              deliveredAt: updatedOrder.orderDeliveredAt
+            }
+          });
+
+          // 3.2. ¡CORRECCIÓN CRÍTICA! Actualizar estado del repartidor a 'online'
+          await tx.driverProfile.update({
+            where: { userId: userId },
+            data: {
+              status: 'online', // Volver a disponible para nuevos pedidos
+              lastSeenAt: new Date(),
+              updatedAt: new Date()
+            }
+          });
+
+          logger.info('Estado del repartidor actualizado a online', {
+            requestId,
+            meta: { userId }
+          });
+
+          return updatedOrder;
+        });
+
+      } catch (transactionError) {
+        logger.error('Error en transacción al completar pedido', {
+          requestId,
+          meta: { 
+            orderId: orderId.toString(), 
+            userId,
+            error: transactionError.message,
+            code: transactionError.code
+          }
+        });
+        throw transactionError;
+      }
+
+      // 4. Obtener datos completos del pedido actualizado
+      const completeOrderData = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          address: {
+            select: {
+              id: true,
+              alias: true,
+              street: true,
+              exteriorNumber: true,
+              interiorNumber: true,
+              neighborhood: true,
+              city: true,
+              state: true,
+              zipCode: true,
+              references: true,
+              latitude: true,
+              longitude: true
+            }
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phone: true,
+              usesPlatformDrivers: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          deliveryDriver: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          },
+          orderItems: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  price: true,
+                  imageUrl: true,
+                  subcategory: {
+                    select: {
+                      name: true
+                    }
+                  }
+                }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!completeOrderData) {
+        logger.error('Error obteniendo datos completos del pedido después de completarlo', {
+          requestId,
+          meta: { orderId: orderId.toString(), userId }
+        });
+        throw {
+          status: 500,
+          message: 'Error interno del servidor',
+          code: 'INTERNAL_ERROR'
+        };
+      }
+
+      // 5. Formatear respuesta
+      const formattedOrder = {
+        id: completeOrderData.id.toString(),
+        status: completeOrderData.status,
+        subtotal: Number(completeOrderData.subtotal),
+        deliveryFee: Number(completeOrderData.deliveryFee),
+        total: Number(completeOrderData.total),
+        paymentMethod: completeOrderData.paymentMethod,
+        paymentStatus: completeOrderData.paymentStatus,
+        specialInstructions: completeOrderData.specialInstructions,
+        orderPlacedAt: completeOrderData.orderPlacedAt,
+        orderDeliveredAt: completeOrderData.orderDeliveredAt,
+        updatedAt: completeOrderData.updatedAt,
+        customer: completeOrderData.customer ? {
+          id: completeOrderData.customer.id,
+          name: completeOrderData.customer.name,
+          lastname: completeOrderData.customer.lastname,
+          fullName: `${completeOrderData.customer.name} ${completeOrderData.customer.lastname}`,
+          email: completeOrderData.customer.email,
+          phone: completeOrderData.customer.phone
+        } : null,
+        address: completeOrderData.address ? {
+          id: completeOrderData.address.id,
+          alias: completeOrderData.address.alias,
+          street: completeOrderData.address.street,
+          exteriorNumber: completeOrderData.address.exteriorNumber,
+          interiorNumber: completeOrderData.address.interiorNumber,
+          neighborhood: completeOrderData.address.neighborhood,
+          city: completeOrderData.address.city,
+          state: completeOrderData.address.state,
+          zipCode: completeOrderData.address.zipCode,
+          references: completeOrderData.address.references,
+          fullAddress: `${completeOrderData.address.street} ${completeOrderData.address.exteriorNumber}${completeOrderData.address.interiorNumber ? ' Int. ' + completeOrderData.address.interiorNumber : ''}, ${completeOrderData.address.neighborhood}, ${completeOrderData.address.city}, ${completeOrderData.address.state} ${completeOrderData.address.zipCode}`,
+          coordinates: {
+            latitude: completeOrderData.address.latitude ? Number(completeOrderData.address.latitude) : null,
+            longitude: completeOrderData.address.longitude ? Number(completeOrderData.address.longitude) : null
+          }
+        } : null,
+        branch: completeOrderData.branch ? {
+          id: completeOrderData.branch.id,
+          name: completeOrderData.branch.name,
+          address: completeOrderData.branch.address,
+          phone: completeOrderData.branch.phone,
+          usesPlatformDrivers: completeOrderData.branch.usesPlatformDrivers,
+          coordinates: {
+            latitude: completeOrderData.branch.latitude ? Number(completeOrderData.branch.latitude) : null,
+            longitude: completeOrderData.branch.longitude ? Number(completeOrderData.branch.longitude) : null
+          },
+          restaurant: completeOrderData.branch.restaurant ? {
+            id: completeOrderData.branch.restaurant.id,
+            name: completeOrderData.branch.restaurant.name
+          } : null
+        } : null,
+        deliveryDriver: completeOrderData.deliveryDriver ? {
+          id: completeOrderData.deliveryDriver.id,
+          name: completeOrderData.deliveryDriver.name,
+          lastname: completeOrderData.deliveryDriver.lastname,
+          fullName: `${completeOrderData.deliveryDriver.name} ${completeOrderData.deliveryDriver.lastname}`,
+          email: completeOrderData.deliveryDriver.email,
+          phone: completeOrderData.deliveryDriver.phone
+        } : null,
+        orderItems: completeOrderData.orderItems ? completeOrderData.orderItems.map(item => ({
+          id: item.id.toString(),
+          productId: item.productId,
+          quantity: item.quantity,
+          pricePerUnit: Number(item.pricePerUnit),
+          product: item.product ? {
+            id: item.product.id,
+            name: item.product.name,
+            description: item.product.description,
+            price: Number(item.product.price),
+            imageUrl: item.product.imageUrl,
+            category: item.product.subcategory ? item.product.subcategory.name : null
+          } : null,
+          modifiers: item.modifiers ? item.modifiers.map(modifier => ({
+            id: modifier.id.toString(),
+            modifierOption: modifier.modifierOption ? {
+              id: modifier.modifierOption.id,
+              name: modifier.modifierOption.name,
+              price: Number(modifier.modifierOption.price),
+              modifierGroup: modifier.modifierOption.modifierGroup ? {
+                id: modifier.modifierOption.modifierGroup.id,
+                name: modifier.modifierOption.modifierGroup.name
+              } : null
+            } : null
+          })) : []
+        })) : []
+      };
+
+      // 6. ¡CORRECCIÓN CRÍTICA 2! Enviar notificaciones WebSocket
+      try {
+        const { getIo } = require('../config/socket');
+        const io = getIo();
+
+        if (io && completeOrderData.customer && completeOrderData.branch) {
+          const customerId = completeOrderData.customer.id;
+          const driverName = `${userWithRoles.name} ${userWithRoles.lastname}`;
+          const deliveryTime = completeOrderData.orderDeliveredAt && completeOrderData.orderPlacedAt 
+            ? completeOrderData.orderDeliveredAt - completeOrderData.orderPlacedAt 
+            : null;
+
+          // Notificar al cliente
+          io.to(`user_${customerId}`).emit('order_status_update', {
+            order: formattedOrder,
+            orderId: formattedOrder.id,
+            status: formattedOrder.status,
+            previousStatus: 'out_for_delivery',
+            updatedAt: formattedOrder.updatedAt,
+            orderDeliveredAt: formattedOrder.orderDeliveredAt,
+            driver: formattedOrder.deliveryDriver,
+            deliveryStats: deliveryTime ? {
+              deliveryTime: deliveryTime,
+              deliveryTimeFormatted: this.formatDeliveryTime(deliveryTime)
+            } : null,
+            message: `¡Tu pedido #${formattedOrder.id} ha sido entregado exitosamente! Tiempo de entrega: ${deliveryTime ? this.formatDeliveryTime(deliveryTime) : 'N/A'}`
+          });
+
+          // ¡NUEVO! Notificar al restaurante
+          if (completeOrderData.branch.restaurant) {
+            const restaurantId = completeOrderData.branch.restaurant.id;
+            io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
+              order: formattedOrder,
+              orderId: formattedOrder.id,
+              status: formattedOrder.status,
+              previousStatus: 'out_for_delivery',
+              updatedAt: formattedOrder.updatedAt,
+              orderDeliveredAt: formattedOrder.orderDeliveredAt,
+              driver: formattedOrder.deliveryDriver,
+              message: `El pedido #${formattedOrder.id} fue entregado por ${driverName}`
+            });
+          }
+
+          logger.info('Notificaciones WebSocket enviadas', {
+            requestId,
+            meta: { 
+              orderId: orderId.toString(), 
+              customerId,
+              restaurantId: completeOrderData.branch.restaurant?.id
+            }
+          });
+        }
+      } catch (socketError) {
+        logger.error('Error enviando notificaciones WebSocket', {
+          requestId,
+          meta: { 
+            orderId: orderId.toString(), 
+            error: socketError.message,
+            stack: socketError.stack
+          }
+        });
+        // No fallar la respuesta por error de socket
+      }
+
+      logger.info('Pedido completado exitosamente por repartidor', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          userId,
+          orderStatus: formattedOrder.status,
+          driverStatusUpdated: 'online'
+        }
+      });
+
+      return {
+        order: formattedOrder,
+        driverInfo: {
+          userId: userId,
+          driverName: `${userWithRoles.name} ${userWithRoles.lastname}`,
+          driverTypes: userRoles.filter(role => driverRoles.includes(role)),
+          completedAt: formattedOrder.orderDeliveredAt
+        },
+        deliveryStats: {
+          deliveryTime: formattedOrder.orderDeliveredAt && formattedOrder.orderPlacedAt 
+            ? formattedOrder.orderDeliveredAt - formattedOrder.orderPlacedAt 
+            : null,
+          deliveryTimeFormatted: formattedOrder.orderDeliveredAt && formattedOrder.orderPlacedAt 
+            ? this.formatDeliveryTime(formattedOrder.orderDeliveredAt - formattedOrder.orderPlacedAt) 
+            : null
+        }
+      };
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error completando pedido por repartidor', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          userId,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Función auxiliar para formatear el tiempo de entrega
+   * @param {number} deliveryTimeMs - Tiempo de entrega en milisegundos
+   * @returns {string} Tiempo formateado
+   */
+  static formatDeliveryTime(deliveryTimeMs) {
+    const minutes = Math.floor(deliveryTimeMs / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${remainingMinutes}m`;
+    }
+    return `${minutes}m`;
+  }
 }
 
 module.exports = DriverRepository;

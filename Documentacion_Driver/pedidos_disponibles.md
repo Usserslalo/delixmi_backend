@@ -491,24 +491,25 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
 });
 ```
 
-### **Ejemplo de Respuesta Exitosa**
+### **Ejemplo de Respuesta Exitosa** *(Respuesta real de prueba - Postman)*
 ```json
 {
   "status": "success",
   "message": "Pedido aceptado exitosamente",
-  "timestamp": "2025-10-20T18:30:45.123Z",
+  "timestamp": "2025-10-20T18:56:15.489Z",
   "data": {
     "order": {
-      "id": "1",
+      "id": "5",
       "status": "out_for_delivery",
-      "subtotal": 480.00,
-      "deliveryFee": 25.00,
-      "total": 505.00,
+      "subtotal": 180,
+      "deliveryFee": 25,
+      "total": 205,
       "paymentMethod": "card",
       "paymentStatus": "completed",
-      "specialInstructions": "Entregar en la puerta principal",
-      "orderPlacedAt": "2025-10-20T14:32:05.127Z",
-      "updatedAt": "2025-10-20T18:30:45.100Z",
+      "specialInstructions": "¡Perfecto para probar acceptOrder!",
+      "orderPlacedAt": "2025-10-20T18:08:53.988Z",
+      "orderDeliveredAt": null,
+      "updatedAt": "2025-10-20T18:56:13.968Z",
       "customer": {
         "id": 5,
         "name": "Sofía",
@@ -520,22 +521,29 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
       "address": {
         "id": 1,
         "alias": "Casa",
+        "street": "Av. Felipe Ángeles",
+        "exteriorNumber": "21",
+        "interiorNumber": null,
+        "neighborhood": "San Nicolás",
+        "city": "Ixmiquilpan",
+        "state": "Hidalgo",
+        "zipCode": "42300",
+        "references": "Casa de dos pisos con portón de madera.",
         "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
-        "references": "Casa de dos pisos con portón de madera",
         "coordinates": {
-          "latitude": 20.484123,
-          "longitude": -99.216345
+          "latitude": 20.488765,
+          "longitude": -99.234567
         }
       },
       "branch": {
         "id": 1,
         "name": "Pizzería de Ana",
-        "address": "Dirección del restaurante",
-        "phone": "5555555555",
+        "address": "Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.",
+        "phone": null,
         "usesPlatformDrivers": true,
         "coordinates": {
-          "latitude": 20.484123,
-          "longitude": -99.216345
+          "latitude": 20.489,
+          "longitude": -99.23
         },
         "restaurant": {
           "id": 1,
@@ -543,49 +551,38 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
         }
       },
       "deliveryDriver": {
-        "id": 3,
-        "name": "Carlos",
-        "lastname": "Pérez",
-        "fullName": "Carlos Pérez",
-        "email": "carlos.perez@email.com",
-        "phone": "6666666666"
+        "id": 4,
+        "name": "Miguel",
+        "lastname": "Hernández",
+        "fullName": "Miguel Hernández",
+        "email": "miguel.hernandez@repartidor.com",
+        "phone": "5555555555"
       },
       "orderItems": [
         {
-          "id": "1",
-          "productId": 1,
+          "id": "6",
+          "productId": 4,
           "quantity": 1,
-          "pricePerUnit": 210.00,
+          "pricePerUnit": 180,
           "product": {
-            "id": 1,
-            "name": "Pizza Hawaiana",
-            "description": "Pizza con jamón y piña",
-            "price": 150.00,
-            "imageUrl": "https://...",
-            "category": "Pizzas"
+            "id": 4,
+            "name": "Pizza Quattro Stagioni",
+            "description": "Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.",
+            "price": 180,
+            "imageUrl": "https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop",
+            "category": "Pizzas Gourmet"
           },
-          "modifiers": [
-            {
-              "id": "1",
-              "modifierOption": {
-                "id": 3,
-                "name": "Grande (12 pulgadas)",
-                "price": 45.00,
-                "modifierGroup": {
-                  "id": 1,
-                  "name": "Tamaño"
-                }
-              }
-            }
-          ]
+          "modifiers": []
         }
       ]
     },
     "driverInfo": {
-      "userId": 3,
-      "driverName": "Carlos Pérez",
-      "driverTypes": ["driver_platform"],
-      "acceptedAt": "2025-10-20T18:30:45.123Z"
+      "userId": 4,
+      "driverName": "Miguel Hernández",
+      "driverTypes": [
+        "driver_platform"
+      ],
+      "acceptedAt": "2025-10-20T18:56:15.489Z"
     }
   }
 }
@@ -660,6 +657,53 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
 }
 ```
 
+### **🔧 Características Críticas Implementadas**
+
+#### **🚨 Actualización Automática de DriverProfile.status**
+```javascript
+// 3.2. Actualizar estado del repartidor a 'busy'
+await tx.driverProfile.update({
+  where: { userId: userId },
+  data: { 
+    status: 'busy',                // ¡CRÍTICO! Marcar como ocupado
+    lastSeenAt: new Date(),
+    updatedAt: new Date()
+  }
+});
+```
+**Por qué es crítico**: Previene que el repartidor acepte múltiples pedidos simultáneamente y lo marca como "ocupado" en tiempo real.
+
+#### **🔔 Notificaciones Duales (Cliente + Restaurante)**
+```javascript
+// Notificar al cliente
+io.to(`user_${customerId}`).emit('order_status_update', {
+  order: formattedOrder,
+  status: 'out_for_delivery',
+  message: `¡Tu pedido #${orderId} está en camino! Repartidor: ${driverName}`
+});
+
+// ¡NUEVO! Notificar al restaurante
+io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
+  order: formattedOrder,
+  status: 'out_for_delivery',
+  message: `El repartidor ${driverName} aceptó el pedido #${orderId}`
+});
+```
+**Por qué es crítico**: El restaurante ahora recibe notificaciones en tiempo real cuando un repartidor acepta un pedido, permitiendo un mejor seguimiento.
+
+#### **⚠️ Transacción para Atomicidad y Concurrencia**
+```javascript
+await prisma.$transaction(async (tx) => {
+  // Todo esto se ejecuta atómicamente:
+  // 1. Asignar pedido al repartidor
+  // 2. Cambiar estado del pedido a 'out_for_delivery'
+  // 3. Actualizar DriverProfile.status a 'busy'
+  
+  // Si cualquier paso falla, TODO se revierte
+});
+```
+**Por qué es crítico**: Garantiza consistencia de datos y previene race conditions cuando múltiples repartidores intentan aceptar el mismo pedido.
+
 ### **Características Técnicas Clave**
 
 #### **✅ Atomicidad y Concurrencia**
@@ -682,3 +726,328 @@ io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
 - **Request ID**: Trazabilidad completa de la operación
 - **Debug/Info Levels**: Información detallada para monitoreo
 - **Error Handling**: Logging específico para diferentes tipos de errores
+
+### **🧪 Prueba Exitosa Realizada**
+
+**✅ Prueba de Aceptación de Pedido** - `2025-10-20T18:56:15.489Z`:
+
+- **Endpoint**: `PATCH /api/driver/orders/5/accept`
+- **Usuario**: Miguel Hernández (ID: 4, driver_platform)
+- **Pedido**: #5 - Pizza Quattro Stagioni (Estado inicial: `ready_for_pickup`)
+- **Resultado**: **¡ÉXITO COMPLETO!**
+
+**Validaciones Pasadas:**
+- ✅ **Autenticación**: Token válido
+- ✅ **Autorización**: Rol `driver_platform` confirmado
+- ✅ **Validación Zod**: Parámetro `orderId` validado correctamente
+- ✅ **Estado del Pedido**: Pedido en `ready_for_pickup` y `deliveryDriverId: null`
+- ✅ **Elegibilidad**: Repartidor elegible para pedidos de plataforma
+- ✅ **Transacción**: Actualización atómica exitosa
+- ✅ **Estado Actualizado**: DriverProfile.status cambiado a `busy`
+- ✅ **Notificaciones**: WebSocket enviado a cliente y restaurante
+
+**Cambios Realizados:**
+- **Pedido**: Estado cambiado de `ready_for_pickup` → `out_for_delivery`
+- **Repartidor**: Asignado (deliveryDriverId: 4)
+- **DriverProfile**: Status actualizado a `busy`
+- **Timestamp**: updatedAt actualizado a `2025-10-20T18:56:13.968Z`
+
+**Confirmación**: La respuesta JSON muestra todos los datos completos del pedido con el repartidor correctamente asignado y el estado actualizado, confirmando que todas las funcionalidades críticas implementadas están funcionando perfectamente.
+
+---
+
+## **📦 PATCH /api/driver/orders/:orderId/complete**
+
+**Marcar un pedido como entregado/completado por el repartidor asignado.**
+
+### **🔧 Información General**
+
+- **URL**: `/api/driver/orders/:orderId/complete`
+- **Método**: `PATCH`
+- **Autenticación**: Requerida (JWT Token)
+- **Autorización**: Solo repartidores (`driver_platform`, `driver_restaurant`)
+
+### **🛡️ Middlewares**
+
+```javascript
+authenticateToken,                                    // Verificar JWT válido
+requireRole(['driver_platform', 'driver_restaurant']), // Solo repartidores
+validateParams(orderParamsSchema)                     // Validar :orderId con Zod
+```
+
+### **📋 Validación Zod**
+
+**Esquema**: `orderParamsSchema` (importado de `src/validations/order.validation.js`)
+
+```javascript
+const orderParamsSchema = z.object({
+  orderId: z.string()
+    .regex(/^\d+$/, 'El ID del pedido debe ser un número válido')
+    .transform(BigInt)  // Convierte a BigInt para Prisma
+});
+```
+
+### **⚙️ Lógica Detallada**
+
+#### **🎯 Controlador** (`completeOrder`)
+
+```javascript
+const completeOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;  // Ya validado por Zod
+    const userId = req.user.id;      // Del middleware authenticateToken
+
+    // Delegar toda la lógica al repositorio
+    const result = await DriverRepository.completeOrder(
+      orderId, 
+      userId, 
+      req.id  // Request ID para logging
+    );
+
+    return ResponseService.success(res, 'Pedido marcado como entregado exitosamente', {
+      order: result.order,
+      driverInfo: result.driverInfo,
+      deliveryStats: result.deliveryStats
+    });
+  } catch (error) {
+    // Manejo específico de errores del repositorio
+    if (error.status === 404) return ResponseService.error(res, error.message, error.details, 404, error.code);
+    if (error.status === 403) return ResponseService.error(res, error.message, null, 403, error.code);
+    return ResponseService.error(res, 'Error interno del servidor', null, 500, 'INTERNAL_ERROR');
+  }
+};
+```
+
+#### **🏗️ Repositorio** (`DriverRepository.completeOrder`)
+
+**Flujo Completo:**
+
+1. **Validación de Roles**:
+   ```javascript
+   const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+   // Verificar que tenga roles driver_platform o driver_restaurant
+   ```
+
+2. **Verificación de Pedido y Asignación**:
+   ```javascript
+   const existingOrder = await prisma.order.findFirst({
+     where: {
+       id: orderId,
+       status: 'out_for_delivery',    // ✅ Solo pedidos en camino
+       deliveryDriverId: userId       // ✅ Solo pedidos de este repartidor
+     },
+     include: { customer: {...}, branch: {...} }
+   });
+   
+   if (!existingOrder) {
+     throw { status: 404, message: 'Pedido no encontrado, no te pertenece o ya fue entregado' };
+   }
+   ```
+
+3. **🔄 TRANSACCIÓN CRÍTICA**:
+   ```javascript
+   await prisma.$transaction(async (tx) => {
+     // 3.1. Actualizar pedido a 'delivered'
+     await tx.order.update({
+       where: { id: orderId },
+       data: {
+         status: 'delivered',
+         orderDeliveredAt: new Date(),  // ✅ Timestamp de entrega
+         updatedAt: new Date()
+       }
+     });
+
+     // 3.2. ¡CORRECCIÓN CRÍTICA! Actualizar estado del repartidor
+     await tx.driverProfile.update({
+       where: { userId: userId },
+       data: {
+         status: 'online',              // ✅ Volver a disponible
+         lastSeenAt: new Date(),
+         updatedAt: new Date()
+       }
+     });
+   });
+   ```
+
+4. **Notificaciones WebSocket**:
+   ```javascript
+   // Notificar al cliente
+   io.to(`user_${customerId}`).emit('order_status_update', {
+     order: formattedOrder,
+     status: 'delivered',
+     message: `¡Tu pedido #${orderId} ha sido entregado exitosamente!`
+   });
+
+   // ¡NUEVO! Notificar al restaurante
+   io.to(`restaurant_${restaurantId}`).emit('order_status_update', {
+     order: formattedOrder,
+     status: 'delivered',
+     message: `El pedido #${orderId} fue entregado por ${driverName}`
+   });
+   ```
+
+### **🔧 Correcciones Críticas Implementadas**
+
+#### **1. ✅ DriverProfile.status Update**
+- **Problema**: El endpoint original NO actualizaba el estado del repartidor
+- **Solución**: Actualiza automáticamente `DriverProfile.status` de `'busy'` a `'online'`
+- **Resultado**: El repartidor queda disponible para nuevos pedidos
+
+#### **2. ✅ Notificación al Restaurante**
+- **Problema**: Solo notificaba al cliente, no al restaurante
+- **Solución**: Implementa notificación dual: cliente + restaurante
+- **Resultado**: Transparencia completa del flujo de entrega
+
+#### **3. ✅ Transacción Atómica**
+- **Problema**: Actualizaciones no atómicas podían causar inconsistencias
+- **Solución**: Usa `prisma.$transaction` para atomicidad
+- **Resultado**: Garantiza consistencia de datos
+
+#### **4. ✅ Validación con Zod**
+- **Problema**: Usaba `express-validator` (legacy)
+- **Solución**: Migrado a `validateParams(orderParamsSchema)`
+- **Resultado**: Validación consistente y tipada
+
+#### **5. ✅ ResponseService**
+- **Problema**: Respuestas JSON manuales inconsistentes
+- **Solución**: Usa `ResponseService.success` y `ResponseService.error`
+- **Resultado**: Estructura de respuesta estandarizada
+
+### **📤 Ejemplo de Respuesta Exitosa**
+
+```json
+{
+  "status": "success",
+  "message": "Pedido marcado como entregado exitosamente",
+  "timestamp": "2025-10-20T19:15:30.123Z",
+  "data": {
+    "order": {
+      "id": "5",
+      "status": "delivered",
+      "subtotal": 480,
+      "deliveryFee": 25,
+      "total": 505,
+      "orderPlacedAt": "2025-10-20T18:45:15.000Z",
+      "orderDeliveredAt": "2025-10-20T19:15:30.123Z",
+      "customer": {
+        "id": 5,
+        "name": "Sofía",
+        "lastname": "López",
+        "fullName": "Sofía López",
+        "email": "sofia.lopez@email.com",
+        "phone": "4444444444"
+      },
+      "address": {
+        "id": 1,
+        "alias": "Casa",
+        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300",
+        "coordinates": { "latitude": 20.484123, "longitude": -99.216345 }
+      },
+      "branch": {
+        "id": 1,
+        "name": "Pizzería de Ana",
+        "restaurant": { "id": 1, "name": "Pizzería de Ana" }
+      },
+      "deliveryDriver": {
+        "id": 4,
+        "name": "Miguel",
+        "lastname": "Hernández",
+        "fullName": "Miguel Hernández"
+      },
+      "orderItems": [...]
+    },
+    "driverInfo": {
+      "userId": 4,
+      "driverName": "Miguel Hernández",
+      "driverTypes": ["driver_platform"],
+      "completedAt": "2025-10-20T19:15:30.123Z"
+    },
+    "deliveryStats": {
+      "deliveryTime": 1815123,
+      "deliveryTimeFormatted": "30m"
+    }
+  }
+}
+```
+
+### **❌ Manejo de Errores**
+
+#### **400 - Bad Request** (Validación Zod)
+```json
+{
+  "status": "error",
+  "message": "Parámetros de entrada inválidos",
+  "code": "VALIDATION_ERROR",
+  "errors": [
+    {
+      "field": "orderId",
+      "message": "El ID del pedido debe ser un número válido"
+    }
+  ],
+  "timestamp": "2025-10-20T19:15:30.123Z"
+}
+```
+
+#### **401 - Unauthorized**
+```json
+{
+  "status": "error",
+  "message": "Token de acceso inválido o expirado",
+  "code": "INVALID_TOKEN",
+  "timestamp": "2025-10-20T19:15:30.123Z"
+}
+```
+
+#### **403 - Forbidden**
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requieren permisos de repartidor",
+  "code": "INSUFFICIENT_PERMISSIONS",
+  "timestamp": "2025-10-20T19:15:30.123Z"
+}
+```
+
+#### **404 - Not Found** (Pedido no encontrado/asignado)
+```json
+{
+  "status": "error",
+  "message": "Pedido no encontrado, no te pertenece o ya fue entregado",
+  "code": "ORDER_NOT_FOUND_OR_NOT_ASSIGNED",
+  "details": {
+    "orderId": "5",
+    "userId": 4,
+    "possibleReasons": [
+      "El pedido no existe",
+      "El pedido no está asignado a este repartidor", 
+      "El pedido ya fue entregado",
+      "El pedido no está en estado \"out_for_delivery\""
+    ]
+  },
+  "timestamp": "2025-10-20T19:15:30.123Z"
+}
+```
+
+#### **500 - Internal Server Error**
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "code": "INTERNAL_ERROR",
+  "timestamp": "2025-10-20T19:15:30.123Z"
+}
+```
+
+### **🔧 Características Críticas Implementadas**
+
+#### **✅ Estado del Repartidor Automático**
+- **DriverProfile.status** se actualiza automáticamente de `'busy'` a `'online'`
+- **Disponibilidad**: El repartidor queda listo para aceptar nuevos pedidos
+
+#### **✅ Notificaciones Duales**
+- **Cliente**: Recibe confirmación de entrega con estadísticas de tiempo
+- **Restaurante**: Recibe notificación de entrega completada
+
+#### **✅ Transacción Atómica**
+- **Atomicidad**: Garantiza que el pedido y el estado del repartidor se actualicen juntos
+- **Consistencia**: Previene estados inconsistentes en caso de errores

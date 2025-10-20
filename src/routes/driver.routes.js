@@ -140,25 +140,7 @@ router.patch('/orders/:orderId/accept',
  */
 router.patch('/orders/:orderId/complete',
   requireRole(['driver_platform', 'driver_restaurant']),
-  [
-    param('orderId')
-      .notEmpty()
-      .withMessage('El ID del pedido es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID del pedido debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(orderParamsSchema),
   completeOrder
 );
 

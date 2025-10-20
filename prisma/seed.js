@@ -438,9 +438,9 @@ async function main() {
         coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
         phone: '+52 771 123 4567',
         email: 'contacto@pizzeriadeana.com',
-        address: 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.484123,
-        longitude: -99.216345,
+        address: 'Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.',
+        latitude: 20.489000,
+        longitude: -99.230000,
         commissionRate: 12.50,
         status: 'active'
       }
@@ -474,9 +474,9 @@ async function main() {
       data: {
         restaurantId: restaurant.id,
         name: restaurant.name || 'Principal',
-        address: restaurant.address || 'Av. Insurgentes 10, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.484123,
-        longitude: -99.216345,
+        address: restaurant.address || 'Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.',
+        latitude: 20.489000,
+        longitude: -99.230000,
         status: 'active',
         deliveryFee: 25.00,
         estimatedDeliveryMin: 30,
@@ -878,8 +878,8 @@ async function main() {
         vehicleType: 'motorcycle',
         licensePlate: 'HGO-ABC-123',
         status: 'online',
-        currentLatitude: 20.484123,
-        currentLongitude: -99.216345,
+        currentLatitude: 20.489500,
+        currentLongitude: -99.232000,
         lastSeenAt: new Date(),
         kycStatus: 'approved'
       }
@@ -1287,29 +1287,333 @@ async function main() {
     });
     console.log('✅ Pago para Order 2 creado (pendiente - efectivo)');
 
+    // 20. CREAR REPARTIDORES ADICIONALES PARA PRUEBAS
+    console.log('🚗 Creando repartidores adicionales...');
+    
+    // Crear más usuarios repartidores
+    const carlosDriverUser = await prisma.user.create({
+      data: {
+        name: 'Carlos',
+        lastname: 'Pérez',
+        email: 'carlos.perez@driver.com',
+        phone: '7777777777',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+
+    await prisma.userRoleAssignment.create({
+      data: { userId: carlosDriverUser.id, roleId: driverPlatformRole.id }
+    });
+
+    await prisma.driverProfile.create({
+      data: {
+        userId: carlosDriverUser.id,
+        vehicleType: 'car',
+        licensePlate: 'HGO-XYZ-789',
+        status: 'online',
+        currentLatitude: 20.490000,
+        currentLongitude: -99.235000,
+        lastSeenAt: new Date(),
+        kycStatus: 'approved'
+      }
+    });
+
+    console.log('✅ Repartidor adicional Carlos Pérez creado');
+
+    // 21. CREAR PEDIDOS EN DIFERENTES ESTADOS PARA PRUEBAS COMPLETAS
+    console.log('📦 Creando pedidos adicionales en diferentes estados...');
+    
+    // Pedido 3: PENDING - Pedido recién creado
+    const order3 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: casaAddress.id,
+        status: 'pending',
+        subtotal: 145.50,
+        deliveryFee: 25.00,
+        total: 170.50,
+        commissionRateSnapshot: restaurant.commissionRate,
+        platformFee: 18.19,
+        restaurantPayout: 127.31,
+        paymentMethod: 'card',
+        paymentStatus: 'processing',
+        specialInstructions: 'Pedido urgente para prueba',
+        orderPlacedAt: new Date(Date.now() - 5 * 60 * 1000) // 5 minutos atrás
+      }
+    });
+
+    // Items para Order 3
+    await prisma.orderItem.create({
+      data: {
+        orderId: order3.id,
+        productId: pizzaPepperoni.id,
+        quantity: 1,
+        pricePerUnit: 145.50
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order3.id,
+        amount: 170.50,
+        currency: 'MXN',
+        provider: 'stripe',
+        providerPaymentId: 'STR-987654321',
+        status: 'processing'
+      }
+    });
+
+    console.log(`✅ Pedido 3 (PENDING) creado con ID: ${order3.id}`);
+
+    // Pedido 4: PLACED - Pedido confirmado pero no iniciado
+    const order4 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: oficinaAddress.id,
+        status: 'placed',
+        subtotal: 270.00,
+        deliveryFee: 25.00,
+        total: 295.00,
+        commissionRateSnapshot: restaurant.commissionRate,
+        platformFee: 33.75,
+        restaurantPayout: 236.25,
+        paymentMethod: 'card',
+        paymentStatus: 'completed',
+        specialInstructions: 'Para prueba de estado placed',
+        orderPlacedAt: new Date(Date.now() - 20 * 60 * 1000) // 20 minutos atrás
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order4.id,
+        productId: pizzaMargherita.id,
+        quantity: 2,
+        pricePerUnit: 135.00
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order4.id,
+        amount: 295.00,
+        currency: 'MXN',
+        provider: 'mercadopago',
+        providerPaymentId: 'MP-111222333-PLACED',
+        status: 'completed'
+      }
+    });
+
+    console.log(`✅ Pedido 4 (PLACED) creado con ID: ${order4.id}`);
+
+    // Pedido 5: READY_FOR_PICKUP - Listo para que lo acepte un repartidor
+    const order5 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: casaAddress.id,
+        status: 'ready_for_pickup',
+        subtotal: 180.00,
+        deliveryFee: 25.00,
+        total: 205.00,
+        commissionRateSnapshot: restaurant.commissionRate,
+        platformFee: 22.50,
+        restaurantPayout: 157.50,
+        paymentMethod: 'card',
+        paymentStatus: 'completed',
+        specialInstructions: '¡Perfecto para probar acceptOrder!',
+        orderPlacedAt: new Date(Date.now() - 45 * 60 * 1000) // 45 minutos atrás
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order5.id,
+        productId: pizzaQuattro.id,
+        quantity: 1,
+        pricePerUnit: 180.00
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order5.id,
+        amount: 205.00,
+        currency: 'MXN',
+        provider: 'mercadopago',
+        providerPaymentId: 'MP-444555666-READY',
+        status: 'completed'
+      }
+    });
+
+    console.log(`✅ Pedido 5 (READY_FOR_PICKUP) creado con ID: ${order5.id}`);
+
+    // Pedido 6: OUT_FOR_DELIVERY - Aceptado por repartidor
+    const order6 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: casaAddress.id,
+        deliveryDriverId: miguelUser.id, // Ya está asignado
+        status: 'out_for_delivery',
+        subtotal: 160.00,
+        deliveryFee: 25.00,
+        total: 185.00,
+        commissionRateSnapshot: restaurant.commissionRate,
+        platformFee: 20.00,
+        restaurantPayout: 140.00,
+        paymentMethod: 'cash',
+        paymentStatus: 'completed',
+        specialInstructions: 'Pedido en entrega para pruebas',
+        orderPlacedAt: new Date(Date.now() - 60 * 60 * 1000) // 1 hora atrás
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order6.id,
+        productId: pizzaVegetariana.id,
+        quantity: 1,
+        pricePerUnit: 160.00
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order6.id,
+        amount: 185.00,
+        currency: 'MXN',
+        provider: 'cash',
+        providerPaymentId: null,
+        status: 'completed'
+      }
+    });
+
+    console.log(`✅ Pedido 6 (OUT_FOR_DELIVERY) creado con ID: ${order6.id}`);
+
+    // Pedido 7: DELIVERED - Pedido completado
+    const order7 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: anaPrimaryBranch.id,
+        addressId: casaAddress.id,
+        deliveryDriverId: miguelUser.id,
+        status: 'delivered',
+        subtotal: 350.00,
+        deliveryFee: 25.00,
+        total: 375.00,
+        commissionRateSnapshot: restaurant.commissionRate,
+        platformFee: 43.75,
+        restaurantPayout: 306.25,
+        paymentMethod: 'card',
+        paymentStatus: 'completed',
+        specialInstructions: 'Pedido entregado exitosamente',
+        orderPlacedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 horas atrás
+        orderDeliveredAt: new Date(Date.now() - 2.5 * 60 * 60 * 1000) // 2.5 horas atrás
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order7.id,
+        productId: pizzaHawaiana.id,
+        quantity: 1,
+        pricePerUnit: 210.00
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order7.id,
+        productId: pizzaPepperoni.id,
+        quantity: 1,
+        pricePerUnit: 145.50
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order7.id,
+        amount: 375.00,
+        currency: 'MXN',
+        provider: 'mercadopago',
+        providerPaymentId: 'MP-777888999-DELIVERED',
+        status: 'completed'
+      }
+    });
+
+    console.log(`✅ Pedido 7 (DELIVERED) creado con ID: ${order7.id}`);
+
+    // Pedido 8: CANCELLED - Pedido cancelado
+    const order8 = await prisma.order.create({
+      data: {
+        customerId: sofiaUser.id,
+        branchId: kenjiPrimaryBranch.id,
+        addressId: oficinaAddress.id,
+        status: 'cancelled',
+        subtotal: 95.00,
+        deliveryFee: 30.00,
+        total: 125.00,
+        commissionRateSnapshot: sushiRestaurant.commissionRate,
+        platformFee: 14.25,
+        restaurantPayout: 80.75,
+        paymentMethod: 'card',
+        paymentStatus: 'refunded',
+        specialInstructions: 'Pedido cancelado por el cliente',
+        orderPlacedAt: new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 horas atrás
+      }
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: order8.id,
+        productId: tunaNigiri.id,
+        quantity: 1,
+        pricePerUnit: 95.00
+      }
+    });
+
+    await prisma.payment.create({
+      data: {
+        orderId: order8.id,
+        amount: 125.00,
+        currency: 'MXN',
+        provider: 'mercadopago',
+        providerPaymentId: 'MP-000111222-CANCELLED',
+        status: 'refunded'
+      }
+    });
+
+    console.log(`✅ Pedido 8 (CANCELLED) creado con ID: ${order8.id}`);
+
     console.log('🎉 ¡Seeding completado exitosamente!');
     console.log('\n📊 Resumen de datos creados:');
     console.log('- 10 roles');
     console.log('- 19 permisos');
-    console.log('- 6 usuarios');
+    console.log('- 7 usuarios (incluye repartidor adicional)');
     console.log('- 2 restaurantes (Pizzería + Sushi)');
     console.log('- 2 sucursales principales (una por restaurante)');
     console.log('- 6 categorías');
     console.log('- 14 subcategorías');
     console.log('- 17 productos (10 pizza + 7 sushi)');
-    console.log('- 2 direcciones');
-    console.log('- 6 asignaciones de roles');
-    console.log('- 1 perfil de repartidor');
+    console.log('- 2 direcciones (cliente Sofía)');
+    console.log('- 7 asignaciones de roles');
+    console.log('- 2 perfiles de repartidor (Miguel + Carlos)');
     console.log('- 5 grupos de modificadores');
     console.log('- 25 opciones de modificadores');
     console.log('- 20 asociaciones producto-modificador');
     console.log('- 2 carritos de ejemplo');
     console.log('- 3 items de carrito (2 con modificadores, 1 sin)');
     console.log('- 5 modificadores aplicados a items del carrito');
-    console.log('- 2 pedidos de ejemplo');
-    console.log('- 3 items de pedido (con modificadores incluidos)');
+    console.log('- 8 pedidos de ejemplo (en todos los estados posibles)');
+    console.log('- 10 items de pedido (con modificadores incluidos)');
     console.log('- 5 modificadores aplicados a items de pedido');
-    console.log('- 2 pagos (1 completado, 1 pendiente)');
+    console.log('- 8 pagos (diferentes estados y proveedores)');
 
     console.log('\n👥 Usuarios de prueba creados:');
     console.log('- Admin (admin@delixmi.com) - Super Administrador');
@@ -1317,8 +1621,31 @@ async function main() {
     console.log('- Carlos (carlos.rodriguez@pizzeria.com) - Gerente de sucursal');
     console.log('- Kenji (kenji.tanaka@sushi.com) - Owner Sushi Master Kenji');
     console.log('- Miguel (miguel.hernandez@repartidor.com) - Repartidor de plataforma');
+    console.log('- Carlos Pérez (carlos.perez@driver.com) - Repartidor adicional');
     console.log('- Sofía (sofia.lopez@email.com) - Cliente');
+    
+    console.log('\n📍 Ubicaciones actualizadas:');
+    console.log('- Restaurante Pizzería de Ana: Cerca del cliente Sofía');
+    console.log('- Repartidor Miguel: Posicionado cerca del restaurante');
+    console.log('- Repartidor Carlos: Posicionado cerca del restaurante');
+    
+    console.log('\n📦 Estados de pedidos creados:');
+    console.log('- PENDING: Pedido recién creado (#3)');
+    console.log('- PLACED: Pedido confirmado (#4)');
+    console.log('- CONFIRMED: Pedido original (#1)');
+    console.log('- PREPARING: Pedido en preparación (#2)');
+    console.log('- READY_FOR_PICKUP: Listo para aceptar (#5) ¡PERFECTO PARA PRUEBAS!');
+    console.log('- OUT_FOR_DELIVERY: En camino (#6)');
+    console.log('- DELIVERED: Entregado (#7)');
+    console.log('- CANCELLED: Cancelado (#8)');
+    
     console.log('\n🔑 Contraseña para todos los usuarios: supersecret');
+    
+    console.log('\n🧪 Para pruebas específicas:');
+    console.log('- Owner: Usa ana.garcia@pizzeria.com para gestionar pedidos');
+    console.log('- Driver: Usa miguel.hernandez@repartidor.com para aceptar pedidos');
+    console.log('- Customer: Usa sofia.lopez@email.com para ver pedidos');
+    console.log('- READY_FOR_PICKUP (Pedido #5): Perfecto para probar acceptOrder');
 
   } catch (error) {
     console.error('❌ Error durante el seeding:', error);
