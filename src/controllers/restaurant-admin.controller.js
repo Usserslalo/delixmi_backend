@@ -11,6 +11,7 @@ const SubcategoryRepository = require('../repositories/subcategory.repository');
 const ScheduleRepository = require('../repositories/schedule.repository');
 const BranchRepository = require('../repositories/branch.repository');
 const EmployeeRepository = require('../repositories/employee.repository');
+const OrderRepository = require('../repositories/order.repository');
 const fs = require('fs');
 const path = require('path');
 
@@ -127,261 +128,66 @@ const formatOrderForSocket = (order) => {
 };
 
 /**
- * Obtiene los pedidos para el panel de administración del restaurante
+ * Obtiene los pedidos de la sucursal principal del restaurante con filtros y paginación
+ * REFACTORIZADO: Usa OrderRepository y sigue el modelo "one Owner = one primary branch"
  * @param {Object} req - Request object
  * @param {Object} res - Response object
  */
 const getRestaurantOrders = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { status = 'confirmed', page = 1, pageSize = 10 } = req.query;
+    const ownerUserId = req.user.id;
+    const filters = req.query; // Ya validados por Zod middleware
 
-    // Validar parámetros de paginación
-    const pageNum = parseInt(page);
-    const pageSizeNum = parseInt(pageSize);
-    
-    if (pageNum < 1 || pageSizeNum < 1 || pageSizeNum > 50) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de paginación inválidos',
-        details: {
-          page: 'Debe ser un número mayor a 0',
-          pageSize: 'Debe ser un número entre 1 y 50'
-        }
-      });
-    }
-
-    // Validar status del pedido
-    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Estado de pedido inválido',
-        validStatuses: validStatuses
-      });
-    }
-
-    // 1. Obtener información del usuario y verificar autorización
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(ownerUserId, req.id);
 
     if (!userWithRoles) {
       return ResponseService.notFound(res, 'Usuario no encontrado');
     }
 
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager', 'order_manager', 'kitchen_staff'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
+    // 2. Obtener restaurantId del owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner' && assignment.restaurantId
+    );
 
-    if (!hasRestaurantRole) {
+    if (ownerAssignments.length === 0) {
       return ResponseService.forbidden(
         res, 
-        'Acceso denegado. Se requieren permisos de restaurante',
+        'Acceso denegado. Se requiere ser owner de un restaurante',
         'INSUFFICIENT_PERMISSIONS'
       );
     }
 
-    // 3. Determinar el branch_id para filtrar pedidos
-    let branchIds = [];
+    const restaurantId = ownerAssignments[0].restaurantId;
+
+    // 3. Obtener la sucursal principal
+    const primaryBranch = await BranchRepository.findPrimaryBranchByRestaurantId(restaurantId);
     
-    // Si el usuario es owner y no tiene branch_id específico, obtener todas las sucursales de sus restaurantes
-    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId && !assignment.branchId
-    );
-
-    if (ownerAssignments.length > 0) {
-      // Owner sin branch específico - obtener todas las sucursales de sus restaurantes
-      const restaurantIds = ownerAssignments.map(assignment => assignment.restaurantId);
-      const branches = await prisma.branch.findMany({
-        where: {
-          restaurantId: { in: restaurantIds },
-          status: 'active'
-        },
-        select: { id: true }
-      });
-      branchIds = branches.map(branch => branch.id);
-    } else {
-      // Usuario con branch específico o otros roles
-      const specificBranchAssignments = userWithRoles.userRoleAssignments.filter(
-        assignment => assignment.branchId
+    if (!primaryBranch) {
+      return ResponseService.notFound(
+        res, 
+        'Sucursal principal no encontrada. Configure la ubicación del restaurante primero.',
+        null,
+        'PRIMARY_BRANCH_NOT_FOUND'
       );
-      branchIds = specificBranchAssignments.map(assignment => assignment.branchId);
     }
 
-    if (branchIds.length === 0) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No se encontraron sucursales asignadas para este usuario',
-        code: 'NO_BRANCH_ASSIGNED'
-      });
-    }
+    // 4. Obtener pedidos usando el repositorio
+    const result = await OrderRepository.getOrdersForBranch(primaryBranch.id, filters);
 
-    // 4. Calcular offset para paginación
-    const offset = (pageNum - 1) * pageSizeNum;
-
-    // 5. Obtener pedidos con filtros
-    const [orders, totalCount] = await Promise.all([
-      prisma.order.findMany({
-        where: {
-          branchId: { in: branchIds },
-          status: status
-        },
-        select: {
-          id: true,
-          status: true,
-          subtotal: true,
-          deliveryFee: true,
-          total: true,
-          paymentMethod: true,
-          paymentStatus: true,
-          specialInstructions: true,
-          orderPlacedAt: true,
-          orderDeliveredAt: true,
-          createdAt: true,
-          updatedAt: true,
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              lastname: true,
-              email: true,
-              phone: true
-            }
-          },
-          address: {
-            select: {
-              id: true,
-              alias: true,
-              street: true,
-              exteriorNumber: true,
-              interiorNumber: true,
-              neighborhood: true,
-              city: true,
-              state: true,
-              zipCode: true,
-              references: true
-            }
-          },
-          branch: {
-            select: {
-              id: true,
-              name: true,
-              restaurant: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          orderItems: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  description: true,
-                  price: true,
-                  imageUrl: true,
-                  subcategory: {
-                    select: {
-                      name: true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        orderBy: {
-          orderPlacedAt: 'desc'
-        },
-        skip: offset,
-        take: pageSizeNum
-      }),
-      prisma.order.count({
-        where: {
-          branchId: { in: branchIds },
-          status: status
-        }
-      })
-    ]);
-
-    // 6. Calcular información de paginación
-    const totalPages = Math.ceil(totalCount / pageSizeNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
-
-    // 7. Formatear respuesta
-    const formattedOrders = orders.map(order => ({
-      id: order.id.toString(),
-      status: order.status,
-      subtotal: Number(order.subtotal),
-      deliveryFee: Number(order.deliveryFee),
-      total: Number(order.total),
-      specialInstructions: order.specialInstructions,
-      orderPlacedAt: order.orderPlacedAt,
-      orderDeliveredAt: order.orderDeliveredAt,
-      customer: {
-        id: order.customer.id,
-        name: order.customer.name,
-        lastname: order.customer.lastname,
-        email: order.customer.email,
-        phone: order.customer.phone
-      },
-      address: {
-        id: order.address.id,
-        alias: order.address.alias,
-        fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`,
-        references: order.address.references
-      },
-      branch: {
-        id: order.branch.id,
-        name: order.branch.name,
-        restaurant: {
-          id: order.branch.restaurant.id,
-          name: order.branch.restaurant.name
-        }
-      },
-      items: order.orderItems.map(item => ({
-        id: item.id.toString(),
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          description: item.product.description,
-          price: Number(item.product.price),
-          imageUrl: item.product.imageUrl,
-          category: item.product.subcategory.name
-        },
-        quantity: item.quantity,
-        pricePerUnit: Number(item.pricePerUnit),
-        total: Number(item.pricePerUnit) * item.quantity
-      }))
-    }));
-
-    // 8. Respuesta exitosa
     return ResponseService.success(
       res,
       'Pedidos obtenidos exitosamente',
-      {
-        orders: formattedOrders,
-        pagination: {
-          currentPage: pageNum,
-          pageSize: pageSizeNum,
-          totalCount: totalCount,
-          totalPages: totalPages,
-          hasNextPage: hasNextPage,
-          hasPrevPage: hasPrevPage
-        },
-        filters: {
-          status: status,
-          branchIds: branchIds
-        }
-      }
+      result
     );
 
   } catch (error) {
-    console.error('Error obteniendo pedidos del restaurante:', error);
+    logger.error('Error obteniendo pedidos del restaurante', {
+      userId: req.user.id,
+      error: error.message,
+      stack: error.stack
+    });
+    
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };

@@ -14,9 +14,10 @@ class OrderService {
    * @param {string} paymentMethod - Método de pago ('mercadopago' o 'cash')
    * @param {string} [specialInstructions] - Instrucciones especiales
    * @param {string} [requestId] - ID de la solicitud para logging
+   * @param {Array} [cartItems] - Items del carrito con modificadores (opcional)
    * @returns {Promise<Object>} Orden creada con todos sus datos relacionados
    */
-  static async createOrderInDatabase(items, pricingDetails, userId, branchId, addressId, paymentMethod, specialInstructions = null, requestId) {
+  static async createOrderInDatabase(items, pricingDetails, userId, branchId, addressId, paymentMethod, specialInstructions = null, requestId, cartItems = null) {
     try {
       logger.info('Iniciando creación de orden en base de datos', {
         requestId,
@@ -83,8 +84,17 @@ class OrderService {
           }
         });
 
-        // 2. Crear items de la orden
+        // 2. Crear items de la orden y copiar modificadores si es necesario
         const orderItems = [];
+        const cartItemsMap = new Map();
+        
+        // Mapear items del carrito por productId para acceso rápido
+        if (cartItems && cartItems.length > 0) {
+          cartItems.forEach(cartItem => {
+            cartItemsMap.set(cartItem.productId, cartItem);
+          });
+        }
+
         for (const item of items) {
           const orderItem = await tx.orderItem.create({
             data: {
@@ -95,6 +105,38 @@ class OrderService {
             }
           });
           orderItems.push(orderItem);
+
+          // 2.1. Copiar modificadores del carrito al item de la orden
+          const cartItem = cartItemsMap.get(item.productId);
+          if (cartItem && cartItem.modifiers && cartItem.modifiers.length > 0) {
+            logger.info('Copiando modificadores del carrito al item de orden', {
+              requestId,
+              meta: {
+                orderId: order.id,
+                orderItemId: orderItem.id,
+                productId: item.productId,
+                modifiersCount: cartItem.modifiers.length
+              }
+            });
+
+            // Crear registros OrderItemModifier para cada modificador del carrito
+            for (const cartModifier of cartItem.modifiers) {
+              await tx.orderItemModifier.create({
+                data: {
+                  orderItemId: orderItem.id,
+                  modifierOptionId: cartModifier.modifierOption.id
+                }
+              });
+            }
+
+            logger.info('Modificadores copiados exitosamente', {
+              requestId,
+              meta: {
+                orderItemId: orderItem.id,
+                modifiersCopied: cartItem.modifiers.length
+              }
+            });
+          }
         }
 
         logger.info('Items de orden creados', {
@@ -141,6 +183,23 @@ class OrderService {
               product: {
                 include: {
                   restaurant: true
+                }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -301,6 +360,23 @@ class OrderService {
                       id: true,
                       name: true,
                       logoUrl: true
+                    }
+                  }
+                }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
                     }
                   }
                 }

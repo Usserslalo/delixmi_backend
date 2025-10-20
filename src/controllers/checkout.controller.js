@@ -72,9 +72,10 @@ const createPreference = async (req, res) => {
     let itemsToProcess = [];
     let products = [];
     let branch = null;
+    let cartItemsWithModifiers = null;
 
     if (useCart) {
-      // Obtener items del carrito
+      // Obtener items del carrito con modificadores incluidos
       const cart = await prisma.cart.findUnique({
         where: {
           userId_restaurantId: { userId: userId, restaurantId: restaurantId }
@@ -84,6 +85,23 @@ const createPreference = async (req, res) => {
             include: {
               product: {
                 select: { id: true, name: true, price: true, isAvailable: true }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -102,6 +120,9 @@ const createPreference = async (req, res) => {
         quantity: item.quantity,
         priceAtAdd: item.priceAtAdd
       }));
+
+      // Guardar items del carrito con modificadores para usar en la creación de la orden
+      cartItemsWithModifiers = cart.items;
     } else {
       itemsToProcess = items;
     }
@@ -211,7 +232,8 @@ const createPreference = async (req, res) => {
       addressId,
       'mercadopago',
       specialInstructions,
-      requestId
+      requestId,
+      cartItemsWithModifiers
     );
 
     // 10. Preparar items para Mercado Pago
@@ -463,6 +485,7 @@ const createCashOrder = async (req, res) => {
     // 3. Si useCart es true, obtener items del carrito
     let cartItems = [];
     let itemsToProcess = items || [];
+    let cartItemsWithModifiers = null;
     
     if (useCart) {
       console.log(`🛒 Obteniendo items del carrito para restaurante ${restaurantId}`);
@@ -484,6 +507,23 @@ const createCashOrder = async (req, res) => {
                   price: true,
                   isAvailable: true
                 }
+              },
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      price: true,
+                      modifierGroup: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -504,6 +544,7 @@ const createCashOrder = async (req, res) => {
       }));
       
       itemsToProcess = cartItems;
+      cartItemsWithModifiers = cart.items;
       console.log(`✅ ${cartItems.length} items obtenidos del carrito`);
     }
 
@@ -746,6 +787,14 @@ const createCashOrder = async (req, res) => {
     // 13. Crear orden y pago usando transacción
     console.log('💾 Creando orden y pago en efectivo...');
     
+    // Mapear items del carrito por productId para acceso rápido a modificadores
+    const cartItemsMap = new Map();
+    if (cartItemsWithModifiers && cartItemsWithModifiers.length > 0) {
+      cartItemsWithModifiers.forEach(cartItem => {
+        cartItemsMap.set(cartItem.productId, cartItem);
+      });
+    }
+    
     const result = await prisma.$transaction(async (tx) => {
       // Crear la orden
       const order = await tx.order.create({
@@ -769,9 +818,9 @@ const createCashOrder = async (req, res) => {
 
       console.log(`✅ Orden creada con ID: ${order.id}`);
 
-      // Crear items de la orden
+      // Crear items de la orden y copiar modificadores si es necesario
       for (const item of orderItems) {
-        await tx.orderItem.create({
+        const orderItem = await tx.orderItem.create({
           data: {
             orderId: order.id,
             productId: item.productId,
@@ -779,6 +828,23 @@ const createCashOrder = async (req, res) => {
             pricePerUnit: item.pricePerUnit
           }
         });
+
+        // Copiar modificadores del carrito al item de la orden si existen
+        const cartItem = cartItemsMap.get(item.productId);
+        if (cartItem && cartItem.modifiers && cartItem.modifiers.length > 0) {
+          console.log(`🔄 Copiando ${cartItem.modifiers.length} modificadores para producto ${item.productId}`);
+          
+          for (const cartModifier of cartItem.modifiers) {
+            await tx.orderItemModifier.create({
+              data: {
+                orderItemId: orderItem.id,
+                modifierOptionId: cartModifier.modifierOption.id
+              }
+            });
+          }
+          
+          console.log(`✅ Modificadores copiados para productId ${item.productId}`);
+        }
       }
 
       console.log(`✅ ${orderItems.length} items de orden creados`);

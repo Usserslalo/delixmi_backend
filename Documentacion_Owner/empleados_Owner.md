@@ -299,25 +299,23 @@ Permite al Owner obtener la lista de empleados de su restaurante con filtros opc
 const employeeQuerySchema = z.object({
   page: z
     .string()
-    .regex(/^\d+$/, 'La página debe ser un número')
-    .transform(Number)
     .optional()
-    .default(1)
+    .refine(val => !val || /^\d+$/.test(val), { message: 'La página debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : 1)
     .refine(val => val > 0, 'La página debe ser mayor que 0'),
     
   pageSize: z
     .string()
-    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
-    .transform(Number)
     .optional()
-    .default(15)
+    .refine(val => !val || /^\d+$/.test(val), { message: 'El tamaño de página debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : 15)
     .refine(val => val > 0 && val <= 100, 'El tamaño de página debe estar entre 1 y 100'),
     
   roleId: z
     .string()
-    .regex(/^\d+$/, 'El ID del rol debe ser un número')
-    .transform(Number)
-    .optional(),
+    .optional()
+    .refine(val => !val || /^\d+$/.test(val), { message: 'El ID del rol debe ser un número' })
+    .transform(val => val ? parseInt(val, 10) : undefined),
     
   status: z
     .enum(['active', 'inactive', 'pending', 'suspended'], {
@@ -533,7 +531,7 @@ El campo `assignmentId` es esencial para realizar actualizaciones mediante `PATC
 
 - **Paginación Flexible**: Control de página y tamaño, máximo 100 items por página
 - **Filtrado Avanzado**: Por rol, estado y búsqueda de texto en múltiples campos
-- **Búsqueda Insensible**: Búsqueda por nombre, apellido y email sin distinción de mayúsculas
+- **Búsqueda Case-Sensitive**: Búsqueda por nombre, apellido y email (compatible con MySQL)
 - **Ordenamiento**: Lista ordenada por nombre y apellido
 - **Metadatos Completos**: Información detallada de paginación y navegación
 - **Optimización**: Consultas paralelas para mejor rendimiento

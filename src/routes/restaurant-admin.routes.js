@@ -10,6 +10,8 @@ const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSch
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
 const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updateEmployeeSchema } = require('../validations/employee.validation');
 const { updateBranchDetailsSchema } = require('../validations/branch.validation');
+const { orderQuerySchema } = require('../validations/order.validation');
+const { OrderStatus } = require('@prisma/client');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
@@ -460,6 +462,7 @@ router.post(
 router.get('/orders', 
   requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']), 
   requireRestaurantLocation,
+  validateQuery(orderQuerySchema),
   getRestaurantOrders);
 
 /**

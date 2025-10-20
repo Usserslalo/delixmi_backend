@@ -351,10 +351,22 @@ model OrderItem {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relaciones
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id])
+  modifiers OrderItemModifier[]
 
   @@map("order_items")
+}
+
+model OrderItemModifier {
+  id               BigInt         @id @default(autoincrement())
+  orderItemId      BigInt         @map("order_item_id")
+  modifierOptionId Int            @map("modifier_option_id")
+
+  orderItem      OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
+
+  @@map("order_item_modifiers")
 }
 
 model Payment {
@@ -448,6 +460,7 @@ model ModifierOption {
   modifierGroupId Int
   modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id])
   cartItemModifiers CartItemModifier[] // Relación con items del carrito
+  orderItemModifiers OrderItemModifier[] // Relación con items de pedidos
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
