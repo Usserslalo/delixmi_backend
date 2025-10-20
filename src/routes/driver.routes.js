@@ -2,7 +2,7 @@ const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateQuery, validateParams } = require('../middleware/validate.middleware');
-const { updateDriverStatusSchema, availableOrdersQuerySchema } = require('../validations/driver.validation');
+const { updateDriverStatusSchema, availableOrdersQuerySchema, updateLocationSchema } = require('../validations/driver.validation');
 const { orderParamsSchema } = require('../validations/order.validation');
 const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation } = require('../controllers/driver.controller');
 
@@ -34,30 +34,7 @@ router.patch(
 router.patch(
   '/location',
   requireRole(['driver_platform', 'driver_restaurant']),
-  [
-    body('latitude')
-      .notEmpty()
-      .withMessage('La latitud es requerida')
-      .isFloat({ min: -90, max: 90 })
-      .withMessage('La latitud debe ser un número entre -90 y 90'),
-    body('longitude')
-      .notEmpty()
-      .withMessage('La longitud es requerida')
-      .isFloat({ min: -180, max: 180 })
-      .withMessage('La longitud debe ser un número entre -180 y 180')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de ubicación inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validate(updateLocationSchema),
   updateDriverLocation
 );
 

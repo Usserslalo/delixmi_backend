@@ -831,127 +831,69 @@ const getDriverOrderHistory = async (req, res) => {
 const updateDriverLocation = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { latitude, longitude } = req.body;
+    const locationData = {
+      latitude: req.body.latitude,
+      longitude: req.body.longitude
+    };
 
-    // 1. Obtener información del usuario y verificar autorización básica
-    const userWithRoles = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        lastname: true,
-        userRoleAssignments: {
-          select: {
-            roleId: true,
-            role: {
-              select: {
-                name: true,
-                displayName: true
-              }
-            },
-            restaurantId: true,
-            branchId: true
-          }
-        }
-      }
-    });
+    // Llamar al método del repositorio para actualizar ubicación
+    const result = await DriverRepository.updateDriverLocation(
+      userId, 
+      locationData, 
+      req.id
+    );
 
-    if (!userWithRoles) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado'
-      });
-    }
-
-    // 2. Verificar que el usuario tenga roles de repartidor
-    const driverRoles = ['driver_platform', 'driver_restaurant'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
-
-    if (!hasDriverRole) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Acceso denegado. Se requieren permisos de repartidor',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: driverRoles,
-        current: userRoles
-      });
-    }
-
-    // 3. Buscar el perfil del repartidor
-    const existingDriverProfile = await prisma.driverProfile.findUnique({
-      where: { userId: userId },
-      select: {
-        userId: true,
-        status: true,
-        currentLatitude: true,
-        currentLongitude: true,
-        lastSeenAt: true
-      }
-    });
-
-    if (!existingDriverProfile) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Perfil de repartidor no encontrado',
-        code: 'DRIVER_PROFILE_NOT_FOUND',
-        details: {
-          userId: userId,
-          suggestion: 'Contacta al administrador para crear tu perfil de repartidor'
-        }
-      });
-    }
-
-    // 4. Actualizar la ubicación del repartidor
-    await prisma.driverProfile.update({
-      where: { userId: userId },
-      data: {
-        currentLatitude: parseFloat(latitude),
-        currentLongitude: parseFloat(longitude),
-        lastSeenAt: new Date(),
-        updatedAt: new Date()
-      }
-    });
-
-    // 5. Respuesta ligera y rápida para tracking en tiempo real
-    res.status(200).json({
-      status: 'success',
-      message: 'Ubicación actualizada',
-      data: {
-        timestamp: new Date().toISOString(),
-        coordinates: {
-          latitude: parseFloat(latitude),
-          longitude: parseFloat(longitude)
-        },
-        driverStatus: existingDriverProfile.status
-      }
-    });
+    // Respuesta exitosa usando ResponseService
+    return ResponseService.success(
+      res,
+      'Ubicación actualizada exitosamente',
+      {
+        profile: result.profile,
+        locationUpdate: result.locationUpdate
+      },
+      200
+    );
 
   } catch (error) {
-    console.error('Error actualizando ubicación del repartidor:', error);
-    
-    // Manejar errores específicos de Prisma
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Perfil de repartidor no encontrado',
-        code: 'DRIVER_PROFILE_NOT_FOUND'
-      });
+    // Manejar errores específicos del repositorio
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
     }
 
-    if (error.code === 'P2002') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'Conflicto en la actualización de ubicación',
-        code: 'LOCATION_UPDATE_CONFLICT'
-      });
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
     }
 
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
-    });
+    if (error.status === 409) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+
+    // Error interno del servidor
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };
 

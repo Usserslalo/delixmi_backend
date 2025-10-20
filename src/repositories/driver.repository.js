@@ -1639,6 +1639,219 @@ class DriverRepository {
   }
 
   /**
+   * Actualiza la ubicación GPS del repartidor
+   * @param {number} userId - ID del usuario repartidor
+   * @param {Object} locationData - Datos de ubicación
+   * @param {number} locationData.latitude - Latitud (-90 a 90)
+   * @param {number} locationData.longitude - Longitud (-180 a 180)
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Perfil del repartidor actualizado
+   */
+  static async updateDriverLocation(userId, locationData, requestId) {
+    try {
+      logger.debug('Iniciando actualización de ubicación del repartidor', {
+        requestId,
+        meta: { userId, latitude: locationData.latitude, longitude: locationData.longitude }
+      });
+
+      // 1. Validar que el usuario tenga roles de repartidor
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        logger.error('Usuario no encontrado al actualizar ubicación', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        logger.error('Usuario no tiene permisos de repartidor para actualizar ubicación', {
+          requestId,
+          meta: { userId, userRoles, requiredRoles: driverRoles }
+        });
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // 2. Buscar el perfil del repartidor
+      const existingDriverProfile = await prisma.driverProfile.findUnique({
+        where: { userId: userId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          }
+        }
+      });
+
+      if (!existingDriverProfile) {
+        logger.error('Perfil de repartidor no encontrado para actualizar ubicación', {
+          requestId,
+          meta: { userId }
+        });
+        throw {
+          status: 404,
+          message: 'Perfil de repartidor no encontrado',
+          code: 'DRIVER_PROFILE_NOT_FOUND',
+          details: {
+            userId: userId,
+            suggestion: 'Contacta al administrador para crear tu perfil de repartidor'
+          }
+        };
+      }
+
+      logger.debug('Perfil de repartidor encontrado para actualizar ubicación', {
+        requestId,
+        meta: { 
+          userId, 
+          currentLocation: {
+            latitude: existingDriverProfile.currentLatitude,
+            longitude: existingDriverProfile.currentLongitude
+          },
+          newLocation: {
+            latitude: locationData.latitude,
+            longitude: locationData.longitude
+          }
+        }
+      });
+
+      // 3. Actualizar la ubicación del repartidor
+      const updatedDriverProfile = await prisma.driverProfile.update({
+        where: { userId: userId },
+        data: {
+          currentLatitude: parseFloat(locationData.latitude),
+          currentLongitude: parseFloat(locationData.longitude),
+          lastSeenAt: new Date(),
+          updatedAt: new Date()
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true
+            }
+          }
+        }
+      });
+
+      logger.info('Ubicación del repartidor actualizada exitosamente', {
+        requestId,
+        meta: { 
+          userId,
+          previousLocation: {
+            latitude: existingDriverProfile.currentLatitude,
+            longitude: existingDriverProfile.currentLongitude
+          },
+          newLocation: {
+            latitude: updatedDriverProfile.currentLatitude,
+            longitude: updatedDriverProfile.currentLongitude
+          },
+          updatedAt: updatedDriverProfile.lastSeenAt
+        }
+      });
+
+      // 4. Formatear respuesta
+      const formattedProfile = {
+        userId: updatedDriverProfile.userId,
+        vehicleType: updatedDriverProfile.vehicleType,
+        licensePlate: updatedDriverProfile.licensePlate,
+        status: updatedDriverProfile.status,
+        currentLocation: {
+          latitude: updatedDriverProfile.currentLatitude ? Number(updatedDriverProfile.currentLatitude) : null,
+          longitude: updatedDriverProfile.currentLongitude ? Number(updatedDriverProfile.currentLongitude) : null
+        },
+        lastSeenAt: updatedDriverProfile.lastSeenAt,
+        kycStatus: updatedDriverProfile.kycStatus,
+        user: {
+          id: updatedDriverProfile.user.id,
+          name: updatedDriverProfile.user.name,
+          lastname: updatedDriverProfile.user.lastname,
+          email: updatedDriverProfile.user.email,
+          phone: updatedDriverProfile.user.phone
+        },
+        createdAt: updatedDriverProfile.createdAt,
+        updatedAt: updatedDriverProfile.updatedAt
+      };
+
+      return {
+        profile: formattedProfile,
+        locationUpdate: {
+          previousLocation: {
+            latitude: existingDriverProfile.currentLatitude ? Number(existingDriverProfile.currentLatitude) : null,
+            longitude: existingDriverProfile.currentLongitude ? Number(existingDriverProfile.currentLongitude) : null
+          },
+          newLocation: {
+            latitude: Number(locationData.latitude),
+            longitude: Number(locationData.longitude)
+          },
+          updatedAt: updatedDriverProfile.lastSeenAt
+        }
+      };
+
+    } catch (error) {
+      // Si el error ya tiene estructura definida, simplemente re-lanzar
+      if (error.status) {
+        throw error;
+      }
+
+      // Para errores inesperados
+      logger.error('Error inesperado actualizando ubicación del repartidor', {
+        requestId,
+        meta: { 
+          userId, 
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          error: error.message,
+          stack: error.stack
+        }
+      });
+
+      // Manejar errores específicos de Prisma
+      if (error.code === 'P2025') {
+        throw {
+          status: 404,
+          message: 'Perfil de repartidor no encontrado',
+          code: 'DRIVER_PROFILE_NOT_FOUND'
+        };
+      }
+
+      if (error.code === 'P2002') {
+        throw {
+          status: 409,
+          message: 'Conflicto en la actualización de ubicación',
+          code: 'LOCATION_UPDATE_CONFLICT'
+        };
+      }
+
+      // Error interno del servidor
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
    * Función auxiliar para formatear el tiempo de entrega
    * @param {number} deliveryTimeMs - Tiempo de entrega en milisegundos
    * @returns {string} Tiempo formateado
