@@ -3132,10 +3132,20 @@ const updateEmployee = async (req, res) => {
 const getRestaurantWallet = async (req, res) => {
   try {
     const ownerUserId = req.user.id;
+    const requestId = req.id || 'unknown';
+    
+    logger.info('Buscando billetera del restaurante', { 
+      requestId, 
+      ownerUserId 
+    });
 
     // Obtener restaurantId del usuario
-    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, requestId);
     if (!restaurantId) {
+      logger.warn('Restaurante no encontrado para el propietario', { 
+        requestId, 
+        ownerUserId 
+      });
       return ResponseService.error(
         res,
         'Restaurante no encontrado para este propietario',
@@ -3145,7 +3155,20 @@ const getRestaurantWallet = async (req, res) => {
       );
     }
 
-    const wallet = await RestaurantRepository.getWallet(restaurantId, req.id);
+    logger.info('RestaurantId obtenido, buscando billetera', { 
+      requestId, 
+      ownerUserId, 
+      restaurantId 
+    });
+
+    const wallet = await RestaurantRepository.getWallet(restaurantId, requestId);
+
+    logger.info('Billetera obtenida exitosamente', { 
+      requestId, 
+      ownerUserId, 
+      restaurantId,
+      walletId: wallet?.id 
+    });
 
     return ResponseService.success(
       res,
@@ -3155,6 +3178,13 @@ const getRestaurantWallet = async (req, res) => {
     );
 
   } catch (error) {
+    logger.error('Error en getRestaurantWallet', {
+      requestId: req.id || 'unknown',
+      ownerUserId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
+
     if (error.status === 404) {
       return ResponseService.error(
         res,
@@ -3183,6 +3213,7 @@ const getRestaurantWallet = async (req, res) => {
 const getRestaurantWalletTransactions = async (req, res) => {
   try {
     const ownerUserId = req.user.id;
+    const requestId = req.id || 'unknown';
     const filters = {
       page: req.query.page,
       pageSize: req.query.pageSize,
@@ -3191,7 +3222,7 @@ const getRestaurantWalletTransactions = async (req, res) => {
     };
 
     // Obtener restaurantId del usuario
-    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, requestId);
     if (!restaurantId) {
       return ResponseService.error(
         res,
@@ -3202,7 +3233,7 @@ const getRestaurantWalletTransactions = async (req, res) => {
       );
     }
 
-    const result = await RestaurantRepository.getWalletTransactions(restaurantId, filters, req.id);
+    const result = await RestaurantRepository.getWalletTransactions(restaurantId, filters, requestId);
 
     return ResponseService.success(
       res,
@@ -3240,10 +3271,11 @@ const getRestaurantWalletTransactions = async (req, res) => {
 const getRestaurantEarningsSummary = async (req, res) => {
   try {
     const ownerUserId = req.user.id;
+    const requestId = req.id || 'unknown';
     const { dateFrom, dateTo } = req.query;
 
     // Obtener restaurantId del usuario
-    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, requestId);
     if (!restaurantId) {
       return ResponseService.error(
         res,
@@ -3254,7 +3286,7 @@ const getRestaurantEarningsSummary = async (req, res) => {
       );
     }
 
-    const summary = await RestaurantRepository.getEarningsSummary(restaurantId, dateFrom, dateTo, req.id);
+    const summary = await RestaurantRepository.getEarningsSummary(restaurantId, dateFrom, dateTo, requestId);
 
     return ResponseService.success(
       res,

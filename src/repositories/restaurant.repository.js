@@ -1,4 +1,5 @@
 const { prisma } = require('../config/database');
+const { logger } = require('../config/logger');
 
 /**
  * Repositorio para manejar operaciones de restaurantes
@@ -237,26 +238,69 @@ class RestaurantRepository {
    */
   static async getWallet(restaurantId, requestId) {
     try {
+      logger.info('Buscando billetera del restaurante en Repository', {
+        requestId,
+        restaurantId
+      });
+
       const wallet = await prisma.restaurantWallet.findUnique({
-        where: { restaurantId: restaurantId }
+        where: { restaurantId: restaurantId },
+        include: { 
+          restaurant: { 
+            select: { id: true, name: true, ownerId: true } 
+          } 
+        }
+      });
+
+      logger.info('Consulta de billetera completada', {
+        requestId,
+        restaurantId,
+        walletFound: !!wallet,
+        walletId: wallet?.id
       });
 
       if (!wallet) {
+        logger.warn('Billetera no encontrada para el restaurante', {
+          requestId,
+          restaurantId
+        });
         throw {
           status: 404,
-          message: 'Billetera no encontrada',
-          code: 'WALLET_NOT_FOUND'
+          message: 'Billetera del restaurante no encontrada',
+          code: 'RESTAURANT_WALLET_NOT_FOUND'
         };
       }
 
-      return {
+      const formattedWallet = {
         id: wallet.id,
         restaurantId: wallet.restaurantId,
         balance: Number(wallet.balance),
-        updatedAt: wallet.updatedAt
+        createdAt: wallet.createdAt,
+        updatedAt: wallet.updatedAt,
+        restaurant: {
+          id: wallet.restaurant.id,
+          name: wallet.restaurant.name,
+          ownerId: wallet.restaurant.ownerId
+        }
       };
 
+      logger.info('Billetera formateada exitosamente', {
+        requestId,
+        restaurantId,
+        walletId: formattedWallet.id,
+        balance: formattedWallet.balance
+      });
+
+      return formattedWallet;
+
     } catch (error) {
+      logger.error('Error en RestaurantRepository.getWallet', {
+        requestId,
+        restaurantId,
+        error: error.message,
+        stack: error.stack
+      });
+
       if (error.status) {
         throw error;
       }

@@ -495,6 +495,54 @@ class UserService {
       throw error;
     }
   }
+
+  /**
+   * Obtiene el ID del restaurante asociado a un usuario owner
+   * @param {number} ownerId - ID del usuario owner
+   * @param {string} requestId - ID de la petición para logging (opcional)
+   * @returns {Promise<number|null>} ID del restaurante o null si no existe
+   */
+  static async getRestaurantIdByOwnerId(ownerId, requestId = null) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: ownerId },
+        select: {
+          userRoleAssignments: {
+            where: {
+              role: { name: 'owner' },
+              restaurantId: { not: null }
+            },
+            select: {
+              restaurantId: true
+            }
+          }
+        }
+      });
+
+      if (!user || !user.userRoleAssignments.length) {
+        logger.warn('Restaurante no encontrado para el owner', {
+          requestId,
+          meta: { ownerId }
+        });
+        return null;
+      }
+
+      const restaurantId = user.userRoleAssignments[0].restaurantId;
+
+      logger.debug('Restaurant ID obtenido para owner', {
+        requestId,
+        meta: { ownerId, restaurantId }
+      });
+
+      return restaurantId;
+    } catch (error) {
+      logger.error('Error al obtener restaurant ID por owner ID', {
+        requestId,
+        meta: { ownerId, error: error.message }
+      });
+      throw error;
+    }
+  }
 }
 
 module.exports = UserService;
