@@ -2,9 +2,9 @@ const express = require('express');
 const { query, param, body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateQuery, validateParams } = require('../middleware/validate.middleware');
-const { updateDriverStatusSchema, availableOrdersQuerySchema, historyQuerySchema, updateLocationSchema } = require('../validations/driver.validation');
+const { updateDriverStatusSchema, availableOrdersQuerySchema, historyQuerySchema, updateLocationSchema, metricsQuerySchema } = require('../validations/driver.validation');
 const { orderParamsSchema } = require('../validations/order.validation');
-const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation, getDriverProfile } = require('../controllers/driver.controller');
+const { getAvailableOrders, acceptOrder, completeOrder, updateDriverStatus, getCurrentOrder, getDriverOrderHistory, updateDriverLocation, getDriverProfile, getDriverWallet, getDriverWalletTransactions, getDriverEarningsSummary } = require('../controllers/driver.controller');
 
 const router = express.Router();
 
@@ -109,6 +109,47 @@ router.patch('/orders/:orderId/complete',
   requireRole(['driver_platform', 'driver_restaurant']),
   validateParams(orderParamsSchema),
   completeOrder
+);
+
+/**
+ * @route   GET /api/driver/wallet/balance
+ * @desc    Obtener el balance de la billetera del repartidor
+ * @access  Private (Driver Platform, Driver Restaurant)
+ */
+router.get(
+  '/wallet/balance',
+  requireRole(['driver_platform', 'driver_restaurant']),
+  getDriverWallet
+);
+
+/**
+ * @route   GET /api/driver/wallet/transactions
+ * @desc    Obtener las transacciones de la billetera del repartidor
+ * @access  Private (Driver Platform, Driver Restaurant)
+ * @query   page (opcional) - Número de página (default: 1)
+ * @query   pageSize (opcional) - Tamaño de página (default: 10, max: 50)
+ * @query   dateFrom (opcional) - Fecha de inicio (ISO datetime)
+ * @query   dateTo (opcional) - Fecha de fin (ISO datetime)
+ */
+router.get(
+  '/wallet/transactions',
+  requireRole(['driver_platform', 'driver_restaurant']),
+  validateQuery(metricsQuerySchema),
+  getDriverWalletTransactions
+);
+
+/**
+ * @route   GET /api/driver/metrics/earnings
+ * @desc    Obtener resumen de ganancias del repartidor
+ * @access  Private (Driver Platform, Driver Restaurant)
+ * @query   dateFrom (opcional) - Fecha de inicio (ISO datetime)
+ * @query   dateTo (opcional) - Fecha de fin (ISO datetime)
+ */
+router.get(
+  '/metrics/earnings',
+  requireRole(['driver_platform', 'driver_restaurant']),
+  validateQuery(metricsQuerySchema),
+  getDriverEarningsSummary
 );
 
 module.exports = router;

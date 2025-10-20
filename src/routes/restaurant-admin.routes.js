@@ -3,7 +3,7 @@ const { body, param, query, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateParams, validateQuery } = require('../middleware/validate.middleware');
 const { requireRestaurantLocation } = require('../middleware/location.middleware');
-const { updateProfileSchema, updateLocationSchema } = require('../validations/restaurant-admin.validation');
+const { updateProfileSchema, updateLocationSchema, metricsQuerySchema } = require('../validations/restaurant-admin.validation');
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
@@ -12,7 +12,7 @@ const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updat
 const { updateBranchDetailsSchema } = require('../validations/branch.validation');
 const { orderQuerySchema, orderParamsSchema, updateOrderStatusSchema } = require('../validations/order.validation');
 const { OrderStatus } = require('@prisma/client');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee, getRestaurantWallet, getRestaurantWalletTransactions, getRestaurantEarningsSummary } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -515,6 +515,47 @@ router.patch('/orders/:orderId/reject',
     next();
   },
   rejectOrder
+);
+
+/**
+ * @route   GET /api/restaurant/wallet/balance
+ * @desc    Obtener el saldo de la billetera del restaurante
+ * @access  Private (Owner Only)
+ */
+router.get('/wallet/balance',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  getRestaurantWallet
+);
+
+/**
+ * @route   GET /api/restaurant/wallet/transactions
+ * @desc    Obtener las transacciones de la billetera del restaurante
+ * @access  Private (Owner Only)
+ * @query   page (opcional) - Número de página (default: 1)
+ * @query   pageSize (opcional) - Tamaño de página (default: 10, max: 50)
+ * @query   dateFrom (opcional) - Fecha de inicio (ISO datetime)
+ * @query   dateTo (opcional) - Fecha de fin (ISO datetime)
+ */
+router.get('/wallet/transactions',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validateQuery(metricsQuerySchema),
+  getRestaurantWalletTransactions
+);
+
+/**
+ * @route   GET /api/restaurant/metrics/earnings
+ * @desc    Obtener el resumen de ganancias del restaurante
+ * @access  Private (Owner Only)
+ * @query   dateFrom (opcional) - Fecha de inicio (ISO datetime)
+ * @query   dateTo (opcional) - Fecha de fin (ISO datetime)
+ */
+router.get('/metrics/earnings',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  validateQuery(metricsQuerySchema),
+  getRestaurantEarningsSummary
 );
 
 /**

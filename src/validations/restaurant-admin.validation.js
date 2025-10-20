@@ -101,7 +101,51 @@ const updateLocationSchema = z.object({
     .optional()
 }).strict(); // No permitir campos adicionales
 
+/**
+ * Esquema de validación para query parameters de métricas y transacciones
+ */
+const metricsQuerySchema = z.object({
+  // Paginación
+  page: z
+    .string()
+    .regex(/^\d+$/, 'La página debe ser un número')
+    .transform(Number)
+    .refine(val => val > 0, 'La página debe ser mayor a 0')
+    .optional()
+    .default(1),
+
+  pageSize: z
+    .string()
+    .regex(/^\d+$/, 'El tamaño de página debe ser un número')
+    .transform(Number)
+    .refine(val => val > 0, 'El tamaño de página debe ser mayor a 0')
+    .refine(val => val <= 50, 'El tamaño de página no puede ser mayor a 50')
+    .optional()
+    .default(10),
+
+  // Filtros de fecha opcionales
+  dateFrom: z
+    .string()
+    .datetime('Formato de fecha inválido para dateFrom')
+    .optional(),
+
+  dateTo: z
+    .string()
+    .datetime('Formato de fecha inválido para dateTo')
+    .optional()
+}).refine(data => {
+  // Validar que dateFrom sea anterior a dateTo si ambos están presentes
+  if (data.dateFrom && data.dateTo) {
+    return new Date(data.dateFrom) <= new Date(data.dateTo);
+  }
+  return true;
+}, {
+  message: "dateFrom debe ser anterior o igual a dateTo",
+  path: ["dateFrom"]
+});
+
 module.exports = {
   updateProfileSchema,
-  updateLocationSchema
+  updateLocationSchema,
+  metricsQuerySchema
 };

@@ -40,6 +40,19 @@ async function main() {
     await prisma.order.deleteMany({});
     console.log('✅ Orders eliminados');
     
+    // Eliminar transacciones de wallet antes de las wallets
+    await prisma.driverWalletTransaction.deleteMany({});
+    console.log('✅ DriverWalletTransactions eliminados');
+    
+    await prisma.restaurantWalletTransaction.deleteMany({});
+    console.log('✅ RestaurantWalletTransactions eliminados');
+    
+    await prisma.driverWallet.deleteMany({});
+    console.log('✅ DriverWallets eliminados');
+    
+    await prisma.restaurantWallet.deleteMany({});
+    console.log('✅ RestaurantWallets eliminados');
+    
     await prisma.address.deleteMany({});
     console.log('✅ Addresses eliminados');
     
@@ -466,6 +479,17 @@ async function main() {
     });
     console.log('✅ Restaurante Sushi creado');
 
+    // Crear billeteras para restaurantes
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: restaurant.id }
+    });
+    console.log('✅ Billetera de Pizzería creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: sushiRestaurant.id }
+    });
+    console.log('✅ Billetera de Sushi creada');
+
     // 5.1. CREAR/OBTENER SUCURSALES PRINCIPALES
     console.log('🏢 Creando sucursales principales para restaurantes...');
     
@@ -885,6 +909,12 @@ async function main() {
       }
     });
     console.log('✅ Perfil de repartidor creado');
+
+    // Crear billetera del repartidor
+    await prisma.driverWallet.create({
+      data: { driverId: miguelUser.id }
+    });
+    console.log('✅ Billetera del repartidor creada');
 
 
     // 12. CREAR GRUPOS DE MODIFICADORES

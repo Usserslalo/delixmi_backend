@@ -1209,7 +1209,12 @@ class DriverRepository {
           status: 'out_for_delivery',
           deliveryDriverId: userId
         },
-        include: {
+        select: {
+          id: true,
+          total: true,
+          deliveryFee: true,
+          restaurantPayout: true,
+          paymentMethod: true,
           customer: {
             select: {
               id: true,
@@ -1228,6 +1233,7 @@ class DriverRepository {
               longitude: true,
               phone: true,
               usesPlatformDrivers: true,
+              restaurantId: true,
               restaurant: {
                 select: {
                   id: true,
@@ -1310,6 +1316,114 @@ class DriverRepository {
             requestId,
             meta: { userId }
           });
+
+          // --- INICIO NUEVA LÓGICA FINANCIERA ---
+
+          // 3.3. Obtener billeteras (DEBEN existir gracias al seed/lógica de creación)
+          const driverWallet = await tx.driverWallet.findUniqueOrThrow({ 
+            where: { driverId: userId } 
+          });
+          const restaurantWallet = await tx.restaurantWallet.findUniqueOrThrow({ 
+            where: { restaurantId: existingOrder.branch.restaurantId } 
+          });
+
+          logger.debug('Billeteras obtenidas para procesamiento financiero', {
+            requestId,
+            meta: {
+              orderId: orderId.toString(),
+              driverWalletId: driverWallet.id,
+              restaurantWalletId: restaurantWallet.id,
+              usesPlatformDrivers: existingOrder.branch.usesPlatformDrivers,
+              paymentMethod: existingOrder.paymentMethod
+            }
+          });
+
+          // 3.4. Lógica de Repartidor de Plataforma
+          if (existingOrder.branch.usesPlatformDrivers) {
+            let driverAmount = 0;
+            let driverTxType = "";
+
+            if (existingOrder.paymentMethod === 'cash') {
+              // Repartidor cobró en efectivo: nos debe el (Total - Ganancia de Envío)
+              driverAmount = -(existingOrder.total - existingOrder.deliveryFee); // Negativo
+              driverTxType = "DEBT_CASH";
+            } else {
+              // Plataforma cobró con tarjeta: le debemos la ganancia de envío
+              driverAmount = existingOrder.deliveryFee; // Positivo
+              driverTxType = "EARNING_CARD";
+            }
+
+            const newDriverBalance = driverWallet.balance + driverAmount;
+            
+            await tx.driverWalletTransaction.create({
+              data: { 
+                walletId: driverWallet.id, 
+                orderId: orderId, 
+                type: driverTxType, 
+                amount: driverAmount, 
+                balanceAfter: newDriverBalance, 
+                description: `Pedido #${orderId}` 
+              }
+            });
+            
+            await tx.driverWallet.update({ 
+              where: { id: driverWallet.id }, 
+              data: { balance: newDriverBalance } 
+            });
+
+            logger.info('Transacción de repartidor de plataforma procesada', {
+              requestId,
+              meta: {
+                orderId: orderId.toString(),
+                driverAmount,
+                driverTxType,
+                newDriverBalance: Number(newDriverBalance)
+              }
+            });
+          } else {
+            // 3.5. Lógica de Repartidor Propio del Restaurante
+            // El 'DriverWallet' no se toca. Su pago es asunto del restaurante.
+            logger.info('Pedido de repartidor propio del restaurante - sin transacción de driver', {
+              requestId,
+              meta: {
+                orderId: orderId.toString(),
+                restaurantId: existingOrder.branch.restaurantId
+              }
+            });
+          }
+
+          // 3.6. Registrar Ganancia del Restaurante
+          // (Esto aplica en AMBOS casos, ya sea tarjeta o efectivo)
+          const restaurantAmount = existingOrder.restaurantPayout; // (Subtotal - PlatformFee)
+          const newRestaurantBalance = restaurantWallet.balance + restaurantAmount;
+
+          await tx.restaurantWalletTransaction.create({
+            data: { 
+              walletId: restaurantWallet.id, 
+              orderId: orderId, 
+              type: "EARNING", 
+              amount: restaurantAmount, 
+              balanceAfter: newRestaurantBalance, 
+              description: `Ganancia Pedido #${orderId}` 
+            }
+          });
+          
+          await tx.restaurantWallet.update({ 
+            where: { id: restaurantWallet.id }, 
+            data: { balance: newRestaurantBalance } 
+          });
+
+          logger.info('Ganancia del restaurante procesada', {
+            requestId,
+            meta: {
+              orderId: orderId.toString(),
+              restaurantAmount: Number(restaurantAmount),
+              newRestaurantBalance: Number(newRestaurantBalance),
+              restaurantId: existingOrder.branch.restaurantId
+            }
+          });
+
+          // --- FIN NUEVA LÓGICA FINANCIERA ---
 
           return updatedOrder;
         });
@@ -2594,6 +2708,303 @@ class DriverRepository {
           error: error.message,
           stack: error.stack
         }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Obtiene la billetera del repartidor
+   * @param {number} userId - ID del usuario repartidor
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Billetera del repartidor
+   */
+  static async getWallet(userId, requestId) {
+    try {
+      logger.debug('Obteniendo billetera del repartidor', {
+        requestId,
+        meta: { userId }
+      });
+
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      const wallet = await prisma.driverWallet.findUnique({
+        where: { driverId: userId }
+      });
+
+      if (!wallet) {
+        throw {
+          status: 404,
+          message: 'Billetera no encontrada',
+          code: 'WALLET_NOT_FOUND'
+        };
+      }
+
+      return {
+        id: wallet.id,
+        driverId: wallet.driverId,
+        balance: Number(wallet.balance),
+        updatedAt: wallet.updatedAt
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      logger.error('Error obteniendo billetera del repartidor', {
+        requestId,
+        meta: { userId, error: error.message }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Obtiene las transacciones de la billetera del repartidor
+   * @param {number} userId - ID del usuario repartidor
+   * @param {Object} filters - Filtros de paginación y fechas
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Transacciones con paginación
+   */
+  static async getWalletTransactions(userId, filters, requestId) {
+    try {
+      logger.debug('Obteniendo transacciones de billetera del repartidor', {
+        requestId,
+        meta: { userId, filters }
+      });
+
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      const wallet = await prisma.driverWallet.findUnique({
+        where: { driverId: userId }
+      });
+
+      if (!wallet) {
+        throw {
+          status: 404,
+          message: 'Billetera no encontrada',
+          code: 'WALLET_NOT_FOUND'
+        };
+      }
+
+      // Construir filtros de fecha
+      let dateFilter = {};
+      if (filters.dateFrom || filters.dateTo) {
+        dateFilter.createdAt = {};
+        if (filters.dateFrom) {
+          dateFilter.createdAt.gte = new Date(filters.dateFrom);
+        }
+        if (filters.dateTo) {
+          dateFilter.createdAt.lte = new Date(filters.dateTo);
+        }
+      }
+
+      const where = {
+        walletId: wallet.id,
+        ...dateFilter
+      };
+
+      const skip = (filters.page - 1) * filters.pageSize;
+      const take = filters.pageSize;
+
+      const [transactions, totalCount] = await prisma.$transaction([
+        prisma.driverWalletTransaction.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            order: {
+              select: {
+                id: true,
+                status: true,
+                total: true
+              }
+            }
+          }
+        }),
+        prisma.driverWalletTransaction.count({ where })
+      ]);
+
+      const totalPages = Math.ceil(totalCount / filters.pageSize);
+
+      return {
+        transactions: transactions.map(tx => ({
+          id: tx.id.toString(),
+          type: tx.type,
+          amount: Number(tx.amount),
+          balanceAfter: Number(tx.balanceAfter),
+          description: tx.description,
+          createdAt: tx.createdAt,
+          order: tx.order ? {
+            id: tx.order.id.toString(),
+            status: tx.order.status,
+            total: Number(tx.order.total)
+          } : null
+        })),
+        pagination: {
+          currentPage: filters.page,
+          pageSize: filters.pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: filters.page < totalPages,
+          hasPreviousPage: filters.page > 1
+        }
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      logger.error('Error obteniendo transacciones de billetera', {
+        requestId,
+        meta: { userId, filters, error: error.message }
+      });
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Obtiene resumen de ganancias del repartidor
+   * @param {number} userId - ID del usuario repartidor
+   * @param {string} dateFrom - Fecha de inicio (opcional)
+   * @param {string} dateTo - Fecha de fin (opcional)
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Resumen de ganancias
+   */
+  static async getEarningsSummary(userId, dateFrom, dateTo, requestId) {
+    try {
+      logger.debug('Obteniendo resumen de ganancias del repartidor', {
+        requestId,
+        meta: { userId, dateFrom, dateTo }
+      });
+
+      const userWithRoles = await UserService.getUserWithRoles(userId, requestId);
+      if (!userWithRoles) {
+        throw {
+          status: 404,
+          message: 'Usuario no encontrado',
+          code: 'USER_NOT_FOUND'
+        };
+      }
+
+      const driverRoles = ['driver_platform', 'driver_restaurant'];
+      const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
+      const hasDriverRole = userRoles.some(role => driverRoles.includes(role));
+
+      if (!hasDriverRole) {
+        throw {
+          status: 403,
+          message: 'Acceso denegado. Se requieren permisos de repartidor',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        };
+      }
+
+      // Construir filtros de fecha para las órdenes entregadas
+      let dateFilter = {};
+      if (dateFrom || dateTo) {
+        dateFilter.orderDeliveredAt = {};
+        if (dateFrom) {
+          dateFilter.orderDeliveredAt.gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          dateFilter.orderDeliveredAt.lte = new Date(dateTo);
+        }
+      }
+
+      const where = {
+        deliveryDriverId: userId,
+        status: 'delivered',
+        ...dateFilter
+      };
+
+      const [orderStats] = await prisma.$transaction([
+        prisma.order.aggregate({
+          where,
+          _sum: {
+            deliveryFee: true
+          },
+          _count: {
+            id: true
+          }
+        })
+      ]);
+
+      return {
+        totalEarnings: Number(orderStats._sum.deliveryFee || 0),
+        totalDeliveries: orderStats._count.id,
+        averageEarningPerDelivery: orderStats._count.id > 0 
+          ? Number(orderStats._sum.deliveryFee || 0) / orderStats._count.id 
+          : 0,
+        period: {
+          from: dateFrom || null,
+          to: dateTo || null
+        }
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      logger.error('Error obteniendo resumen de ganancias', {
+        requestId,
+        meta: { userId, dateFrom, dateTo, error: error.message }
       });
 
       throw {

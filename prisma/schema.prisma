@@ -136,6 +136,7 @@ model User {
   ordersAsCustomer   Order[] @relation("CustomerOrders")
   ordersAsDriver     Order[] @relation("DriverOrders")
   driverProfile      DriverProfile?
+  driverWallet       DriverWallet?
   carts              Cart[]
   refreshTokens      RefreshToken[]
 
@@ -187,6 +188,7 @@ model Restaurant {
   userRoleAssignments UserRoleAssignment[]
   carts         Cart[]
   modifierGroups ModifierGroup[]
+  wallet        RestaurantWallet?
 
   @@map("restaurants")
 }
@@ -337,6 +339,8 @@ model Order {
   deliveryDriver User?      @relation("DriverOrders", fields: [deliveryDriverId], references: [id])
   payment       Payment?
   orderItems    OrderItem[]
+  restaurantWalletTransactions RestaurantWalletTransaction[]
+  driverWalletTransactions    DriverWalletTransaction[]
 
   @@map("orders")
 }
@@ -496,4 +500,60 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model RestaurantWallet {
+  id           Int       @id @default(autoincrement())
+  restaurantId Int       @unique @map("restaurant_id")
+  balance      Decimal   @default(0.00) @db.Decimal(10, 2)
+  updatedAt    DateTime  @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  transactions RestaurantWalletTransaction[]
+
+  @@map("restaurant_wallets")
+}
+
+model RestaurantWalletTransaction {
+  id           BigInt     @id @default(autoincrement())
+  walletId     Int        @map("wallet_id")
+  orderId      BigInt?    @map("order_id")
+  type         String     // Ej. "EARNING", "PAYOUT", "CORRECTION", "FEE"
+  amount       Decimal    @db.Decimal(10, 2) // Positivo (ganancia) o Negativo (pago/ajuste)
+  balanceAfter Decimal    @db.Decimal(10, 2)
+  description  String?    @db.Text
+  createdAt    DateTime   @default(now())
+
+  wallet RestaurantWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order  Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@map("restaurant_wallet_transactions")
+}
+
+model DriverWallet {
+  id        Int      @id @default(autoincrement())
+  driverId  Int      @unique @map("driver_id")
+  balance   Decimal  @default(0.00) @db.Decimal(10, 2)
+  updatedAt DateTime @updatedAt
+
+  driver       User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  transactions DriverWalletTransaction[]
+
+  @@map("driver_wallets")
+}
+
+model DriverWalletTransaction {
+  id           BigInt     @id @default(autoincrement())
+  walletId     Int        @map("wallet_id")
+  orderId      BigInt?    @map("order_id")
+  type         String     // Ej. "EARNING_CARD", "DEBT_CASH", "PAYOUT", "CORRECTION"
+  amount       Decimal    @db.Decimal(10, 2) // + (ganancia) o - (deuda)
+  balanceAfter Decimal    @db.Decimal(10, 2)
+  description  String?    @db.Text
+  createdAt    DateTime   @default(now())
+
+  wallet DriverWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order  Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@map("driver_wallet_transactions")
 }

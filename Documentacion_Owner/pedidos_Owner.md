@@ -647,8 +647,9 @@ const finalStates = ['delivered', 'cancelled', 'refunded'];
 
 4. **Efectos Secundarios**:
    - **WebSocket**: Siempre emite evento `order_update` al cliente
+   - **Billetera del Restaurante**: Cuando un pedido cambia de estado, se actualiza automáticamente la billetera del restaurante con las ganancias correspondientes
    - **TODO - Reembolso**: Si se cancela un pedido con pago completado (no efectivo)
-   - **TODO - Notificación Drivers**: Si el estado cambia a `preparing`
+   - **✅ Notificación Drivers**: Si el estado cambia a `preparing` (implementado)
 
 #### Ejemplo de Request
 ```bash

@@ -151,37 +151,38 @@ static async getDriverProfile(userId, requestId) {
 ---
 
 ### **📊 Ejemplo de Respuesta Exitosa**
+*Respuesta real obtenida del test exitoso del endpoint*
 
 ```json
 {
-  "status": "success",
-  "message": "Perfil del repartidor obtenido exitosamente",
-  "timestamp": "2025-01-XX...",
-  "data": {
-    "profile": {
-      "userId": 4,
-      "vehicleType": "motocicleta",
-      "licensePlate": "ABC-123",
-      "status": "online",
-      "currentLocation": {
-        "latitude": 20.489500,
-        "longitude": -99.232000
-      },
-      "lastSeenAt": "2025-01-XX...T10:30:45.123Z",
-      "kycStatus": "verified",
-      "user": {
-        "id": 4,
-        "name": "Miguel",
-        "lastname": "Hernández",
-        "fullName": "Miguel Hernández",
-        "email": "miguel.hernandez@repartidor.com",
-        "phone": "5555555555",
-        "status": "active"
-      },
-      "createdAt": "2025-01-XX...T08:15:30.456Z",
-      "updatedAt": "2025-01-XX...T10:30:45.123Z"
+    "status": "success",
+    "message": "Perfil del repartidor obtenido exitosamente",
+    "timestamp": "2025-10-20T20:41:46.180Z",
+    "data": {
+        "profile": {
+            "userId": 4,
+            "vehicleType": "motorcycle",
+            "licensePlate": "HGO-ABC-123",
+            "status": "online",
+            "currentLocation": {
+                "latitude": 20.4855,
+                "longitude": -99.2175
+            },
+            "lastSeenAt": "2025-10-20T19:56:48.343Z",
+            "kycStatus": "approved",
+            "user": {
+                "id": 4,
+                "name": "Miguel",
+                "lastname": "Hernández",
+                "fullName": "Miguel Hernández",
+                "email": "miguel.hernandez@repartidor.com",
+                "phone": "5555555555",
+                "status": "active"
+            },
+            "createdAt": "2025-10-20T18:53:42.928Z",
+            "updatedAt": "2025-10-20T19:56:48.343Z"
+        }
     }
-  }
 }
 ```
 
@@ -192,10 +193,71 @@ static async getDriverProfile(userId, requestId) {
 - **`status`**: Estado actual del repartidor (`online`, `offline`, `busy`, `unavailable`)
 - **`currentLocation`**: Coordenadas GPS actuales (pueden ser null)
 - **`lastSeenAt`**: Última vez que se actualizó la ubicación
-- **`kycStatus`**: Estado de verificación KYC (`pending`, `verified`, `rejected`)
+- **`kycStatus`**: Estado de verificación KYC (`pending`, `approved`, `rejected`)
 - **`user`**: Datos completos del usuario asociado
 - **`createdAt`**: Fecha de creación del perfil
 - **`updatedAt`**: Última actualización del perfil
+
+---
+
+### **🧪 Prueba Exitosa Realizada**
+*Logs del test exitoso confirmando la implementación del endpoint*
+
+**Endpoint**: `GET /api/driver/profile`  
+**Usuario**: Miguel Hernández (ID: 4, driver_platform)  
+**Resultado**: ✅ **EXITOSO** (200 OK)
+
+**Logs de Validación**:
+```json
+{
+  "timestamp": "2025-10-20 20:41:45.802",
+  "level": "debug", 
+  "message": "Iniciando búsqueda del perfil del repartidor",
+  "requestId": "360e7fb0-d8e8-4f23-8a91-d86d837b84f3",
+  "meta": {
+    "userId": 4
+  }
+}
+{
+  "timestamp": "2025-10-20 20:41:46.179",
+  "level": "info",
+  "message": "Perfil de repartidor obtenido exitosamente", 
+  "requestId": "360e7fb0-d8e8-4f23-8a91-d86d837b84f3",
+  "meta": {
+    "userId": 4,
+    "driverStatus": "online",
+    "userName": "Miguel",
+    "userEmail": "miguel.hernandez@repartidor.com"
+  }
+}
+{
+  "timestamp": "2025-10-20 20:41:46.181",
+  "level": "info",
+  "message": "GET /api/driver/profile 200",
+  "meta": {
+    "method": "GET",
+    "url": "/api/driver/profile",
+    "statusCode": 200,
+    "responseTime": "854ms"
+  }
+}
+```
+
+**Validaciones Confirmadas**:
+- ✅ **Consulta Exitosa**: DriverProfile encontrado con datos del User incluidos
+- ✅ **Formateo Correcto**: Datos combinados correctamente con conversión de tipos
+- ✅ **Ubicación GPS**: Coordenadas actuales presentes y formateadas como Number
+- ✅ **Datos Completos**: Información del vehículo, KYC status, y datos de usuario
+- ✅ **ResponseService**: Respuesta estructurada con timestamp y metadatos
+- ✅ **Logging Estructurado**: Logs debug e info funcionando correctamente
+
+**Campos Validados en la Respuesta Real**:
+- **Tipo de Vehículo**: `"motorcycle"` ✓
+- **Placa**: `"HGO-ABC-123"` ✓  
+- **Estado**: `"online"` ✓
+- **KYC Status**: `"approved"` ✓ (corregido de "verified")
+- **Coordenadas**: Latitud `20.4855`, Longitud `-99.2175` ✓
+- **Datos de Usuario**: Nombre completo, email, teléfono, estado activo ✓
 
 ---
 

@@ -925,6 +925,11 @@ const completeOrder = async (req, res) => {
 - **Solución**: Usa `ResponseService.success` y `ResponseService.error`
 - **Resultado**: Estructura de respuesta estandarizada
 
+#### **6. ✅ Lógica de Billeteras Virtuales**
+- **Característica**: Sistema de billeteras virtuales implementado
+- **Funcionalidad**: Actualiza automáticamente las billeteras del repartidor y restaurante cuando se completa un pedido
+- **Resultado**: Gestión financiera automática de comisiones y ganancias
+
 ### **📤 Ejemplo de Respuesta Exitosa**
 
 ```json

@@ -3124,6 +3124,166 @@ const updateEmployee = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene la billetera del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getRestaurantWallet = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+
+    // Obtener restaurantId del usuario
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    if (!restaurantId) {
+      return ResponseService.error(
+        res,
+        'Restaurante no encontrado para este propietario',
+        null,
+        404,
+        'RESTAURANT_NOT_FOUND'
+      );
+    }
+
+    const wallet = await RestaurantRepository.getWallet(restaurantId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Billetera del restaurante obtenida exitosamente',
+      { wallet },
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
+/**
+ * Obtiene las transacciones de la billetera del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getRestaurantWalletTransactions = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const filters = {
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo
+    };
+
+    // Obtener restaurantId del usuario
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    if (!restaurantId) {
+      return ResponseService.error(
+        res,
+        'Restaurante no encontrado para este propietario',
+        null,
+        404,
+        'RESTAURANT_NOT_FOUND'
+      );
+    }
+
+    const result = await RestaurantRepository.getWalletTransactions(restaurantId, filters, req.id);
+
+    return ResponseService.success(
+      res,
+      'Transacciones de billetera obtenidas exitosamente',
+      result,
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
+/**
+ * Obtiene el resumen de ganancias del restaurante
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getRestaurantEarningsSummary = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const { dateFrom, dateTo } = req.query;
+
+    // Obtener restaurantId del usuario
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, req.id);
+    if (!restaurantId) {
+      return ResponseService.error(
+        res,
+        'Restaurante no encontrado para este propietario',
+        null,
+        404,
+        'RESTAURANT_NOT_FOUND'
+      );
+    }
+
+    const summary = await RestaurantRepository.getEarningsSummary(restaurantId, dateFrom, dateTo, req.id);
+
+    return ResponseService.success(
+      res,
+      'Resumen de ganancias obtenido exitosamente',
+      summary,
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3153,6 +3313,9 @@ module.exports = {
   updatePrimaryBranchDetails,
   createEmployee,
   getEmployees,
-  updateEmployee
+  updateEmployee,
+  getRestaurantWallet,
+  getRestaurantWalletTransactions,
+  getRestaurantEarningsSummary
 };
 

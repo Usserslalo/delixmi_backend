@@ -525,6 +525,154 @@ const getDriverProfile = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene la billetera del repartidor
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getDriverWallet = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const wallet = await DriverRepository.getWallet(userId, req.id);
+
+    return ResponseService.success(
+      res,
+      'Billetera obtenida exitosamente',
+      { wallet },
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
+/**
+ * Obtiene las transacciones de la billetera del repartidor
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getDriverWalletTransactions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const filters = {
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo
+    };
+
+    const result = await DriverRepository.getWalletTransactions(userId, filters, req.id);
+
+    return ResponseService.success(
+      res,
+      'Transacciones de billetera obtenidas exitosamente',
+      result,
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
+/**
+ * Obtiene el resumen de ganancias del repartidor
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getDriverEarningsSummary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { dateFrom, dateTo } = req.query;
+
+    const summary = await DriverRepository.getEarningsSummary(userId, dateFrom, dateTo, req.id);
+
+    return ResponseService.success(
+      res,
+      'Resumen de ganancias obtenido exitosamente',
+      summary,
+      200
+    );
+
+  } catch (error) {
+    if (error.status === 404) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    if (error.status === 403) {
+      return ResponseService.error(
+        res,
+        error.message,
+        null,
+        error.status,
+        error.code
+      );
+    }
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
 module.exports = {
   getAvailableOrders,
   acceptOrder,
@@ -533,5 +681,8 @@ module.exports = {
   getCurrentOrder,
   getDriverOrderHistory,
   updateDriverLocation,
-  getDriverProfile
+  getDriverProfile,
+  getDriverWallet,
+  getDriverWalletTransactions,
+  getDriverEarningsSummary
 };

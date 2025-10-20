@@ -228,6 +228,214 @@ class RestaurantRepository {
       return updatedRestaurant;
     });
   }
+
+  /**
+   * Obtiene la billetera del restaurante
+   * @param {number} restaurantId - ID del restaurante
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Billetera del restaurante
+   */
+  static async getWallet(restaurantId, requestId) {
+    try {
+      const wallet = await prisma.restaurantWallet.findUnique({
+        where: { restaurantId: restaurantId }
+      });
+
+      if (!wallet) {
+        throw {
+          status: 404,
+          message: 'Billetera no encontrada',
+          code: 'WALLET_NOT_FOUND'
+        };
+      }
+
+      return {
+        id: wallet.id,
+        restaurantId: wallet.restaurantId,
+        balance: Number(wallet.balance),
+        updatedAt: wallet.updatedAt
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Obtiene las transacciones de la billetera del restaurante
+   * @param {number} restaurantId - ID del restaurante
+   * @param {Object} filters - Filtros de paginación y fechas
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Transacciones con paginación
+   */
+  static async getWalletTransactions(restaurantId, filters, requestId) {
+    try {
+      const wallet = await prisma.restaurantWallet.findUnique({
+        where: { restaurantId: restaurantId }
+      });
+
+      if (!wallet) {
+        throw {
+          status: 404,
+          message: 'Billetera no encontrada',
+          code: 'WALLET_NOT_FOUND'
+        };
+      }
+
+      // Construir filtros de fecha
+      let dateFilter = {};
+      if (filters.dateFrom || filters.dateTo) {
+        dateFilter.createdAt = {};
+        if (filters.dateFrom) {
+          dateFilter.createdAt.gte = new Date(filters.dateFrom);
+        }
+        if (filters.dateTo) {
+          dateFilter.createdAt.lte = new Date(filters.dateTo);
+        }
+      }
+
+      const where = {
+        walletId: wallet.id,
+        ...dateFilter
+      };
+
+      const skip = (filters.page - 1) * filters.pageSize;
+      const take = filters.pageSize;
+
+      const [transactions, totalCount] = await prisma.$transaction([
+        prisma.restaurantWalletTransaction.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            order: {
+              select: {
+                id: true,
+                status: true,
+                total: true
+              }
+            }
+          }
+        }),
+        prisma.restaurantWalletTransaction.count({ where })
+      ]);
+
+      const totalPages = Math.ceil(totalCount / filters.pageSize);
+
+      return {
+        transactions: transactions.map(tx => ({
+          id: tx.id.toString(),
+          type: tx.type,
+          amount: Number(tx.amount),
+          balanceAfter: Number(tx.balanceAfter),
+          description: tx.description,
+          createdAt: tx.createdAt,
+          order: tx.order ? {
+            id: tx.order.id.toString(),
+            status: tx.order.status,
+            total: Number(tx.order.total)
+          } : null
+        })),
+        pagination: {
+          currentPage: filters.page,
+          pageSize: filters.pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: filters.page < totalPages,
+          hasPreviousPage: filters.page > 1
+        }
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
+
+  /**
+   * Obtiene resumen de ganancias del restaurante
+   * @param {number} restaurantId - ID del restaurante
+   * @param {string} dateFrom - Fecha de inicio (opcional)
+   * @param {string} dateTo - Fecha de fin (opcional)
+   * @param {string} requestId - ID de la petición para logging
+   * @returns {Promise<Object>} Resumen de ganancias
+   */
+  static async getEarningsSummary(restaurantId, dateFrom, dateTo, requestId) {
+    try {
+      // Construir filtros de fecha para las órdenes entregadas
+      let dateFilter = {};
+      if (dateFrom || dateTo) {
+        dateFilter.orderDeliveredAt = {};
+        if (dateFrom) {
+          dateFilter.orderDeliveredAt.gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          dateFilter.orderDeliveredAt.lte = new Date(dateTo);
+        }
+      }
+
+      const where = {
+        branch: {
+          restaurantId: restaurantId
+        },
+        status: 'delivered',
+        ...dateFilter
+      };
+
+      const [orderStats] = await prisma.$transaction([
+        prisma.order.aggregate({
+          where,
+          _sum: {
+            restaurantPayout: true,
+            subtotal: true
+          },
+          _count: {
+            id: true
+          }
+        })
+      ]);
+
+      return {
+        totalEarnings: Number(orderStats._sum.restaurantPayout || 0),
+        totalRevenue: Number(orderStats._sum.subtotal || 0),
+        totalOrders: orderStats._count.id,
+        averageEarningPerOrder: orderStats._count.id > 0 
+          ? Number(orderStats._sum.restaurantPayout || 0) / orderStats._count.id 
+          : 0,
+        period: {
+          from: dateFrom || null,
+          to: dateTo || null
+        }
+      };
+
+    } catch (error) {
+      if (error.status) {
+        throw error;
+      }
+
+      throw {
+        status: 500,
+        message: 'Error interno del servidor',
+        code: 'INTERNAL_ERROR'
+      };
+    }
+  }
 }
 
 module.exports = RestaurantRepository;
