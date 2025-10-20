@@ -61,6 +61,25 @@ const orderQuerySchema = z.object({
   }
 );
 
+/**
+ * Esquema de validación para parámetros de ruta del endpoint PATCH /api/restaurant/orders/:orderId/status
+ */
+const orderParamsSchema = z.object({
+  orderId: z.string().regex(/^\d+$/, 'El ID del pedido debe ser un número válido').transform(BigInt)
+});
+
+/**
+ * Esquema de validación para el cuerpo de la petición del endpoint PATCH /api/restaurant/orders/:orderId/status
+ */
+const updateOrderStatusSchema = z.object({
+  status: z.nativeEnum(OrderStatus, {
+    required_error: "El nuevo estado es requerido",
+    invalid_type_error: "Estado inválido"
+  })
+});
+
 module.exports = {
-  orderQuerySchema
+  orderQuerySchema,
+  orderParamsSchema,
+  updateOrderStatusSchema
 };

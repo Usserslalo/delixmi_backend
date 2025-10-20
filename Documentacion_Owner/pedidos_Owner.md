@@ -227,10 +227,10 @@ include: {
     select: {
       id: true,
       status: true,
-      method: true,
       provider: true,
       providerPaymentId: true,
-      amount: true
+      amount: true,
+      currency: true
     }
   },
   orderItems: {
@@ -274,101 +274,133 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 #### Ejemplo de Respuesta Exitosa (200)
 ```json
 {
-  "status": "success",
-  "message": "Pedidos obtenidos exitosamente",
-  "data": {
-    "orders": [
-      {
-        "id": "123456789",
-        "status": "confirmed",
-        "subtotal": 250.00,
-        "deliveryFee": 25.00,
-        "total": 275.00,
-        "commissionRateSnapshot": 12.5,
-        "platformFee": 31.25,
-        "restaurantPayout": 218.75,
-        "paymentMethod": "mercadopago",
-        "paymentStatus": "completed",
-        "specialInstructions": "Entregar en la puerta principal",
-        "orderPlacedAt": "2024-01-15T14:30:00.000Z",
-        "orderDeliveredAt": null,
-        "createdAt": "2024-01-15T14:30:00.000Z",
-        "updatedAt": "2024-01-15T14:30:00.000Z",
-        "customer": {
-          "id": 456,
-          "name": "Juan",
-          "lastname": "Pérez",
-          "fullName": "Juan Pérez",
-          "email": "juan.perez@email.com",
-          "phone": "+525512345678"
-        },
-        "address": {
-          "id": 789,
-          "alias": "Casa",
-          "street": "Av. Insurgentes",
-          "exteriorNumber": "123",
-          "interiorNumber": "A",
-          "neighborhood": "Centro",
-          "city": "Ciudad de México",
-          "state": "CDMX",
-          "zipCode": "06000",
-          "references": "Edificio azul, portón principal",
-          "fullAddress": "Av. Insurgentes 123 A, Centro, Ciudad de México, CDMX 06000"
-        },
-        "deliveryDriver": {
-          "id": 321,
-          "name": "Carlos",
-          "lastname": "García",
-          "fullName": "Carlos García",
-          "phone": "+525598765432"
-        },
-        "payment": {
-          "id": "987654321",
-          "status": "completed",
-          "method": "mercadopago",
-          "provider": "mercadopago",
-          "providerPaymentId": "MP-123456789",
-          "amount": 275.00
-        },
-        "orderItems": [
-          {
-            "id": "111222333",
-            "productId": 101,
-            "quantity": 2,
-            "pricePerUnit": 125.00,
-            "product": {
-              "id": 101,
-              "name": "Pizza Margherita",
-              "imageUrl": "https://example.com/pizza-margherita.jpg",
-              "price": 125.00
-            },
-            "modifiers": [
-              {
-                "id": "444555666",
-                "modifierOption": {
-                  "id": 201,
-                  "name": "Extra Queso",
-                  "price": 15.00,
-                  "modifierGroup": {
-                    "id": 301,
-                    "name": "Extras"
-                  }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "pagination": {
-      "currentPage": 1,
-      "pageSize": 10,
-      "totalCount": 45,
-      "totalPages": 5,
-      "hasNextPage": true,
-      "hasPreviousPage": false
+    "status": "success",
+    "message": "Pedidos obtenidos exitosamente",
+    "timestamp": "2025-10-20T16:46:37.097Z",
+    "data": {
+        "orders": [
+            {
+                "id": "1",
+                "status": "confirmed",
+                "subtotal": 480,
+                "deliveryFee": 25,
+                "total": 505,
+                "commissionRateSnapshot": 12.5,
+                "platformFee": 60,
+                "restaurantPayout": 420,
+                "paymentMethod": "card",
+                "paymentStatus": "completed",
+                "specialInstructions": "Entregar en la puerta principal, tocar timbre",
+                "orderPlacedAt": "2025-10-20T14:32:05.127Z",
+                "orderDeliveredAt": null,
+                "createdAt": "2025-10-20T16:32:05.128Z",
+                "updatedAt": "2025-10-20T16:32:05.128Z",
+                "customer": {
+                    "id": 5,
+                    "name": "Sofía",
+                    "lastname": "López",
+                    "fullName": "Sofía López",
+                    "email": "sofia.lopez@email.com",
+                    "phone": "4444444444"
+                },
+                "address": {
+                    "id": 1,
+                    "alias": "Casa",
+                    "street": "Av. Felipe Ángeles",
+                    "exteriorNumber": "21",
+                    "interiorNumber": null,
+                    "neighborhood": "San Nicolás",
+                    "city": "Ixmiquilpan",
+                    "state": "Hidalgo",
+                    "zipCode": "42300",
+                    "references": "Casa de dos pisos con portón de madera.",
+                    "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300"
+                },
+                "deliveryDriver": null,
+                "payment": {
+                    "id": "1",
+                    "status": "completed",
+                    "provider": "mercadopago",
+                    "providerPaymentId": "MP-123456789-PIZZA",
+                    "amount": 505,
+                    "currency": "MXN"
+                },
+                "orderItems": [
+                    {
+                        "id": "1",
+                        "productId": 1,
+                        "quantity": 1,
+                        "pricePerUnit": 210,
+                        "product": {
+                            "id": 1,
+                            "name": "Pizza Hawaiana",
+                            "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+                            "price": 150
+                        },
+                        "modifiers": [
+                            {
+                                "id": "1",
+                                "modifierOption": {
+                                    "id": 3,
+                                    "name": "Grande (12 pulgadas)",
+                                    "price": 45,
+                                    "modifierGroup": {
+                                        "id": 1,
+                                        "name": "Tamaño"
+                                    }
+                                }
+                            },
+                            {
+                                "id": "2",
+                                "modifierOption": {
+                                    "id": 5,
+                                    "name": "Extra Queso",
+                                    "price": 15,
+                                    "modifierGroup": {
+                                        "id": 2,
+                                        "name": "Extras"
+                                    }
+                                }
+                            },
+                            {
+                                "id": "3",
+                                "modifierOption": {
+                                    "id": 11,
+                                    "name": "Sin Cebolla",
+                                    "price": 0,
+                                    "modifierGroup": {
+                                        "id": 3,
+                                        "name": "Sin Ingredientes"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "id": "2",
+                        "productId": 3,
+                        "quantity": 2,
+                        "pricePerUnit": 135,
+                        "product": {
+                            "id": 3,
+                            "name": "Pizza Margherita",
+                            "imageUrl": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop",
+                            "price": 135
+                        },
+                        "modifiers": []
+                    }
+                ]
+            }
+        ],
+        "pagination": {
+            "currentPage": 1,
+            "pageSize": 10,
+            "totalCount": 1,
+            "totalPages": 1,
+            "hasNextPage": false,
+            "hasPreviousPage": false
+        }
     }
-  }
 }
 ```
 
@@ -457,3 +489,358 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    - Conversión automática de `BigInt` a `String` para IDs
    - Conversión de `Decimal` a `Number` para precios
    - Construcción automática de nombres completos y direcciones completas
+
+---
+
+## 🔄 Actualización de Estado de Pedidos
+
+### Endpoint de Actualización de Estado
+**PATCH** `/api/restaurant/orders/:orderId/status`
+
+#### Configuración del Endpoint
+- **Ruta completa:** `https://delixmi-backend.onrender.com/api/restaurant/orders/:orderId/status`
+- **Archivo de ruta:** `src/routes/restaurant-admin.routes.js`
+- **Prefijo montado:** `/api/restaurant` (configurado en `src/server.js`)
+
+#### Middlewares Aplicados
+1. **Autenticación** (`authenticateToken`)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Requerimiento: Token JWT válido en header `Authorization: Bearer <token>`
+
+2. **Control de Roles** (`requireRole`)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Roles permitidos: `['owner', 'branch_manager', 'order_manager', 'kitchen_staff']`
+
+3. **Verificación de Ubicación** (`requireRestaurantLocation`)
+   - Archivo: `src/middleware/location.middleware.js`
+   - Requerimiento: El restaurante debe tener ubicación configurada
+
+4. **Validación de Parámetros** (`validateParams(orderParamsSchema)`)
+   - Archivo: `src/middleware/validate.middleware.js`
+   - Valida el parámetro `:orderId` de la URL
+
+5. **Validación del Body** (`validate(updateOrderStatusSchema)`)
+   - Archivo: `src/middleware/validate.middleware.js`
+   - Valida el cuerpo de la petición
+
+#### Esquemas de Validación Zod
+
+##### Parámetros de Ruta (`orderParamsSchema`)
+```javascript
+const orderParamsSchema = z.object({
+  orderId: z.string().regex(/^\d+$/, 'El ID del pedido debe ser un número válido').transform(BigInt)
+});
+```
+
+##### Cuerpo de la Petición (`updateOrderStatusSchema`)
+```javascript
+const updateOrderStatusSchema = z.object({
+  status: z.nativeEnum(OrderStatus, {
+    required_error: "El nuevo estado es requerido",
+    invalid_type_error: "Estado inválido"
+  })
+});
+```
+
+#### Parámetros
+| Parámetro | Tipo | Requerido | Descripción | Ejemplo |
+|-----------|------|-----------|-------------|---------|
+| `orderId` | BigInt | Sí | ID del pedido a actualizar | `1` |
+| `status` | String | Sí | Nuevo estado del pedido | `"preparing"` |
+
+#### Estados de Pedido Disponibles (OrderStatus)
+```javascript
+enum OrderStatus {
+  pending = "pending"
+  confirmed = "confirmed"  
+  preparing = "preparing"
+  ready_for_pickup = "ready_for_pickup"
+  out_for_delivery = "out_for_delivery"
+  delivered = "delivered"
+  cancelled = "cancelled"
+  refunded = "refunded"
+}
+```
+
+#### Lógica del Controlador
+**Archivo:** `src/controllers/restaurant-admin.controller.js`
+
+```javascript
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    // Llamar al método del repositorio con toda la lógica de validación
+    const updatedOrder = await OrderRepository.updateOrderStatus(
+      orderId, 
+      status, 
+      userId, 
+      req.id
+    );
+
+    return ResponseService.success(
+      res,
+      `Estado del pedido actualizado a '${status}'`,
+      { order: updatedOrder }
+    );
+
+  } catch (error) {
+    // Manejar errores específicos del repositorio (403, 404, 409)
+    // ...
+  }
+};
+```
+
+#### Lógica del Repositorio
+**Archivo:** `src/repositories/order.repository.js`
+
+El repositorio implementa validaciones completas:
+
+1. **Autorización del Usuario**:
+   - Verifica que el usuario tenga roles de restaurante válidos
+   - Obtiene la sucursal principal del restaurante del usuario
+
+2. **Validación del Pedido**:
+   - Busca el pedido por ID
+   - Verifica que pertenezca a la sucursal principal del usuario
+
+3. **Validación de Transición de Estado**:
+```javascript
+const validTransitions = {
+  'pending': {
+    'confirmed': ['owner', 'branch_manager', 'order_manager'],
+    'cancelled': ['owner', 'branch_manager', 'order_manager']
+  },
+  'confirmed': {
+    'preparing': ['owner', 'branch_manager', 'order_manager', 'kitchen_staff'],
+    'cancelled': ['owner', 'branch_manager', 'order_manager']
+  },
+  'preparing': {
+    'ready_for_pickup': ['owner', 'branch_manager', 'order_manager', 'kitchen_staff']
+  },
+  'ready_for_pickup': {
+    'out_for_delivery': ['owner', 'branch_manager', 'order_manager']
+  },
+  'out_for_delivery': {
+    'delivered': ['owner', 'branch_manager', 'order_manager']
+  }
+};
+
+const finalStates = ['delivered', 'cancelled', 'refunded'];
+```
+
+4. **Efectos Secundarios**:
+   - **WebSocket**: Siempre emite evento `order_update` al cliente
+   - **TODO - Reembolso**: Si se cancela un pedido con pago completado (no efectivo)
+   - **TODO - Notificación Drivers**: Si el estado cambia a `preparing`
+
+#### Ejemplo de Request
+```bash
+PATCH /api/restaurant/orders/1/status
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "status": "preparing"
+}
+```
+
+#### Ejemplo de Respuesta Exitosa (200)
+```json
+{
+  "status": "success",
+  "message": "Estado del pedido actualizado a 'preparing'",
+  "timestamp": "2025-10-20T17:30:45.123Z",
+  "data": {
+    "order": {
+      "id": "1",
+      "status": "preparing",
+      "subtotal": 480,
+      "deliveryFee": 25,
+      "total": 505,
+      "commissionRateSnapshot": 12.5,
+      "platformFee": 60,
+      "restaurantPayout": 420,
+      "paymentMethod": "card",
+      "paymentStatus": "completed",
+      "specialInstructions": "Entregar en la puerta principal, tocar timbre",
+      "orderPlacedAt": "2025-10-20T14:32:05.127Z",
+      "orderDeliveredAt": null,
+      "createdAt": "2025-10-20T16:32:05.128Z",
+      "updatedAt": "2025-10-20T17:30:45.124Z",
+      "customer": {
+        "id": 5,
+        "name": "Sofía",
+        "lastname": "López",
+        "fullName": "Sofía López",
+        "email": "sofia.lopez@email.com",
+        "phone": "4444444444"
+      },
+      "address": {
+        "id": 1,
+        "alias": "Casa",
+        "street": "Av. Felipe Ángeles",
+        "exteriorNumber": "21",
+        "interiorNumber": null,
+        "neighborhood": "San Nicolás",
+        "city": "Ixmiquilpan",
+        "state": "Hidalgo",
+        "zipCode": "42300",
+        "references": "Casa de dos pisos con portón de madera.",
+        "fullAddress": "Av. Felipe Ángeles 21, San Nicolás, Ixmiquilpan, Hidalgo 42300"
+      },
+      "deliveryDriver": null,
+      "payment": {
+        "id": "1",
+        "status": "completed",
+        "provider": "mercadopago",
+        "providerPaymentId": "MP-123456789-PIZZA",
+        "amount": 505,
+        "currency": "MXN"
+      },
+      "orderItems": [
+        {
+          "id": "1",
+          "productId": 1,
+          "quantity": 1,
+          "pricePerUnit": 210,
+          "product": {
+            "id": 1,
+            "name": "Pizza Hawaiana",
+            "imageUrl": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop",
+            "price": 150
+          },
+          "modifiers": [
+            {
+              "id": "1",
+              "modifierOption": {
+                "id": 3,
+                "name": "Grande (12 pulgadas)",
+                "price": 45,
+                "modifierGroup": {
+                  "id": 1,
+                  "name": "Tamaño"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Manejo de Errores
+
+##### Error 400 - Parámetros o Body Inválidos
+```json
+{
+  "status": "error",
+  "message": "Parámetros de entrada inválidos",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "orderId",
+      "message": "El ID del pedido debe ser un número válido"
+    },
+    {
+      "field": "status",
+      "message": "Estado inválido"
+    }
+  ]
+}
+```
+
+##### Error 401 - No Autenticado
+```json
+{
+  "status": "error",
+  "message": "Token de acceso requerido",
+  "code": "MISSING_TOKEN"
+}
+```
+
+##### Error 403 - Permisos Insuficientes o Acceso Denegado
+```json
+{
+  "status": "error",
+  "message": "Tu rol 'kitchen_staff' no tiene permisos para cambiar el estado de confirmed a cancelled",
+  "code": "STATUS_UPDATE_NOT_ALLOWED_FOR_ROLE",
+  "details": {
+    "userRole": "kitchen_staff",
+    "currentStatus": "confirmed",
+    "newStatus": "cancelled",
+    "allowedRoles": ["owner", "branch_manager", "order_manager"]
+  }
+}
+```
+
+##### Error 404 - Pedido No Encontrado
+```json
+{
+  "status": "error",
+  "message": "Pedido no encontrado",
+  "code": "ORDER_NOT_FOUND"
+}
+```
+
+##### Error 409 - Transición de Estado Inválida
+```json
+{
+  "status": "error",
+  "message": "Transición de estado inválida: delivered → preparing",
+  "code": "INVALID_STATUS_TRANSITION",
+  "details": {
+    "currentStatus": "delivered",
+    "newStatus": "preparing",
+    "validTransitions": []
+  }
+}
+```
+
+##### Error 409 - Pedido en Estado Final
+```json
+{
+  "status": "error",
+  "message": "No se puede cambiar el estado de un pedido finalizado",
+  "code": "ORDER_IN_FINAL_STATE",
+  "details": {
+    "currentStatus": "delivered"
+  }
+}
+```
+
+##### Error 500 - Error Interno del Servidor
+```json
+{
+  "status": "error",
+  "message": "Error interno del servidor",
+  "code": "INTERNAL_ERROR"
+}
+```
+
+#### Características Especiales
+
+1. **Validación Robusta de Transiciones**:
+   - Solo permite transiciones válidas según el estado actual
+   - Verifica permisos por rol para cada transición
+   - Bloquea cambios en estados finales (`delivered`, `cancelled`, `refunded`)
+
+2. **Notificaciones en Tiempo Real**:
+   - Siempre emite evento WebSocket `order_update` al cliente
+   - Notifica automáticamente cambios de estado
+
+3. **Efectos Secundarios Preparados**:
+   - **TODO**: Reembolso automático para cancelaciones de pagos completados
+   - **TODO**: Notificación a drivers cuando el pedido está en preparación
+
+4. **Modelo de Negocio Simplificado**:
+   - Implementa el modelo "one Owner = one primary branch"
+   - Solo permite actualizar pedidos de la sucursal principal del restaurante
+
+5. **Logging Completo**:
+   - Registra todas las transiciones de estado
+   - Incluye información de usuario y contexto para auditoría

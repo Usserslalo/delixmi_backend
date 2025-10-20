@@ -10,7 +10,7 @@ const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSch
 const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
 const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updateEmployeeSchema } = require('../validations/employee.validation');
 const { updateBranchDetailsSchema } = require('../validations/branch.validation');
-const { orderQuerySchema } = require('../validations/order.validation');
+const { orderQuerySchema, orderParamsSchema, updateOrderStatusSchema } = require('../validations/order.validation');
 const { OrderStatus } = require('@prisma/client');
 const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
@@ -469,31 +469,14 @@ router.get('/orders',
  * @route   PATCH /api/restaurant/orders/:orderId/status
  * @desc    Actualizar el estado de un pedido específico
  * @access  Private (Restaurant Staff Only)
- * @params  orderId - ID del pedido a actualizar
- * @body    status - Nuevo estado del pedido
+ * @params  orderId - ID del pedido a actualizar (BigInt)
+ * @body    { "status": "preparing" } - Nuevo estado del pedido
  */
-router.patch('/orders/:orderId/status', 
+router.patch('/orders/:orderId/status',
   requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']),
   requireRestaurantLocation,
-  [
-    body('status')
-      .notEmpty()
-      .withMessage('El estado del pedido es requerido')
-      .isIn(['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'])
-      .withMessage('Estado de pedido inválido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
+  validateParams(orderParamsSchema),
+  validate(updateOrderStatusSchema),
   updateOrderStatus
 );
 

@@ -203,328 +203,70 @@ const updateOrderStatus = async (req, res) => {
     const { status } = req.body;
     const userId = req.user.id;
 
-    // Validar que orderId sea un número válido
-    const orderIdNum = parseInt(orderId);
-    if (isNaN(orderIdNum)) {
-      return ResponseService.badRequest(res, 'ID de pedido inválido', null, 'INVALID_ORDER_ID');
-    }
+    logger.info('Solicitud de actualización de estado de pedido', {
+      requestId: req.id,
+      meta: { 
+        orderId: orderId.toString(), 
+        newStatus: status, 
+        userId 
+      }
+    });
 
-    // 1. Obtener información del usuario y verificar autorización
-    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
-
-    if (!userWithRoles) {
-      return ResponseService.notFound(res, 'Usuario no encontrado');
-    }
-
-    // 2. Verificar que el usuario tenga roles de restaurante
-    const restaurantRoles = ['owner', 'branch_manager', 'order_manager', 'kitchen_staff'];
-    const userRoles = userWithRoles.userRoleAssignments.map(assignment => assignment.role.name);
-    const hasRestaurantRole = userRoles.some(role => restaurantRoles.includes(role));
-
-    if (!hasRestaurantRole) {
-      return ResponseService.forbidden(
-        res, 
-        'Acceso denegado. Se requieren permisos de restaurante',
-        'INSUFFICIENT_PERMISSIONS'
-      );
-    }
-
-    // 3. Determinar los branch_ids permitidos para el usuario
-    let allowedBranchIds = [];
-    
-    // Si el usuario es owner y no tiene branch_id específico, obtener todas las sucursales de sus restaurantes
-    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
-      assignment => assignment.role.name === 'owner' && assignment.restaurantId && !assignment.branchId
+    // Llamar al método del repositorio con toda la lógica de validación
+    const updatedOrder = await OrderRepository.updateOrderStatus(
+      orderId, 
+      status, 
+      userId, 
+      req.id
     );
 
-    if (ownerAssignments.length > 0) {
-      // Owner sin branch específico - obtener todas las sucursales de sus restaurantes
-      const restaurantIds = ownerAssignments.map(assignment => assignment.restaurantId);
-      const branches = await prisma.branch.findMany({
-        where: {
-          restaurantId: { in: restaurantIds },
-          status: 'active'
-        },
-        select: { id: true }
-      });
-      allowedBranchIds = branches.map(branch => branch.id);
-    } else {
-      // Usuario con branch específico o otros roles
-      const specificBranchAssignments = userWithRoles.userRoleAssignments.filter(
-        assignment => assignment.branchId
-      );
-      allowedBranchIds = specificBranchAssignments.map(assignment => assignment.branchId);
-    }
-
-    if (allowedBranchIds.length === 0) {
-      return ResponseService.forbidden(
-        res, 
-        'No se encontraron sucursales asignadas para este usuario',
-        'NO_BRANCH_ASSIGNED'
-      );
-    }
-
-    // 4. Buscar el pedido con autorización de seguridad
-    const existingOrder = await prisma.order.findFirst({
-      where: {
-        id: orderIdNum,
-        branchId: { in: allowedBranchIds }
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        address: {
-          select: {
-            id: true,
-            alias: true,
-            street: true,
-            exteriorNumber: true,
-            interiorNumber: true,
-            neighborhood: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            references: true
-          }
-        },
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            restaurant: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        orderItems: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                imageUrl: true,
-                subcategory: {
-                  select: {
-                    name: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!existingOrder) {
-      return ResponseService.notFound(
-        res, 
-        'Pedido no encontrado o no tienes permisos para modificarlo',
-        'ORDER_NOT_FOUND'
-      );
-    }
-
-    // 5. Actualizar el estado del pedido
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderIdNum },
-      data: { 
-        status: status,
-        updatedAt: new Date()
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            lastname: true,
-            email: true,
-            phone: true
-          }
-        },
-        address: {
-          select: {
-            id: true,
-            alias: true,
-            street: true,
-            exteriorNumber: true,
-            interiorNumber: true,
-            neighborhood: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            references: true
-          }
-        },
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            restaurant: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        },
-        orderItems: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                price: true,
-                imageUrl: true,
-                subcategory: {
-                  select: {
-                    name: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    // 6. Formatear respuesta
-    const formattedOrder = {
-      id: updatedOrder.id.toString(),
-      status: updatedOrder.status,
-      subtotal: Number(updatedOrder.subtotal),
-      deliveryFee: Number(updatedOrder.deliveryFee),
-      total: Number(updatedOrder.total),
-      orderPlacedAt: updatedOrder.orderPlacedAt,
-      orderDeliveredAt: updatedOrder.orderDeliveredAt,
-      updatedAt: updatedOrder.updatedAt,
-      customer: {
-        id: updatedOrder.customer.id,
-        name: updatedOrder.customer.name,
-        lastname: updatedOrder.customer.lastname,
-        email: updatedOrder.customer.email,
-        phone: updatedOrder.customer.phone
-      },
-      address: {
-        id: updatedOrder.address.id,
-        alias: updatedOrder.address.alias,
-        fullAddress: `${updatedOrder.address.street} ${updatedOrder.address.exteriorNumber}${updatedOrder.address.interiorNumber ? ' Int. ' + updatedOrder.address.interiorNumber : ''}, ${updatedOrder.address.neighborhood}, ${updatedOrder.address.city}, ${updatedOrder.address.state} ${updatedOrder.address.zipCode}`,
-        references: updatedOrder.address.references
-      },
-      branch: {
-        id: updatedOrder.branch.id,
-        name: updatedOrder.branch.name,
-        restaurant: {
-          id: updatedOrder.branch.restaurant.id,
-          name: updatedOrder.branch.restaurant.name
-        }
-      },
-      items: updatedOrder.orderItems.map(item => ({
-        id: item.id.toString(),
-        product: {
-          id: item.product.id,
-          name: item.product.name,
-          description: item.product.description,
-          price: Number(item.product.price),
-          imageUrl: item.product.imageUrl,
-          category: item.product.subcategory.name
-        },
-        quantity: item.quantity,
-        pricePerUnit: Number(item.pricePerUnit),
-        total: Number(item.pricePerUnit) * item.quantity
-      }))
-    };
-
-    // 7. Emitir notificación en tiempo real al cliente
-    try {
-      const io = getIo();
-      const customerId = updatedOrder.customer.id;
-      const formattedOrder = formatOrderForSocket(updatedOrder);
-      
-      io.to(`user_${customerId}`).emit('order_status_update', {
-        order: formattedOrder,
-        orderId: formattedOrder.id,
-        status: formattedOrder.status,
-        previousStatus: existingOrder.status,
-        updatedAt: formattedOrder.updatedAt,
-        message: `Tu pedido #${formattedOrder.id} ha cambiado de estado a: ${status}`
-      });
-      console.log(`📢 Notificación enviada al cliente ${customerId} sobre actualización del pedido ${formattedOrder.id}`);
-    } catch (socketError) {
-      console.error('Error enviando notificación Socket.io:', socketError);
-      // No fallar la respuesta por error de socket
-    }
-
-    // 8. Notificar a repartidores cuando el pedido esté listo para recogida
-    if (status === 'ready_for_pickup') {
-      try {
-        const io = getIo();
-        const formattedOrder = formatOrderForSocket(updatedOrder);
-        
-        io.to('drivers_channel').emit('new_order_available', {
-          order: formattedOrder,
-          orderId: formattedOrder.id,
-          status: formattedOrder.status,
-          restaurant: {
-            id: updatedOrder.branch.restaurant.id,
-            name: updatedOrder.branch.restaurant.name
-          },
-          branch: {
-            id: updatedOrder.branch.id,
-            name: updatedOrder.branch.name
-          },
-          customer: {
-            id: updatedOrder.customer.id,
-            name: updatedOrder.customer.name,
-            lastname: updatedOrder.customer.lastname
-          },
-          address: {
-            id: updatedOrder.address.id,
-            alias: updatedOrder.address.alias,
-            fullAddress: `${updatedOrder.address.street} ${updatedOrder.address.exteriorNumber}${updatedOrder.address.interiorNumber ? ' Int. ' + updatedOrder.address.interiorNumber : ''}, ${updatedOrder.address.neighborhood}, ${updatedOrder.address.city}, ${updatedOrder.address.state} ${updatedOrder.address.zipCode}`,
-            references: updatedOrder.address.references
-          },
-          total: Number(updatedOrder.total),
-          deliveryFee: Number(updatedOrder.deliveryFee),
-          specialInstructions: updatedOrder.specialInstructions,
-          message: `Nuevo pedido #${formattedOrder.id} listo para recogida en ${updatedOrder.branch.name}`,
-          createdAt: new Date().toISOString()
-        });
-        console.log(`🚚 Notificación enviada a todos los repartidores sobre nuevo pedido ${formattedOrder.id} listo para recogida`);
-      } catch (socketError) {
-        console.error('Error enviando notificación a repartidores:', socketError);
-        // No fallar la respuesta por error de socket
-      }
-    }
-
-    // 9. Respuesta exitosa
     return ResponseService.success(
       res,
-      'Estado del pedido actualizado exitosamente',
-      {
-        order: formattedOrder,
-        previousStatus: existingOrder.status,
-        newStatus: status,
-        updatedBy: {
-          userId: userId,
-          roles: userRoles
-        }
-      }
+      `Estado del pedido actualizado a '${status}'`,
+      { order: updatedOrder }
     );
 
   } catch (error) {
-    console.error('Error actualizando estado del pedido:', error);
+    logger.error('Error en controlador updateOrderStatus', {
+      requestId: req.id,
+      meta: { 
+        orderId: req.params.orderId, 
+        status: req.body.status,
+        userId: req.user.id,
+        error: error.message,
+        code: error.code
+      }
+    });
+
+    // Manejar errores específicos del repositorio
+    if (error.status) {
+      switch (error.status) {
+        case 403:
+          return ResponseService.forbidden(
+            res, 
+            error.message, 
+            null, 
+            error.code
+          );
+        case 404:
+          return ResponseService.notFound(
+            res, 
+            error.message, 
+            null, 
+            error.code
+          );
+        case 409:
+          return ResponseService.conflict(
+            res, 
+            error.message, 
+            null, 
+            error.code
+          );
+        default:
+          return ResponseService.internalError(res, error.message);
+      }
+    }
+
     return ResponseService.internalError(res, 'Error interno del servidor');
   }
 };
