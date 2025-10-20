@@ -131,10 +131,10 @@ class OrderRepository {
               select: {
                 id: true,
                 status: true,
-                method: true,
                 provider: true,
                 providerPaymentId: true,
-                amount: true
+                amount: true,
+                currency: true
               }
             },
             orderItems: {
@@ -194,15 +194,15 @@ class OrderRepository {
         orderDeliveredAt: order.orderDeliveredAt,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
-        customer: {
+        customer: order.customer ? {
           id: order.customer.id,
           name: order.customer.name,
           lastname: order.customer.lastname,
           fullName: `${order.customer.name} ${order.customer.lastname}`,
           email: order.customer.email,
           phone: order.customer.phone
-        },
-        address: {
+        } : null,
+        address: order.address ? {
           id: order.address.id,
           alias: order.address.alias,
           street: order.address.street,
@@ -214,7 +214,7 @@ class OrderRepository {
           zipCode: order.address.zipCode,
           references: order.address.references,
           fullAddress: `${order.address.street} ${order.address.exteriorNumber}${order.address.interiorNumber ? ' Int. ' + order.address.interiorNumber : ''}, ${order.address.neighborhood}, ${order.address.city}, ${order.address.state} ${order.address.zipCode}`
-        },
+        } : null,
         deliveryDriver: order.deliveryDriver ? {
           id: order.deliveryDriver.id,
           name: order.deliveryDriver.name,
@@ -225,35 +225,35 @@ class OrderRepository {
         payment: order.payment ? {
           id: order.payment.id.toString(),
           status: order.payment.status,
-          method: order.payment.method,
           provider: order.payment.provider,
           providerPaymentId: order.payment.providerPaymentId,
-          amount: Number(order.payment.amount)
+          amount: Number(order.payment.amount),
+          currency: order.payment.currency
         } : null,
-        orderItems: order.orderItems.map(item => ({
+        orderItems: order.orderItems ? order.orderItems.map(item => ({
           id: item.id.toString(),
           productId: item.productId,
           quantity: item.quantity,
           pricePerUnit: Number(item.pricePerUnit),
-          product: {
+          product: item.product ? {
             id: item.product.id,
             name: item.product.name,
             imageUrl: item.product.imageUrl,
             price: Number(item.product.price)
-          },
-          modifiers: item.modifiers.map(modifier => ({
+          } : null,
+          modifiers: item.modifiers ? item.modifiers.map(modifier => ({
             id: modifier.id.toString(),
-            modifierOption: {
+            modifierOption: modifier.modifierOption ? {
               id: modifier.modifierOption.id,
               name: modifier.modifierOption.name,
               price: Number(modifier.modifierOption.price),
-              modifierGroup: {
+              modifierGroup: modifier.modifierOption.modifierGroup ? {
                 id: modifier.modifierOption.modifierGroup.id,
                 name: modifier.modifierOption.modifierGroup.name
-              }
-            }
-          }))
-        }))
+              } : null
+            } : null
+          })) : []
+        })) : []
       }));
 
       logger.info('Consulta de órdenes completada', {
