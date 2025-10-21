@@ -3484,17 +3484,32 @@ const getDashboardSummary = async (req, res) => {
         const openingTime = scheduleData.openingTime;
         const closingTime = scheduleData.closingTime;
         
-        isOpen = currentTime >= openingTime && currentTime < closingTime;
-        nextClosingTime = closingTime;
+        // Convertir horarios a formato comparable (HH:MM)
+        const openingTimeFormatted = openingTime.substring(0, 5); // "10:00:00" -> "10:00"
+        const closingTimeFormatted = closingTime.substring(0, 5); // "17:30:00" -> "17:30"
         
-        if (!isOpen && currentTime < openingTime) {
-          nextOpeningTime = openingTime;
+        // Comparar horarios correctamente
+        isOpen = currentTime >= openingTimeFormatted && currentTime < closingTimeFormatted;
+        nextClosingTime = closingTimeFormatted;
+        
+        // Log para debug
+        logger.debug('Cálculo de horarios del restaurante', {
+          requestId,
+          currentTime,
+          openingTimeFormatted,
+          closingTimeFormatted,
+          isOpen,
+          restaurantId
+        });
+        
+        if (!isOpen && currentTime < openingTimeFormatted) {
+          nextOpeningTime = openingTimeFormatted;
         }
         
         currentDaySchedule = {
           day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][today.getDay()],
-          opening: openingTime,
-          closing: closingTime
+          opening: openingTimeFormatted,
+          closing: closingTimeFormatted
         };
       }
     }
