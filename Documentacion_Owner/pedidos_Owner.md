@@ -492,6 +492,300 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+## 📍 Obtención de Ubicación del Restaurante
+
+### Endpoint de Ubicación del Restaurante
+**GET** `/api/restaurant/location-status`
+
+#### Configuración del Endpoint
+- **Ruta completa:** `https://delixmi-backend.onrender.com/api/restaurant/location-status`
+- **Archivo de ruta:** `src/routes/restaurant-admin.routes.js`
+- **Prefijo montado:** `/api/restaurant` (configurado en `src/server.js`)
+
+#### Middlewares Aplicados
+1. **Autenticación** (`authenticateToken`)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Requerimiento: Token JWT válido en header `Authorization: Bearer <token>`
+
+2. **Control de Roles** (`requireRole`)
+   - Archivo: `src/middleware/auth.middleware.js`
+   - Roles permitidos: `['owner']`
+
+#### Propósito
+Este endpoint permite al frontend obtener la ubicación del restaurante para mostrar en el mapa de detalles del pedido. Es especialmente útil para:
+
+- **Mostrar marcador verde del restaurante** en el mapa junto al marcador rojo del cliente
+- **Calcular distancia** entre restaurante y cliente
+- **Estimar tiempos de entrega** más precisos
+- **Visualizar la ruta** de entrega completa
+
+#### Lógica del Controlador
+**Archivo:** `src/controllers/restaurant-admin.controller.js`
+
+```javascript
+const getLocationStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Obtener información del usuario y verificar que es owner
+    const userWithRoles = await UserService.getUserWithRoles(userId, req.id);
+
+    if (!userWithRoles) {
+      return ResponseService.notFound(res, 'Usuario no encontrado');
+    }
+
+    // 2. Verificar que el usuario tiene rol de owner
+    const ownerAssignments = userWithRoles.userRoleAssignments.filter(
+      assignment => assignment.role.name === 'owner'
+    );
+
+    if (ownerAssignments.length === 0) {
+      return ResponseService.forbidden(
+        res, 
+        'Acceso denegado. Se requiere rol de owner',
+        null,
+        'INSUFFICIENT_PERMISSIONS'
+      );
+    }
+
+    const ownerAssignment = ownerAssignments[0];
+    if (!ownerAssignment.restaurantId) {
+      return ResponseService.forbidden(
+        res,
+        'No se encontró un restaurante asignado para este owner',
+        null,
+        'NO_RESTAURANT_ASSIGNED'
+      );
+    }
+
+    const restaurantId = ownerAssignment.restaurantId;
+
+    // 3. Verificar el estado de configuración de ubicación y obtener datos completos
+    const isLocationSet = await RestaurantRepository.getLocationStatus(restaurantId);
+    const locationData = await RestaurantRepository.getLocationData(restaurantId);
+
+    return ResponseService.success(
+      res,
+      'Estado de ubicación obtenido exitosamente',
+      {
+        isLocationSet: isLocationSet,
+        location: locationData
+      }
+    );
+
+  } catch (error) {
+    console.error('Error obteniendo estado de ubicación:', error);
+    return ResponseService.internalError(res, 'Error interno del servidor');
+  }
+};
+```
+
+#### Ejemplo de Request
+```bash
+GET /api/restaurant/location-status
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### Ejemplo de Respuesta Exitosa (200)
+```json
+{
+    "status": "success",
+    "message": "Estado de ubicación obtenido exitosamente",
+    "timestamp": "2025-10-20T16:46:37.097Z",
+    "data": {
+        "isLocationSet": true,
+        "location": {
+            "latitude": "20.4785",
+            "longitude": "-99.2180",
+            "address": "Av. Juárez 123, Centro, Ixmiquilpan, Hidalgo"
+        }
+    }
+}
+```
+
+#### Caso: Ubicación No Configurada
+```json
+{
+    "status": "success",
+    "message": "Estado de ubicación obtenido exitosamente",
+    "timestamp": "2025-10-20T16:46:37.097Z",
+    "data": {
+        "isLocationSet": false,
+        "location": null
+    }
+}
+```
+
+#### Manejo de Errores
+
+##### Error 401 - No Autenticado
+```json
+{
+  "status": "error",
+  "message": "Token de acceso requerido",
+  "code": "MISSING_TOKEN"
+}
+```
+
+##### Error 403 - Permisos Insuficientes
+```json
+{
+  "status": "error",
+  "message": "Acceso denegado. Se requiere rol de owner",
+  "code": "INSUFFICIENT_PERMISSIONS"
+}
+```
+
+##### Error 404 - Usuario No Encontrado
+```json
+{
+  "status": "error",
+  "message": "Usuario no encontrado",
+  "code": "NOT_FOUND"
+}
+```
+
+#### Integración con Frontend (Flutter)
+
+El frontend puede usar este endpoint para obtener la ubicación del restaurante y mostrarla en el mapa:
+
+```dart
+// Ejemplo de uso en Flutter
+Future<Map<String, dynamic>?> getRestaurantLocation() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/restaurant/location-status'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['data']['isLocationSet'] == true) {
+        return data['data']['location'];
+      }
+    }
+    return null;
+  } catch (e) {
+    print('Error obteniendo ubicación del restaurante: $e');
+    return null;
+  }
+}
+```
+
+#### Características Especiales
+
+1. **Datos Completos en una Sola Petición**: 
+   - Devuelve tanto el estado (`isLocationSet`) como los datos completos (`location`)
+   - Evita múltiples peticiones al servidor
+
+2. **Formato Consistente**:
+   - Las coordenadas se devuelven como strings para evitar problemas de precisión
+   - Incluye dirección legible para mostrar al usuario
+
+3. **Seguridad**:
+   - Solo owners pueden acceder a la ubicación de su restaurante
+   - Verificación completa de roles y permisos
+
+4. **Compatibilidad con Mapas**:
+   - Formato estándar de coordenadas (latitude, longitude)
+   - Fácil integración con Google Maps, Mapbox, etc.
+
+#### Flujo de Integración con Gestión de Pedidos
+
+Para implementar la funcionalidad solicitada por el frontend, el flujo recomendado es:
+
+1. **Obtener Lista de Pedidos**: `GET /api/restaurant/orders`
+2. **Para cada pedido, obtener ubicación del restaurante**: `GET /api/restaurant/location-status`
+3. **Mostrar en el mapa**:
+   - 🔴 **Marcador rojo**: Ubicación del cliente (desde `order.address`)
+   - 🟢 **Marcador verde**: Ubicación del restaurante (desde `location-status`)
+
+#### Ejemplo de Implementación Completa
+
+```dart
+// Flutter - Servicio para gestión de pedidos con ubicación
+class OrderManagementService {
+  Future<Map<String, dynamic>> getOrderWithRestaurantLocation(String orderId) async {
+    try {
+      // 1. Obtener detalles del pedido
+      final orderResponse = await http.get(
+        Uri.parse('$baseUrl/api/restaurant/orders/$orderId'),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+      
+      if (orderResponse.statusCode != 200) {
+        throw Exception('Error obteniendo pedido');
+      }
+      
+      final orderData = json.decode(orderResponse.body);
+      final order = orderData['data']['order'];
+      
+      // 2. Obtener ubicación del restaurante
+      final locationResponse = await http.get(
+        Uri.parse('$baseUrl/api/restaurant/location-status'),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+      
+      if (locationResponse.statusCode != 200) {
+        throw Exception('Error obteniendo ubicación del restaurante');
+      }
+      
+      final locationData = json.decode(locationResponse.body);
+      final restaurantLocation = locationData['data']['location'];
+      
+      // 3. Combinar datos para el mapa
+      return {
+        'order': order,
+        'customerLocation': {
+          'latitude': double.parse(order['address']['latitude']),
+          'longitude': double.parse(order['address']['longitude']),
+          'address': order['address']['fullAddress'],
+          'markerColor': 'red'
+        },
+        'restaurantLocation': {
+          'latitude': double.parse(restaurantLocation['latitude']),
+          'longitude': double.parse(restaurantLocation['longitude']),
+          'address': restaurantLocation['address'],
+          'markerColor': 'green'
+        }
+      };
+      
+    } catch (e) {
+      print('Error obteniendo datos del pedido: $e');
+      rethrow;
+    }
+  }
+}
+```
+
+#### Estructura de Datos para el Mapa
+
+El endpoint devuelve exactamente la estructura que necesita el frontend:
+
+```json
+{
+  "isLocationSet": true,
+  "location": {
+    "latitude": "20.4785",     // ✅ Listo para Google Maps
+    "longitude": "-99.2180",   // ✅ Listo para Google Maps  
+    "address": "Av. Juárez 123, Centro, Ixmiquilpan, Hidalgo"  // ✅ Para mostrar al usuario
+  }
+}
+```
+
+#### Beneficios de esta Implementación
+
+1. **✅ Solución Completa**: El endpoint ya existe y devuelve exactamente lo que necesita el frontend
+2. **✅ Sin Cambios en Backend**: No requiere modificaciones adicionales
+3. **✅ Seguridad**: Solo el owner puede acceder a la ubicación de su restaurante
+4. **✅ Eficiencia**: Una sola petición obtiene todos los datos necesarios
+5. **✅ Compatibilidad**: Formato estándar compatible con cualquier servicio de mapas
+
+---
+
 ## 🔄 Actualización de Estado de Pedidos
 
 ### Endpoint de Actualización de Estado
@@ -905,3 +1199,49 @@ Content-Type: application/json
 6. **Logging Completo**:
    - Registra todas las transiciones de estado
    - Incluye información de usuario y contexto para auditoría
+
+---
+
+## 📋 Respuesta al Equipo de Frontend
+
+### ✅ **Solución Implementada**
+
+**¡Buenas noticias!** El endpoint que necesitan ya está implementado y funcionando. No se requieren cambios adicionales en el backend.
+
+### 🎯 **Endpoint Disponible**
+
+**GET** `/api/restaurant/location-status`
+
+Este endpoint devuelve exactamente la estructura de datos que solicitan:
+
+```json
+{
+  "status": "success",
+  "message": "Estado de ubicación obtenido exitosamente",
+  "data": {
+    "isLocationSet": true,
+    "location": {
+      "latitude": "20.4785",     // ✅ Coordenada de latitud
+      "longitude": "-99.2180",   // ✅ Coordenada de longitud  
+      "address": "Av. Juárez 123, Centro, Ixmiquilpan, Hidalgo"  // ✅ Dirección legible
+    }
+  }
+}
+```
+
+### 🗺️ **Implementación en el Mapa**
+
+Con este endpoint pueden implementar fácilmente:
+
+1. **🔴 Marcador rojo**: Ubicación del cliente (desde `order.address`)
+2. **🟢 Marcador verde**: Ubicación del restaurante (desde `/location-status`)
+
+### 🚀 **Próximos Pasos**
+
+1. **Probar el endpoint** con el token de owner
+2. **Integrar con Google Maps** usando las coordenadas proporcionadas
+3. **Mostrar ambos marcadores** en la pestaña "Ubicación" del pedido
+
+### 📞 **Soporte**
+
+Si necesitan ayuda con la integración o tienen alguna pregunta sobre el endpoint, pueden contactar al equipo de backend. ¡El endpoint está listo para usar!
