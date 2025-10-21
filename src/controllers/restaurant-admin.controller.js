@@ -3393,16 +3393,37 @@ const getDashboardSummary = async (req, res) => {
         }
       }),
 
-      // 3. Conteos de pedidos por estado
-      prisma.order.groupBy({
-        by: ['status'],
-        where: {
-          branch: { restaurantId: restaurantId }
-        },
-        _count: {
-          id: true
-        }
-      }),
+      // 3. Conteos de pedidos por estado - usando consultas separadas para evitar ambigüedad
+      Promise.all([
+        prisma.order.count({
+          where: {
+            branch: { restaurantId: restaurantId },
+            status: 'pending'
+          }
+        }),
+        prisma.order.count({
+          where: {
+            branch: { restaurantId: restaurantId },
+            status: 'preparing'
+          }
+        }),
+        prisma.order.count({
+          where: {
+            branch: { restaurantId: restaurantId },
+            status: 'ready_for_pickup'
+          }
+        }),
+        prisma.order.count({
+          where: {
+            branch: { restaurantId: restaurantId },
+            status: 'delivered',
+            orderDeliveredAt: {
+              gte: startOfToday,
+              lt: endOfToday
+            }
+          }
+        })
+      ]),
 
       // 4. Conteo de productos activos
       prisma.product.count({
@@ -3442,11 +3463,8 @@ const getDashboardSummary = async (req, res) => {
       })
     ]);
 
-    // Procesar conteos de pedidos
-    const orderCountsMap = {};
-    orderCounts.forEach(item => {
-      orderCountsMap[item.status] = item._count.id;
-    });
+    // Procesar conteos de pedidos - ahora es un array de conteos
+    const [pendingCount, preparingCount, readyForPickupCount, deliveredTodayCount] = orderCounts;
 
     // Determinar estado del restaurante
     const currentHour = today.getHours();
@@ -3489,10 +3507,10 @@ const getDashboardSummary = async (req, res) => {
         todayEarnings: Number(todayEarnings._sum.restaurantPayout || 0)
       },
       operations: {
-        pendingOrdersCount: orderCountsMap.pending || 0,
-        preparingOrdersCount: orderCountsMap.preparing || 0,
-        readyForPickupCount: orderCountsMap.ready_for_pickup || 0,
-        deliveredTodayCount: orderCountsMap.delivered || 0
+        pendingOrdersCount: pendingCount || 0,
+        preparingOrdersCount: preparingCount || 0,
+        readyForPickupCount: readyForPickupCount || 0,
+        deliveredTodayCount: deliveredTodayCount || 0
       },
       storeStatus: {
         isOpen: isOpen,

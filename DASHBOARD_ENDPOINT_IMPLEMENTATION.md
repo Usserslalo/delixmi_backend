@@ -180,9 +180,12 @@ node test-dashboard-endpoint.js
 ## 🔧 **CORRECCIÓN APLICADA**
 
 ### **Problema Identificado**
-Error en consultas Prisma: Los modelos `Product` y `Subcategory` tienen relación directa con `restaurantId`, no a través de `branch`.
+1. **Error en consultas Prisma**: Los modelos `Product` y `Subcategory` tienen relación directa con `restaurantId`, no a través de `branch`.
+2. **Error de columna ambigua**: La consulta `groupBy` causaba ambigüedad en la columna `id`.
 
 ### **Solución Implementada**
+
+#### **Corrección 1: Consultas de productos y subcategorías**
 ```javascript
 // ❌ ANTES (incorrecto)
 prisma.product.count({
@@ -201,8 +204,26 @@ prisma.product.count({
 })
 ```
 
+#### **Corrección 2: Consulta groupBy ambigua**
+```javascript
+// ❌ ANTES (problemático)
+prisma.order.groupBy({
+  by: ['status'],
+  where: { branch: { restaurantId: restaurantId } },
+  _count: { id: true }  // Causa ambigüedad
+})
+
+// ✅ DESPUÉS (corregido)
+Promise.all([
+  prisma.order.count({ where: { branch: { restaurantId }, status: 'pending' } }),
+  prisma.order.count({ where: { branch: { restaurantId }, status: 'preparing' } }),
+  prisma.order.count({ where: { branch: { restaurantId }, status: 'ready_for_pickup' } }),
+  prisma.order.count({ where: { branch: { restaurantId }, status: 'delivered' } })
+])
+```
+
 ### **Archivos Corregidos**
-- `src/controllers/restaurant-admin.controller.js` - Consultas de productos y subcategorías
+- `src/controllers/restaurant-admin.controller.js` - Consultas de productos, subcategorías y conteos de pedidos
 
 ## ✅ **VERIFICACIÓN DE IMPLEMENTACIÓN**
 

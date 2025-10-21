@@ -48,6 +48,8 @@ async function testDashboardFix() {
       // Verificar si es el mismo error de Prisma
       if (error.response.data.message && error.response.data.message.includes('Unknown argument `branch`')) {
         console.log('\n⚠️  El error de Prisma aún persiste. Revisar consultas.');
+      } else if (error.response.data.message && error.response.data.message.includes('Column \'id\' in field list is ambiguous')) {
+        console.log('\n⚠️  Error de columna ambigua aún persiste. Revisar consultas groupBy.');
       }
     } else if (error.request) {
       console.error('No se recibió respuesta del servidor');
