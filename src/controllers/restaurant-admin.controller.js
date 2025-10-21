@@ -3407,7 +3407,7 @@ const getDashboardSummary = async (req, res) => {
       // 4. Conteo de productos activos
       prisma.product.count({
         where: {
-          branch: { restaurantId: restaurantId },
+          restaurantId: restaurantId,
           isAvailable: true
         }
       }),
@@ -3424,7 +3424,7 @@ const getDashboardSummary = async (req, res) => {
       // 6. Conteo de categorías
       prisma.subcategory.count({
         where: {
-          branch: { restaurantId: restaurantId }
+          restaurantId: restaurantId
         }
       }),
 

@@ -177,6 +177,33 @@ node test-dashboard-endpoint.js
 
 ---
 
+## 🔧 **CORRECCIÓN APLICADA**
+
+### **Problema Identificado**
+Error en consultas Prisma: Los modelos `Product` y `Subcategory` tienen relación directa con `restaurantId`, no a través de `branch`.
+
+### **Solución Implementada**
+```javascript
+// ❌ ANTES (incorrecto)
+prisma.product.count({
+  where: {
+    branch: { restaurantId: restaurantId },  // Error: branch no existe
+    isAvailable: true
+  }
+})
+
+// ✅ DESPUÉS (corregido)
+prisma.product.count({
+  where: {
+    restaurantId: restaurantId,  // Relación directa
+    isAvailable: true
+  }
+})
+```
+
+### **Archivos Corregidos**
+- `src/controllers/restaurant-admin.controller.js` - Consultas de productos y subcategorías
+
 ## ✅ **VERIFICACIÓN DE IMPLEMENTACIÓN**
 
 - ✅ **Estructura JSON v1.0** exacta
@@ -185,6 +212,7 @@ node test-dashboard-endpoint.js
 - ✅ **Manejo de errores** robusto
 - ✅ **Logging** completo
 - ✅ **Documentación** detallada
+- ✅ **Consultas Prisma** corregidas
 
 ---
 
