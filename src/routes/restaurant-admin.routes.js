@@ -12,7 +12,7 @@ const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updat
 const { updateBranchDetailsSchema } = require('../validations/branch.validation');
 const { orderQuerySchema, orderParamsSchema, updateOrderStatusSchema } = require('../validations/order.validation');
 const { OrderStatus } = require('@prisma/client');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee, getRestaurantWallet, getRestaurantWalletTransactions, getRestaurantEarningsSummary } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee, getRestaurantWallet, getRestaurantWalletTransactions, getRestaurantEarningsSummary, getDashboardSummary } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -556,6 +556,18 @@ router.get('/metrics/earnings',
   requireRestaurantLocation,
   validateQuery(metricsQuerySchema),
   getRestaurantEarningsSummary
+);
+
+/**
+ * @route   GET /api/restaurant/metrics/dashboard-summary
+ * @desc    Obtener resumen completo del dashboard del restaurante (Endpoint "cerebro")
+ * @access  Private (Owner Only)
+ * @note    Consolida todas las métricas en una sola llamada eficiente para optimizar el frontend
+ */
+router.get('/metrics/dashboard-summary',
+  requireRole(['owner']),
+  requireRestaurantLocation,
+  getDashboardSummary
 );
 
 /**

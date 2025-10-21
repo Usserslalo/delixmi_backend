@@ -3316,6 +3316,239 @@ const getRestaurantEarningsSummary = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene el resumen completo del dashboard del restaurante
+ * Endpoint "cerebro" que consolida todas las métricas en una sola llamada eficiente
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+const getDashboardSummary = async (req, res) => {
+  try {
+    const ownerUserId = req.user.id;
+    const requestId = req.id || 'unknown';
+    
+    logger.info('Obteniendo resumen del dashboard', { 
+      requestId, 
+      ownerUserId 
+    });
+
+    // Obtener restaurantId del usuario
+    const restaurantId = await UserService.getRestaurantIdByOwnerId(ownerUserId, requestId);
+    if (!restaurantId) {
+      return ResponseService.error(
+        res,
+        'Restaurante no encontrado para este propietario',
+        null,
+        404,
+        'RESTAURANT_NOT_FOUND'
+      );
+    }
+
+    // Obtener sucursal principal para operaciones
+    const primaryBranch = await BranchRepository.findPrimaryBranchByRestaurantId(restaurantId);
+    if (!primaryBranch) {
+      return ResponseService.error(
+        res,
+        'Sucursal principal no encontrada',
+        null,
+        404,
+        'PRIMARY_BRANCH_NOT_FOUND'
+      );
+    }
+
+    // Fechas para filtros de "hoy"
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+    // Ejecutar todas las consultas en paralelo para máxima eficiencia
+    const [
+      walletData,
+      todayEarnings,
+      orderCounts,
+      productCount,
+      employeeCount,
+      categoryCount,
+      scheduleData
+    ] = await Promise.all([
+      // 1. Datos financieros - Billetera
+      prisma.restaurantWallet.findUnique({
+        where: { restaurantId: restaurantId },
+        select: { balance: true }
+      }),
+
+      // 2. Ganancias de hoy
+      prisma.order.aggregate({
+        where: {
+          branch: { restaurantId: restaurantId },
+          status: 'delivered',
+          orderDeliveredAt: {
+            gte: startOfToday,
+            lt: endOfToday
+          }
+        },
+        _sum: {
+          restaurantPayout: true,
+          subtotal: true
+        }
+      }),
+
+      // 3. Conteos de pedidos por estado
+      prisma.order.groupBy({
+        by: ['status'],
+        where: {
+          branch: { restaurantId: restaurantId }
+        },
+        _count: {
+          id: true
+        }
+      }),
+
+      // 4. Conteo de productos activos
+      prisma.product.count({
+        where: {
+          branch: { restaurantId: restaurantId },
+          isAvailable: true
+        }
+      }),
+
+      // 5. Conteo de empleados activos
+      prisma.userRoleAssignment.count({
+        where: {
+          restaurantId: restaurantId,
+          user: { status: 'active' },
+          role: { name: { in: ['branch_manager', 'order_manager', 'kitchen_staff'] } }
+        }
+      }),
+
+      // 6. Conteo de categorías
+      prisma.subcategory.count({
+        where: {
+          branch: { restaurantId: restaurantId }
+        }
+      }),
+
+      // 7. Horarios de la sucursal
+      prisma.branchSchedule.findFirst({
+        where: {
+          branchId: primaryBranch.id,
+          dayOfWeek: today.getDay() // 0 = Domingo, 1 = Lunes, etc.
+        },
+        select: {
+          isClosed: true,
+          openingTime: true,
+          closingTime: true
+        }
+      })
+    ]);
+
+    // Procesar conteos de pedidos
+    const orderCountsMap = {};
+    orderCounts.forEach(item => {
+      orderCountsMap[item.status] = item._count.id;
+    });
+
+    // Determinar estado del restaurante
+    const currentHour = today.getHours();
+    const currentMinute = today.getMinutes();
+    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+    
+    let isOpen = false;
+    let nextOpeningTime = null;
+    let nextClosingTime = null;
+    let currentDaySchedule = null;
+
+    if (scheduleData) {
+      if (scheduleData.isClosed) {
+        isOpen = false;
+        nextOpeningTime = "Mañana";
+      } else {
+        const openingTime = scheduleData.openingTime;
+        const closingTime = scheduleData.closingTime;
+        
+        isOpen = currentTime >= openingTime && currentTime < closingTime;
+        nextClosingTime = closingTime;
+        
+        if (!isOpen && currentTime < openingTime) {
+          nextOpeningTime = openingTime;
+        }
+        
+        currentDaySchedule = {
+          day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][today.getDay()],
+          opening: openingTime,
+          closing: closingTime
+        };
+      }
+    }
+
+    // Construir respuesta según estructura v1.0 requerida
+    const dashboardData = {
+      financials: {
+        walletBalance: walletData ? Number(walletData.balance) : 0,
+        todaySales: Number(todayEarnings._sum.subtotal || 0),
+        todayEarnings: Number(todayEarnings._sum.restaurantPayout || 0)
+      },
+      operations: {
+        pendingOrdersCount: orderCountsMap.pending || 0,
+        preparingOrdersCount: orderCountsMap.preparing || 0,
+        readyForPickupCount: orderCountsMap.ready_for_pickup || 0,
+        deliveredTodayCount: orderCountsMap.delivered || 0
+      },
+      storeStatus: {
+        isOpen: isOpen,
+        nextOpeningTime: nextOpeningTime,
+        nextClosingTime: nextClosingTime,
+        currentDaySchedule: currentDaySchedule
+      },
+      quickStats: {
+        activeProductsCount: productCount,
+        activeEmployeesCount: employeeCount,
+        totalCategories: categoryCount
+      }
+    };
+
+    logger.info('Resumen del dashboard obtenido exitosamente', {
+      requestId,
+      restaurantId,
+      financials: dashboardData.financials,
+      operations: dashboardData.operations
+    });
+
+    return ResponseService.success(
+      res,
+      'Resumen del dashboard obtenido exitosamente',
+      dashboardData,
+      200
+    );
+
+  } catch (error) {
+    logger.error('Error en getDashboardSummary', {
+      requestId: req.id || 'unknown',
+      ownerUserId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
+
+    if (error.status) {
+      return ResponseService.error(
+        res,
+        error.message,
+        error.details || null,
+        error.status,
+        error.code
+      );
+    }
+    
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      null,
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -3348,6 +3581,7 @@ module.exports = {
   updateEmployee,
   getRestaurantWallet,
   getRestaurantWalletTransactions,
-  getRestaurantEarningsSummary
+  getRestaurantEarningsSummary,
+  getDashboardSummary
 };
 
