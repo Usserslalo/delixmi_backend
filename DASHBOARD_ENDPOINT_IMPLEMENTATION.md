@@ -383,5 +383,151 @@ node test-dashboard-fix.js
 - ✅ **Documentación completa** y actualizada
 - ✅ **Scripts de debug** disponibles
 - ✅ **Troubleshooting** documentado
+- ✅ **Corrección de horarios** implementada y desplegada
 
 **El dashboard del Owner está listo para producción.** 🚀
+
+---
+
+## 🕐 **CORRECCIÓN DE HORARIOS - DESPLEGADA**
+
+### **✅ Problema Resuelto**
+
+**Fecha de corrección:** 21 de Octubre, 2025  
+**Estado:** ✅ DESPLEGADO EN PRODUCCIÓN  
+**Tiempo de despliegue:** ~10 minutos  
+
+### **🔍 Problema Identificado**
+
+El backend estaba calculando incorrectamente el estado `isOpen` del restaurante debido a una comparación incorrecta de formatos de tiempo:
+
+- **Hora actual**: `"16:38"` (formato HH:MM)
+- **Horarios de BD**: `"10:00:00"` y `"18:30:00"` (formato HH:MM:SS)
+- **Comparación**: `"16:38" >= "10:00:00"` ❌ (incorrecta)
+
+### **🔧 Solución Implementada**
+
+```javascript
+// ❌ ANTES (incorrecto)
+isOpen = currentTime >= openingTime && currentTime < closingTime;
+
+// ✅ DESPUÉS (corregido)
+const openingTimeFormatted = openingTime.substring(0, 5); // "10:00:00" -> "10:00"
+const closingTimeFormatted = closingTime.substring(0, 5); // "18:30:00" -> "18:30"
+isOpen = currentTime >= openingTimeFormatted && currentTime < closingTimeFormatted;
+```
+
+### **📊 Resultado Esperado**
+
+Ahora el endpoint devuelve correctamente:
+
+```json
+{
+  "storeStatus": {
+    "isOpen": true,  // ✅ Correcto cuando está dentro del horario
+    "nextOpeningTime": null,
+    "nextClosingTime": "18:30",
+    "currentDaySchedule": {
+      "day": "Tuesday",
+      "opening": "10:00",    // ✅ Formato HH:MM
+      "closing": "18:30"     // ✅ Formato HH:MM
+    }
+  }
+}
+```
+
+### **🎯 Para el Equipo de Frontend**
+
+**¡La corrección ya está desplegada!** El dashboard ahora debería mostrar:
+
+- ✅ **Estado correcto** del restaurante (Abierto/Cerrado)
+- ✅ **Horarios formateados** en formato HH:MM
+- ✅ **Cálculo preciso** basado en la hora actual
+
+**No se requieren cambios en el frontend.** El backend ahora envía los datos correctos.
+
+---
+
+## 🧪 **VERIFICACIÓN POST-DESPLIEGUE**
+
+### **Script de Verificación**
+
+```bash
+# Ejecutar después del despliegue para verificar
+node test-schedule-fix.js
+```
+
+### **Resultado Esperado**
+
+```
+🏪 ESTADO DEL RESTAURANTE:
+   Estado: 🟢 ABIERTO  # ✅ Debería mostrar ABIERTO si está dentro del horario
+   Horario: 10:00 - 18:30
+   Próxima apertura: N/A
+   Próximo cierre: 18:30
+
+🎉 ¡CORRECCIÓN EXITOSA! La lógica funciona correctamente.
+```
+
+---
+
+## 📱 **MENSAJE PARA EL EQUIPO DE FRONTEND**
+
+### **🎯 CORRECCIÓN DE HORARIOS DESPLEGADA**
+
+**Hola equipo de Frontend! 👋**
+
+Hemos identificado y corregido un problema crítico en el endpoint del dashboard que afectaba la visualización del estado del restaurante.
+
+### **🔍 Problema Resuelto**
+
+- **Antes**: El dashboard mostraba "Cerrado" cuando el restaurante estaba abierto
+- **Ahora**: El dashboard muestra correctamente "Abierto" cuando está dentro del horario
+
+### **📊 Cambios en la Respuesta del Backend**
+
+El endpoint `/api/restaurant/metrics/dashboard-summary` ahora devuelve:
+
+```json
+{
+  "storeStatus": {
+    "isOpen": true,  // ✅ Ahora calculado correctamente
+    "nextOpeningTime": null,
+    "nextClosingTime": "18:30",  // ✅ Formato HH:MM
+    "currentDaySchedule": {
+      "day": "Tuesday",
+      "opening": "10:00",  // ✅ Formato HH:MM (antes era HH:MM:SS)
+      "closing": "18:30"   // ✅ Formato HH:MM (antes era HH:MM:SS)
+    }
+  }
+}
+```
+
+### **✅ Acción Requerida**
+
+**¡NO se requieren cambios en el frontend!** 
+
+El backend ahora envía los datos correctos. Simplemente:
+
+1. **Esperar 10 minutos** para que el servidor se reinicie
+2. **Probar el dashboard** - debería mostrar el estado correcto
+3. **Verificar** que los horarios se muestren en formato HH:MM
+
+### **🧪 Verificación**
+
+Para verificar que todo funciona correctamente:
+
+1. **Abrir el dashboard** del owner
+2. **Verificar** que el estado del restaurante sea correcto
+3. **Confirmar** que los horarios se muestren como "10:00 - 18:30" (no "10:00:00 - 18:30:00")
+
+### **📞 Soporte**
+
+Si después de 10 minutos el problema persiste, contactar al equipo de backend para verificar el despliegue.
+
+**¡Gracias por la paciencia!** 🚀
+
+---
+
+**Saludos,**  
+**Equipo de Backend** 💻

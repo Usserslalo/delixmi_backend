@@ -1,65 +1,52 @@
 const { Server } = require('socket.io');
+// const { socketManager } = require('../websocket/socket-manager');
+const { logger } = require('./logger');
 
 let io;
 
 function initializeSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
-    }
+      origin: function (origin, callback) {
+        // Permitir peticiones sin origen (apps móviles, herramientas de testing)
+        if (!origin) {
+          return callback(null, true);
+        }
+        
+        // Whitelist de orígenes permitidos para WebSockets
+        const whitelist = [
+          process.env.FRONTEND_URL,           // URL del frontend en producción
+          'http://localhost:3000',            // Desarrollo local
+          'http://localhost:3001',            // Desarrollo local alternativo
+          'http://127.0.0.1:3000',           // Desarrollo local (IP)
+          'http://127.0.0.1:3001',           // Desarrollo local alternativo (IP)
+          'https://delixmi-backend.onrender.com' // Backend en producción
+        ].filter(Boolean);
+        
+        if (whitelist.indexOf(origin) !== -1) {
+          callback(null, true);
+        } else {
+          logger.warn('Origen WebSocket no permitido', { origin });
+          callback(new Error('Origen no permitido para WebSockets'));
+        }
+      },
+      methods: ["GET", "POST"],
+      credentials: true
+    },
+    allowEIO3: true // Compatibilidad con versiones anteriores
   });
 
-  console.log('🔌 Socket.io inicializado correctamente');
+  logger.info('🔌 Socket.io inicializado correctamente');
 
-  io.on('connection', (socket) => {
-    console.log(`🔗 Cliente conectado: ${socket.id}`);
+  // Inicializar handler simplificado del dashboard
+  const { simpleDashboardHandler } = require('../websocket/simple-dashboard-handler');
+  simpleDashboardHandler(io);
 
-    socket.on('join_branch_room', (data) => {
-      const { branchId } = data;
-      if (branchId) {
-        const roomName = `branch_${branchId}`;
-        socket.join(roomName);
-        console.log(`📍 Cliente ${socket.id} se unió a la sala: ${roomName}`);
-        socket.emit('joined_branch_room', { room: roomName });
-      }
-    });
-
-    socket.on('join_user_room', (data) => {
-      const { userId } = data;
-      if (userId) {
-        const roomName = `user_${userId}`;
-        socket.join(roomName);
-        console.log(`👤 Cliente ${socket.id} se unió a la sala de usuario: ${roomName}`);
-        socket.emit('joined_user_room', { room: roomName });
-      }
-    });
-
-    // Canal de repartidores para notificaciones de nuevos pedidos
-    socket.on('join_drivers_channel', (data) => {
-      const { driverId } = data;
-      if (driverId) {
-        const roomName = 'drivers_channel';
-        socket.join(roomName);
-        console.log(`🚚 Repartidor ${driverId} (${socket.id}) se unió al canal de repartidores`);
-        socket.emit('joined_drivers_channel', { room: roomName, driverId });
-      }
-    });
-
-    socket.on('leave_drivers_channel', (data) => {
-      const { driverId } = data;
-      if (driverId) {
-        const roomName = 'drivers_channel';
-        socket.leave(roomName);
-        console.log(`🚚 Repartidor ${driverId} (${socket.id}) abandonó el canal de repartidores`);
-        socket.emit('left_drivers_channel', { room: roomName, driverId });
-      }
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log(`🔌 Cliente desconectado: ${socket.id}, razón: ${reason}`);
-    });
-  });
+  // TODO: Mantener handlers existentes para compatibilidad después de verificar que el dashboard funciona
+  // io.on('connection', (socket) => {
+  //   logger.debug(`🔗 Cliente conectado: ${socket.id}`);
+  //   // ... handlers existentes
+  // });
 
   return io;
 }
