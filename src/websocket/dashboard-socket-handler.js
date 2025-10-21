@@ -39,6 +39,7 @@ const dashboardSocketHandler = (io) => {
   logger.info('Inicializando handler de WebSockets para Dashboard del Owner');
 
   // El middleware de autenticación se aplica globalmente en socket.js
+  // Los datos del usuario ya están disponibles en el socket después de la autenticación
 
   io.on('connection', (socket) => {
     const { userId, userEmail, userName, restaurantId, requestId } = socket;

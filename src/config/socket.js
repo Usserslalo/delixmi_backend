@@ -38,9 +38,13 @@ function initializeSocket(httpServer) {
 
   logger.info('🔌 Socket.io inicializado correctamente');
 
-  // Inicializar handler simplificado del dashboard
-  const { simpleDashboardHandler } = require('../websocket/simple-dashboard-handler');
-  simpleDashboardHandler(io);
+  // Aplicar middleware de autenticación para dashboard del owner
+  const { authenticateSocket } = require('../middleware/socket-auth.middleware');
+  io.use(authenticateSocket);
+
+  // Inicializar handler del dashboard con autenticación
+  const { dashboardSocketHandler } = require('../websocket/dashboard-socket-handler');
+  dashboardSocketHandler(io);
 
   // TODO: Mantener handlers existentes para compatibilidad después de verificar que el dashboard funciona
   // io.on('connection', (socket) => {
