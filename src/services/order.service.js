@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { logger } = require('../config/logger');
+const { socketManager } = require('../websocket/socket-manager');
 
 const prisma = new PrismaClient();
 
@@ -251,6 +252,92 @@ class OrderService {
           itemsCount: completeOrder.orderItems.length
         }
       });
+
+      // Emitir evento NEW_ORDER_PENDING a los owners del restaurante
+      try {
+        const restaurantId = completeOrder.branch.restaurant.id;
+        
+        // Preparar datos del evento
+        const orderEventData = {
+          orderId: completeOrder.id,
+          orderNumber: `#${completeOrder.id.toString().padStart(6, '0')}`,
+          customer: {
+            id: completeOrder.customer.id,
+            name: `${completeOrder.customer.name} ${completeOrder.customer.lastname}`,
+            email: completeOrder.customer.email,
+            phone: completeOrder.customer.phone
+          },
+          restaurant: {
+            id: completeOrder.branch.restaurant.id,
+            name: completeOrder.branch.restaurant.name,
+            logoUrl: completeOrder.branch.restaurant.logoUrl
+          },
+          branch: {
+            id: completeOrder.branch.id,
+            name: completeOrder.branch.name
+          },
+          address: {
+            alias: completeOrder.address.alias,
+            fullAddress: `${completeOrder.address.street} ${completeOrder.address.exteriorNumber}${completeOrder.address.interiorNumber ? ` Int. ${completeOrder.address.interiorNumber}` : ''}, ${completeOrder.address.neighborhood}, ${completeOrder.address.city}, ${completeOrder.address.state} ${completeOrder.address.zipCode}`,
+            references: completeOrder.address.references
+          },
+          orderItems: completeOrder.orderItems.map(item => ({
+            id: item.id,
+            productName: item.product.name,
+            quantity: item.quantity,
+            pricePerUnit: Number(item.pricePerUnit),
+            total: Number(item.pricePerUnit) * item.quantity,
+            modifiers: item.modifiers.map(mod => ({
+              groupName: mod.modifierOption.modifierGroup.name,
+              optionName: mod.modifierOption.name,
+              price: Number(mod.modifierOption.price)
+            }))
+          })),
+          pricing: {
+            subtotal: Number(completeOrder.subtotal),
+            deliveryFee: Number(completeOrder.deliveryFee),
+            serviceFee: Number(completeOrder.platformFee),
+            total: Number(completeOrder.total),
+            restaurantPayout: Number(completeOrder.restaurantPayout)
+          },
+          payment: {
+            method: completeOrder.paymentMethod,
+            status: 'pending'
+          },
+          specialInstructions: completeOrder.specialInstructions,
+          status: completeOrder.status,
+          orderPlacedAt: completeOrder.orderPlacedAt,
+          timestamp: new Date().toISOString()
+        };
+
+        // Emitir evento al room del restaurante
+        socketManager.emitToRestaurant(restaurantId, 'NEW_ORDER_PENDING', orderEventData);
+
+        logger.info('Evento NEW_ORDER_PENDING emitido exitosamente', {
+          requestId,
+          meta: {
+            orderId: completeOrder.id,
+            restaurantId,
+            eventData: {
+              orderNumber: orderEventData.orderNumber,
+              customerName: orderEventData.customer.name,
+              total: orderEventData.pricing.total,
+              itemsCount: orderEventData.orderItems.length
+            }
+          }
+        });
+
+      } catch (socketError) {
+        // No fallar la creación de la orden si hay error en WebSocket
+        logger.error('Error emitiendo evento NEW_ORDER_PENDING', {
+          requestId,
+          meta: {
+            orderId: completeOrder.id,
+            error: socketError.message,
+            stack: socketError.stack
+          }
+        });
+      }
 
       return completeOrder;
 
