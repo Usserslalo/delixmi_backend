@@ -157,8 +157,8 @@ Obtiene el historial de transacciones de la billetera del restaurante con pagina
 |-----------|------|-----------|-------------|---------|
 | `page` | Number | No | Número de página (default: 1) | `1` |
 | `pageSize` | Number | No | Tamaño de página (default: 10, max: 50) | `20` |
-| `dateFrom` | String | No | Fecha de inicio (ISO datetime) | `2025-01-01T00:00:00Z` |
-| `dateTo` | String | No | Fecha de fin (ISO datetime) | `2025-01-31T23:59:59Z` |
+| `dateFrom` | String | No | Fecha de inicio (filtra por `createdAt` de transacciones) | `2025-01-01T00:00:00Z` |
+| `dateTo` | String | No | Fecha de fin (filtra por `createdAt` de transacciones) | `2025-01-31T23:59:59Z` |
 
 #### Middlewares Aplicados
 1. **Autenticación** (`authenticateToken`)
@@ -187,76 +187,98 @@ const metricsQuerySchema = z.object({
 });
 ```
 
-#### Lógica del Repositorio
+#### Lógica del Repositorio (Implementación Real)
 ```javascript
 static async getWalletTransactions(restaurantId, filters, requestId) {
-  const { page = 1, pageSize = 10, dateFrom, dateTo } = filters;
-  const skip = (page - 1) * pageSize;
-  
-  // Construir filtros de fecha
-  const whereClause = {
-    restaurantWallet: { restaurantId },
-    ...(dateFrom && dateTo && {
-      createdAt: {
-        gte: new Date(dateFrom),
-        lte: new Date(dateTo)
+  try {
+    const wallet = await prisma.restaurantWallet.findUnique({
+      where: { restaurantId: restaurantId }
+    });
+
+    if (!wallet) {
+      throw {
+        status: 404,
+        message: 'Billetera no encontrada',
+        code: 'WALLET_NOT_FOUND'
+      };
+    }
+
+    // Construir filtros de fecha
+    let dateFilter = {};
+    if (filters.dateFrom || filters.dateTo) {
+      dateFilter.createdAt = {};
+      if (filters.dateFrom) {
+        dateFilter.createdAt.gte = new Date(filters.dateFrom);
       }
-    })
-  };
-  
-  // Ejecutar consultas en paralelo
-  const [transactions, totalCount] = await Promise.all([
-    prisma.restaurantWalletTransaction.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: pageSize,
-      include: {
-        order: {
-          select: { 
-            id: true, 
-            total: true, 
-            status: true,
-            restaurantPayout: true,
-            paymentMethod: true
+      if (filters.dateTo) {
+        dateFilter.createdAt.lte = new Date(filters.dateTo);
+      }
+    }
+
+    const where = {
+      walletId: wallet.id,
+      ...dateFilter
+    };
+
+    const skip = (filters.page - 1) * filters.pageSize;
+    const take = filters.pageSize;
+
+    const [transactions, totalCount] = await prisma.$transaction([
+      prisma.restaurantWalletTransaction.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          order: {
+            select: {
+              id: true,
+              status: true,
+              total: true
+            }
           }
         }
+      }),
+      prisma.restaurantWalletTransaction.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / filters.pageSize);
+
+    return {
+      transactions: transactions.map(tx => ({
+        id: tx.id.toString(),
+        type: tx.type,
+        amount: Number(tx.amount),
+        balanceAfter: Number(tx.balanceAfter),
+        description: tx.description,
+        createdAt: tx.createdAt,
+        order: tx.order ? {
+          id: tx.order.id.toString(),
+          status: tx.order.status,
+          total: Number(tx.order.total)
+        } : null
+      })),
+      pagination: {
+        currentPage: filters.page,
+        pageSize: filters.pageSize,
+        totalCount,
+        totalPages,
+        hasNextPage: filters.page < totalPages,
+        hasPreviousPage: filters.page > 1
       }
-    }),
-    prisma.restaurantWalletTransaction.count({ where: whereClause })
-  ]);
-  
-  // Formatear transacciones (convertir Decimal a Number)
-  const formattedTransactions = transactions.map(t => ({
-    id: t.id,
-    amount: Number(t.amount),
-    type: t.type,
-    description: t.description,
-    orderId: t.orderId,
-    createdAt: t.createdAt,
-    order: t.order ? {
-      id: t.order.id.toString(),
-      total: Number(t.order.total),
-      restaurantPayout: Number(t.order.restaurantPayout || 0),
-      status: t.order.status,
-      paymentMethod: t.order.paymentMethod
-    } : null
-  }));
-  
-  // Calcular metadatos de paginación
-  const totalPages = Math.ceil(totalCount / pageSize);
-  
-  return {
-    transactions: formattedTransactions,
-    pagination: {
-      currentPage: page,
-      pageSize,
-      totalCount,
-      totalPages,
-      hasNextPage: page < totalPages,
-      hasPreviousPage: page > 1
+    };
+
+  } catch (error) {
+    if (error.status) {
+      throw error;
     }
-  };
+
+    throw {
+      status: 500,
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    };
+  }
 }
 ```
 
@@ -312,8 +334,8 @@ Obtiene un resumen consolidado de las ganancias del restaurante en un período e
 #### Parámetros de Consulta
 | Parámetro | Tipo | Requerido | Descripción | Ejemplo |
 |-----------|------|-----------|-------------|---------|
-| `dateFrom` | String | No | Fecha de inicio (ISO datetime) | `2025-01-01T00:00:00Z` |
-| `dateTo` | String | No | Fecha de fin (ISO datetime) | `2025-01-31T23:59:59Z` |
+| `dateFrom` | String | No | Fecha de inicio del período (filtra por `orderDeliveredAt`) | `2025-01-01T00:00:00Z` |
+| `dateTo` | String | No | Fecha de fin del período (filtra por `orderDeliveredAt`) | `2025-01-31T23:59:59Z` |
 
 #### Middlewares Aplicados
 1. **Autenticación** (`authenticateToken`)
@@ -321,79 +343,67 @@ Obtiene un resumen consolidado de las ganancias del restaurante en un período e
 3. **Verificación de Ubicación** (`requireRestaurantLocation`)
 4. **Validación de Query** (`validateQuery(metricsQuerySchema)`)
 
-#### Lógica del Repositorio
+#### Lógica del Repositorio (Implementación Real)
 ```javascript
 static async getEarningsSummary(restaurantId, dateFrom, dateTo, requestId) {
-  // Construir filtros de fecha
-  const dateFilter = {};
-  if (dateFrom && dateTo) {
-    dateFilter.createdAt = {
-      gte: new Date(dateFrom),
-      lte: new Date(dateTo)
+  try {
+    // Construir filtros de fecha para las órdenes entregadas
+    let dateFilter = {};
+    if (dateFrom || dateTo) {
+      dateFilter.orderDeliveredAt = {};
+      if (dateFrom) {
+        dateFilter.orderDeliveredAt.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        dateFilter.orderDeliveredAt.lte = new Date(dateTo);
+      }
+    }
+
+    const where = {
+      branch: {
+        restaurantId: restaurantId
+      },
+      status: 'delivered',
+      ...dateFilter
+    };
+
+    const [orderStats] = await prisma.$transaction([
+      prisma.order.aggregate({
+        where,
+        _sum: {
+          restaurantPayout: true,
+          subtotal: true
+        },
+        _count: {
+          id: true
+        }
+      })
+    ]);
+
+    return {
+      totalEarnings: Number(orderStats._sum.restaurantPayout || 0),
+      totalRevenue: Number(orderStats._sum.subtotal || 0),
+      totalOrders: orderStats._count.id,
+      averageEarningPerOrder: orderStats._count.id > 0 
+        ? Number(orderStats._sum.restaurantPayout || 0) / orderStats._count.id 
+        : 0,
+      period: {
+        from: dateFrom || null,
+        to: dateTo || null
+      }
+    };
+
+  } catch (error) {
+    if (error.status) {
+      throw error;
+    }
+
+    throw {
+      status: 500,
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
     };
   }
-  
-  // Agregar filtro de restaurante
-  const whereClause = {
-    restaurantWallet: { restaurantId },
-    ...dateFilter
-  };
-  
-  // Obtener estadísticas agregadas de transacciones
-  const [totalEarnings, transactionCount, ordersCount, totalRevenue] = await Promise.all([
-    prisma.restaurantWalletTransaction.aggregate({
-      where: { ...whereClause, type: 'earning' },
-      _sum: { amount: true },
-      _count: true
-    }),
-    prisma.restaurantWalletTransaction.count({ where: whereClause }),
-    prisma.order.count({
-      where: {
-        branch: { restaurantId },
-        status: 'delivered',
-        ...(dateFrom && dateTo && {
-          orderDeliveredAt: {
-            gte: new Date(dateFrom),
-            lte: new Date(dateTo)
-          }
-        })
-      }
-    }),
-    prisma.order.aggregate({
-      where: {
-        branch: { restaurantId },
-        status: 'delivered',
-        ...(dateFrom && dateTo && {
-          orderDeliveredAt: {
-            gte: new Date(dateFrom),
-            lte: new Date(dateTo)
-          }
-        })
-      },
-      _sum: { restaurantPayout: true }
-    })
-  ]);
-  
-  const earnings = Number(totalEarnings._sum.amount || 0);
-  const revenue = Number(totalRevenue._sum.restaurantPayout || 0);
-  
-  return {
-    period: {
-      from: dateFrom || null,
-      to: dateTo || null
-    },
-    summary: {
-      totalEarnings: earnings,
-      totalRevenue: revenue,
-      ordersDelivered: ordersCount,
-      transactionsCount: transactionCount,
-      averageOrderValue: ordersCount > 0 ? revenue / ordersCount : 0
-    },
-    breakdown: {
-      earningsCount: totalEarnings._count || 0,
-      earningsPercentage: revenue > 0 ? (earnings / revenue) * 100 : 0
-    }
-  };
 }
 ```
 
@@ -403,20 +413,54 @@ GET /api/restaurant/metrics/earnings?dateFrom=2025-01-01T00:00:00Z&dateTo=2025-0
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-#### Ejemplo de Respuesta Exitosa (200)
+#### Ejemplo de Respuesta Exitosa (200) *(Estructura Real del Backend)*
 ```json
 {
   "status": "success",
   "message": "Resumen de ganancias obtenido exitosamente",
   "timestamp": "2025-01-27T10:30:00.000Z",
   "data": {
+    "totalEarnings": 726.25,
+    "totalRevenue": 830.00,
+    "totalOrders": 2,
+    "averageEarningPerOrder": 363.125,
     "period": {
       "from": "2025-01-01T00:00:00.000Z",
       "to": "2025-01-31T23:59:59.000Z"
-    },
+    }
+  }
+}
+```
+
+#### Campos de la Respuesta
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `totalEarnings` | Number | Total de ganancias del restaurante (restaurantPayout sumado) |
+| `totalRevenue` | Number | Ingresos totales (subtotal de órdenes entregadas) |
+| `totalOrders` | Number | Cantidad total de órdenes entregadas |
+| `averageEarningPerOrder` | Number | Ganancias promedio por orden entregada |
+| `period.from` | String\|null | Fecha de inicio del período (ISO datetime) |
+| `period.to` | String\|null | Fecha de fin del período (ISO datetime) |
+
+---
+
+## ⚠️ **CAMBIOS IMPORTANTES - ACTUALIZACIÓN DE DOCUMENTACIÓN**
+
+### **Problemas Identificados y Corregidos**
+
+La documentación ha sido actualizada para reflejar la **implementación real del backend** después de identificar discrepancias importantes:
+
+#### **1. Endpoint `/metrics/earnings` - ESTRUCTURA CORREGIDA**
+
+**❌ Estructura Documentada Anterior (INCORRECTA):**
+```json
+{
+  "data": {
+    "period": {...},
     "summary": {
-      "totalEarnings": 2450.80,
-      "totalRevenue": 2800.00,
+      "totalEarnings": 726.25,
+      "totalRevenue": 830,
       "ordersDelivered": 25,
       "transactionsCount": 28,
       "averageOrderValue": 112.00
@@ -428,6 +472,36 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
   }
 }
 ```
+
+**✅ Estructura Real del Backend (CORREGIDA):**
+```json
+{
+  "data": {
+    "totalEarnings": 726.25,
+    "totalRevenue": 830.00,
+    "totalOrders": 2,
+    "averageEarningPerOrder": 363.125,
+    "period": {
+      "from": "2025-01-01T00:00:00.000Z",
+      "to": "2025-01-31T23:59:59.000Z"
+    }
+  }
+}
+```
+
+#### **2. Filtros de Fecha - COMPORTAMIENTO CORREGIDO**
+
+- **`/wallet/transactions`**: Filtra por `createdAt` de transacciones
+- **`/metrics/earnings`**: Filtra por `orderDeliveredAt` de órdenes entregadas
+
+#### **3. Campos de Respuesta Actualizados**
+
+| Campo Anterior | Campo Real | Descripción |
+|---------------|------------|-------------|
+| `summary.ordersDelivered` | `totalOrders` | Cantidad de órdenes entregadas |
+| `summary.averageOrderValue` | `averageEarningPerOrder` | Ganancias promedio por orden |
+| ❌ `breakdown.earningsCount` | ✅ No incluido | Campo no disponible en respuesta real |
+| ❌ `breakdown.earningsPercentage` | ✅ No incluido | Campo no disponible en respuesta real |
 
 ---
 
