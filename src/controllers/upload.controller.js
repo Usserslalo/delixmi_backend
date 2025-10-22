@@ -2,6 +2,9 @@ const { PrismaClient } = require('@prisma/client');
 const UserService = require('../services/user.service');
 const RestaurantRepository = require('../repositories/restaurant.repository');
 const ResponseService = require('../services/response.service');
+const { verifyFileExists } = require('../utils/fileVerifier');
+const path = require('path');
+const fs = require('fs');
 
 const prisma = new PrismaClient();
 
@@ -81,8 +84,40 @@ const uploadRestaurantLogo = async (req, res) => {
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
 
-    // 4. Actualizar el logoUrl en la base de datos
-    await RestaurantRepository.updateProfile(restaurantId, { logoUrl: fileUrl });
+    // --- INICIO DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+    
+    // 1. Definir la ruta base de 'uploads'
+    const uploadsPath = path.join(process.cwd(), 'public/uploads');
+    
+    // 2. Verificar el archivo ANTES de guardar en BD
+    const verifiedUrl = verifyFileExists(fileUrl, uploadsPath);
+    
+    // 3. Manejar el error si el archivo no existe
+    if (!verifiedUrl) {
+      // Loguear el error crítico
+      console.error(`Error crítico de integridad de archivo: El archivo ${req.file.filename} (URL: ${fileUrl}) no se encontró en el disco después de una subida exitosa. Revise los permisos de la carpeta 'public/uploads' y el proceso de 'multer'.`);
+      
+      // Intentar borrar el archivo huérfano si existe
+      if (req.file && req.file.path) {
+        try { 
+          fs.unlinkSync(req.file.path); 
+          console.log(`🧹 Archivo huérfano eliminado: ${req.file.path}`);
+        } catch(e) { 
+          console.error(`Fallo al limpiar archivo huérfano: ${req.file.path}`, e); 
+        }
+      }
+
+      // Devolver un error 500 al cliente
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.',
+        code: 'FILE_INTEGRITY_ERROR'
+      });
+    }
+    // --- FIN DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+
+    // 4. Actualizar el logoUrl en la base de datos (AHORA ES SEGURO)
+    await RestaurantRepository.updateProfile(restaurantId, { logoUrl: verifiedUrl });
 
     // Log para debugging
     console.log(`✅ Logo subido y actualizado en BD exitosamente:`, {
@@ -91,7 +126,7 @@ const uploadRestaurantLogo = async (req, res) => {
       filename: req.file.filename,
       originalName: req.file.originalname,
       size: req.file.size,
-      url: fileUrl,
+      url: verifiedUrl,
       baseUrl: baseUrl
     });
 
@@ -100,7 +135,7 @@ const uploadRestaurantLogo = async (req, res) => {
       status: 'success',
       message: 'Logo subido exitosamente',
       data: {
-        logoUrl: fileUrl,
+        logoUrl: verifiedUrl,
         filename: req.file.filename,
         originalName: req.file.originalname,
         size: req.file.size,
@@ -175,8 +210,40 @@ const uploadRestaurantCover = async (req, res) => {
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/covers/${req.file.filename}`;
 
-    // 4. Actualizar el coverPhotoUrl en la base de datos
-    await RestaurantRepository.updateProfile(restaurantId, { coverPhotoUrl: fileUrl });
+    // --- INICIO DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+    
+    // 1. Definir la ruta base de 'uploads'
+    const uploadsPath = path.join(process.cwd(), 'public/uploads');
+    
+    // 2. Verificar el archivo ANTES de guardar en BD
+    const verifiedUrl = verifyFileExists(fileUrl, uploadsPath);
+    
+    // 3. Manejar el error si el archivo no existe
+    if (!verifiedUrl) {
+      // Loguear el error crítico
+      console.error(`Error crítico de integridad de archivo: El archivo ${req.file.filename} (URL: ${fileUrl}) no se encontró en el disco después de una subida exitosa. Revise los permisos de la carpeta 'public/uploads' y el proceso de 'multer'.`);
+      
+      // Intentar borrar el archivo huérfano si existe
+      if (req.file && req.file.path) {
+        try { 
+          fs.unlinkSync(req.file.path); 
+          console.log(`🧹 Archivo huérfano eliminado: ${req.file.path}`);
+        } catch(e) { 
+          console.error(`Fallo al limpiar archivo huérfano: ${req.file.path}`, e); 
+        }
+      }
+
+      // Devolver un error 500 al cliente
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.',
+        code: 'FILE_INTEGRITY_ERROR'
+      });
+    }
+    // --- FIN DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+
+    // 4. Actualizar el coverPhotoUrl en la base de datos (AHORA ES SEGURO)
+    await RestaurantRepository.updateProfile(restaurantId, { coverPhotoUrl: verifiedUrl });
 
     // Log para debugging
     console.log(`✅ Cover subido y actualizado en BD exitosamente:`, {
@@ -185,7 +252,7 @@ const uploadRestaurantCover = async (req, res) => {
       filename: req.file.filename,
       originalName: req.file.originalname,
       size: req.file.size,
-      url: fileUrl,
+      url: verifiedUrl,
       baseUrl: baseUrl
     });
 
@@ -194,7 +261,7 @@ const uploadRestaurantCover = async (req, res) => {
       status: 'success',
       message: 'Foto de portada subida exitosamente',
       data: {
-        coverPhotoUrl: fileUrl,
+        coverPhotoUrl: verifiedUrl,
         filename: req.file.filename,
         originalName: req.file.originalname,
         size: req.file.size,
@@ -232,12 +299,44 @@ const uploadProductImage = async (req, res) => {
     const baseUrl = getBaseUrl(req);
     const fileUrl = `${baseUrl}/uploads/products/${req.file.filename}`;
 
+    // --- INICIO DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+    
+    // 1. Definir la ruta base de 'uploads'
+    const uploadsPath = path.join(process.cwd(), 'public/uploads');
+    
+    // 2. Verificar el archivo ANTES de devolver la respuesta
+    const verifiedUrl = verifyFileExists(fileUrl, uploadsPath);
+    
+    // 3. Manejar el error si el archivo no existe
+    if (!verifiedUrl) {
+      // Loguear el error crítico
+      console.error(`Error crítico de integridad de archivo: El archivo ${req.file.filename} (URL: ${fileUrl}) no se encontró en el disco después de una subida exitosa. Revise los permisos de la carpeta 'public/uploads' y el proceso de 'multer'.`);
+      
+      // Intentar borrar el archivo huérfano si existe
+      if (req.file && req.file.path) {
+        try { 
+          fs.unlinkSync(req.file.path); 
+          console.log(`🧹 Archivo huérfano eliminado: ${req.file.path}`);
+        } catch(e) { 
+          console.error(`Fallo al limpiar archivo huérfano: ${req.file.path}`, e); 
+        }
+      }
+
+      // Devolver un error 500 al cliente
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.',
+        code: 'FILE_INTEGRITY_ERROR'
+      });
+    }
+    // --- FIN DE LA IMPLEMENTACIÓN DE SEGURIDAD ---
+
     // Log para debugging
     console.log(`✅ Imagen de producto subida exitosamente:`, {
       filename: req.file.filename,
       originalName: req.file.originalname,
       size: req.file.size,
-      url: fileUrl,
+      url: verifiedUrl,
       baseUrl: baseUrl
     });
 
@@ -246,7 +345,7 @@ const uploadProductImage = async (req, res) => {
       status: 'success',
       message: 'Imagen de producto subida exitosamente',
       data: {
-        imageUrl: fileUrl,
+        imageUrl: verifiedUrl,
         filename: req.file.filename,
         originalName: req.file.originalname,
         size: req.file.size,
