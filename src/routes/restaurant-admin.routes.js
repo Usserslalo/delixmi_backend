@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
+const asyncHandler = require('express-async-handler');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { validate, validateParams, validateQuery } = require('../middleware/validate.middleware');
 const { requireRestaurantLocation } = require('../middleware/location.middleware');
@@ -7,12 +8,10 @@ const { updateProfileSchema, updateLocationSchema, metricsQuerySchema } = requir
 const { createProductSchema, updateProductSchema, productParamsSchema } = require('../validations/product.validation');
 const { createSubcategorySchema, updateSubcategorySchema, subcategoryParamsSchema, subcategoryQuerySchema } = require('../validations/subcategory.validation');
 const { createGroupSchema, updateGroupSchema, groupParamsSchema, createOptionSchema, updateOptionSchema, optionParamsSchema, groupQuerySchema } = require('../validations/modifier.validation');
-const { scheduleParamsSchema, updateWeeklyScheduleSchema, singleDayParamsSchema, updateSingleDaySchema } = require('../validations/schedule.validation');
 const { createEmployeeSchema, employeeQuerySchema, assignmentParamsSchema, updateEmployeeSchema } = require('../validations/employee.validation');
-const { updateBranchDetailsSchema } = require('../validations/branch.validation');
 const { orderQuerySchema, orderParamsSchema, updateOrderStatusSchema } = require('../validations/order.validation');
 const { OrderStatus } = require('@prisma/client');
-const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, createBranch, getRestaurantBranches, updateBranch, deleteBranch, getBranchSchedule, updateBranchSchedule, updateSingleDaySchedule, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee, getRestaurantWallet, getRestaurantWalletTransactions, getRestaurantEarningsSummary, getDashboardSummary } = require('../controllers/restaurant-admin.controller');
+const { getRestaurantOrders, updateOrderStatus, createProduct, updateProduct, deleteProduct, getRestaurantProducts, createSubcategory, updateSubcategory, deleteSubcategory, getRestaurantSubcategories, getRestaurantProfile, updateRestaurantProfile, rejectOrder, deactivateProductsByTag, getLocationStatus, updateLocation, getPrimaryBranch, updatePrimaryBranchDetails, createEmployee, getEmployees, updateEmployee, getRestaurantWallet, getRestaurantWalletTransactions, getRestaurantEarningsSummary, getDashboardSummary } = require('../controllers/restaurant-admin.controller');
 const { createModifierGroup, getModifierGroups, updateModifierGroup, deleteModifierGroup, createModifierOption, updateModifierOption, deleteModifierOption } = require('../controllers/modifier.controller');
 const { uploadRestaurantLogo, uploadRestaurantCover, uploadProductImage } = require('../controllers/upload.controller');
 const { upload, uploadCover, uploadProduct, handleMulterError } = require('../config/multer');
@@ -43,7 +42,7 @@ router.use(authenticateToken);
 router.get(
   '/profile',
   requireRole(['owner']),
-  getRestaurantProfile
+  asyncHandler(getRestaurantProfile)
 );
 
 /**
@@ -62,7 +61,7 @@ router.patch(
   '/profile',
   requireRole(['owner']),
   validate(updateProfileSchema),
-  updateRestaurantProfile
+  asyncHandler(updateRestaurantProfile)
 );
 
 /**
@@ -73,7 +72,7 @@ router.patch(
 router.get(
   '/location-status',
   requireRole(['owner']),
-  getLocationStatus
+  asyncHandler(getLocationStatus)
 );
 
 /**
@@ -88,7 +87,7 @@ router.patch(
   '/location',
   requireRole(['owner']),
   validate(updateLocationSchema),
-  updateLocation
+  asyncHandler(updateLocation)
 );
 
 /**
@@ -99,28 +98,25 @@ router.patch(
 router.get(
   '/primary-branch',
   requireRole(['owner']),
-  getPrimaryBranch
+  asyncHandler(getPrimaryBranch)
 );
 
 /**
  * @route   PATCH /api/restaurant/primary-branch
- * @desc    Actualizar los detalles operativos de la sucursal principal
+ * @desc    Actualizar los detalles operativos del restaurante
  * @access  Private (Owner Only)
- * @body    name - Nombre de la sucursal (opcional)
- * @body    phone - Teléfono de la sucursal (opcional)
  * @body    usesPlatformDrivers - Usar drivers de la plataforma (opcional)
  * @body    deliveryFee - Tarifa de entrega (opcional)
  * @body    estimatedDeliveryMin - Tiempo mínimo de entrega en minutos (opcional)
  * @body    estimatedDeliveryMax - Tiempo máximo de entrega en minutos (opcional)
  * @body    deliveryRadius - Radio de entrega en km (opcional)
- * @body    status - Estado de la sucursal (opcional)
  */
 router.patch(
   '/primary-branch',
   requireRole(['owner']),
   requireRestaurantLocation,
-  validate(updateBranchDetailsSchema),
-  updatePrimaryBranchDetails
+  validate(updateProfileSchema),
+  asyncHandler(updatePrimaryBranchDetails)
 );
 
 /**
@@ -139,7 +135,7 @@ router.post(
   requireRole(['owner']),
   requireRestaurantLocation,
   validate(createEmployeeSchema),
-  createEmployee
+  asyncHandler(createEmployee)
 );
 
 /**
@@ -157,7 +153,7 @@ router.get(
   requireRole(['owner']),
   requireRestaurantLocation,
   validateQuery(employeeQuerySchema),
-  getEmployees
+  asyncHandler(getEmployees)
 );
 
 /**
@@ -174,7 +170,7 @@ router.patch(
   requireRestaurantLocation,
   validateParams(assignmentParamsSchema),
   validate(updateEmployeeSchema),
-  updateEmployee
+  asyncHandler(updateEmployee)
 );
 
 /**
@@ -215,241 +211,14 @@ router.get(
     }
     next();
   },
-  getRestaurantBranches
+  asyncHandler(getRestaurantBranches)
 );
 
-/**
- * @route   PATCH /api/restaurant/branches/:branchId
- * @desc    Actualizar una sucursal existente del restaurante del dueño autenticado
- * @access  Private (Owner Only)
- * @params  branchId - ID de la sucursal a actualizar
- * @body    name - Nombre de la sucursal (opcional)
- * @body    address - Dirección de la sucursal (opcional)
- * @body    latitude - Latitud de la ubicación (opcional)
- * @body    longitude - Longitud de la ubicación (opcional)
- * @body    phone - Teléfono de la sucursal (opcional)
- * @body    openingTime - Hora de apertura en formato HH:MM:SS (opcional)
- * @body    closingTime - Hora de cierre en formato HH:MM:SS (opcional)
- * @body    usesPlatformDrivers - Si usa repartidores de la plataforma (opcional)
- */
-router.patch(
-  '/branches/:branchId',
-  requireRole(['owner']),
-  requireRestaurantLocation,
-  [
-    param('branchId')
-      .notEmpty()
-      .withMessage('El ID de la sucursal es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la sucursal debe ser un número entero válido'),
-    body('name')
-      .optional()
-      .trim()
-      .isLength({ min: 1, max: 150 })
-      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
-    body('address')
-      .optional()
-      .trim()
-      .isLength({ min: 10, max: 500 })
-      .withMessage('La dirección debe tener entre 10 y 500 caracteres'),
-    body('latitude')
-      .optional()
-      .isFloat({ min: -90, max: 90 })
-      .withMessage('La latitud debe ser un número entre -90 y 90'),
-    body('longitude')
-      .optional()
-      .isFloat({ min: -180, max: 180 })
-      .withMessage('La longitud debe ser un número entre -180 y 180'),
-    body('phone')
-      .optional()
-      .trim()
-      .isLength({ min: 10, max: 20 })
-      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
-      .matches(/^[\+]?[\d\s\-\(\)]+$/)
-      .withMessage('El formato del teléfono no es válido'),
-    body('openingTime')
-      .optional()
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('La hora de apertura debe estar en formato HH:MM:SS'),
-    body('closingTime')
-      .optional()
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('La hora de cierre debe estar en formato HH:MM:SS'),
-    body('usesPlatformDrivers')
-      .optional()
-      .isBoolean()
-      .withMessage('usesPlatformDrivers debe ser un valor booleano (true/false)')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
-  updateBranch
-);
 
-/**
- * @route   DELETE /api/restaurant/branches/:branchId
- * @desc    Eliminar una sucursal existente del restaurante del dueño autenticado
- * @access  Private (Owner Only)
- * @params  branchId - ID de la sucursal a eliminar
- */
-router.delete(
-  '/branches/:branchId',
-  requireRole(['owner']),
-  requireRestaurantLocation,
-  [
-    param('branchId')
-      .notEmpty()
-      .withMessage('El ID de la sucursal es requerido')
-      .isInt({ min: 1 })
-      .withMessage('El ID de la sucursal debe ser un número entero válido')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Parámetros de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
-  deleteBranch
-);
 
-/**
- * @route   GET /api/restaurant/branches/:branchId/schedule
- * @desc    Obtener el horario semanal de una sucursal específica
- * @access  Private (Owner, Branch Manager Only)
- * @params  branchId - ID de la sucursal
- */
-router.get(
-  '/branches/:branchId/schedule',
-  requireRole(['owner', 'branch_manager']),
-  requireRestaurantLocation,
-  validateParams(scheduleParamsSchema),
-  getBranchSchedule
-);
 
-/**
- * @route   PATCH /api/restaurant/branches/:branchId/schedule
- * @desc    Actualizar el horario semanal completo de una sucursal específica
- * @access  Private (Owner, Branch Manager Only)
- * @params  branchId - ID de la sucursal
- * @body    Array de 7 objetos con horarios semanales (Domingo a Sábado)
- */
-router.patch(
-  '/branches/:branchId/schedule',
-  requireRole(['owner', 'branch_manager']),
-  requireRestaurantLocation,
-  validateParams(scheduleParamsSchema),
-  validate(updateWeeklyScheduleSchema),
-  updateBranchSchedule
-);
 
-/**
- * @route   PATCH /api/restaurant/branches/:branchId/schedule/:dayOfWeek
- * @desc    Actualizar el horario de un día específico de una sucursal
- * @access  Private (Owner, Branch Manager Only)
- * @params  branchId - ID de la sucursal
- * @params  dayOfWeek - Día de la semana (0=Domingo, 1=Lunes, ..., 6=Sábado)
- * @body    openingTime - Hora de apertura en formato HH:MM:SS
- * @body    closingTime - Hora de cierre en formato HH:MM:SS
- * @body    isClosed - Si el día está cerrado (boolean)
- */
-router.patch(
-  '/branches/:branchId/schedule/:dayOfWeek',
-  requireRole(['owner', 'branch_manager']),
-  requireRestaurantLocation,
-  validateParams(singleDayParamsSchema),
-  validate(updateSingleDaySchema),
-  updateSingleDaySchedule
-);
 
-/**
- * @route   POST /api/restaurant/branches
- * @desc    Crear una nueva sucursal para el restaurante del dueño autenticado
- * @access  Private (Owner Only)
- * @body    name - Nombre de la sucursal (requerido)
- * @body    address - Dirección de la sucursal (requerido)
- * @body    latitude - Latitud de la ubicación (requerido)
- * @body    longitude - Longitud de la ubicación (requerido)
- * @body    phone - Teléfono de la sucursal (opcional)
- * @body    openingTime - Hora de apertura en formato HH:MM:SS (opcional)
- * @body    closingTime - Hora de cierre en formato HH:MM:SS (opcional)
- * @body    usesPlatformDrivers - Si usa repartidores de la plataforma (opcional, default: true)
- */
-router.post(
-  '/branches',
-  requireRole(['owner']),
-  requireRestaurantLocation,
-  [
-    body('name')
-      .notEmpty()
-      .withMessage('El nombre de la sucursal es requerido')
-      .trim()
-      .isLength({ min: 1, max: 150 })
-      .withMessage('El nombre debe tener entre 1 y 150 caracteres'),
-    body('address')
-      .notEmpty()
-      .withMessage('La dirección de la sucursal es requerida')
-      .trim()
-      .isLength({ min: 10, max: 500 })
-      .withMessage('La dirección debe tener entre 10 y 500 caracteres'),
-    body('latitude')
-      .notEmpty()
-      .withMessage('La latitud es requerida')
-      .isFloat({ min: -90, max: 90 })
-      .withMessage('La latitud debe ser un número entre -90 y 90'),
-    body('longitude')
-      .notEmpty()
-      .withMessage('La longitud es requerida')
-      .isFloat({ min: -180, max: 180 })
-      .withMessage('La longitud debe ser un número entre -180 y 180'),
-    body('phone')
-      .optional()
-      .trim()
-      .isLength({ min: 10, max: 20 })
-      .withMessage('El teléfono debe tener entre 10 y 20 caracteres')
-      .matches(/^[\+]?[\d\s\-\(\)]+$/)
-      .withMessage('El formato del teléfono no es válido'),
-    body('openingTime')
-      .optional()
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('La hora de apertura debe estar en formato HH:MM:SS'),
-    body('closingTime')
-      .optional()
-      .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/)
-      .withMessage('La hora de cierre debe estar en formato HH:MM:SS'),
-    body('usesPlatformDrivers')
-      .optional()
-      .isBoolean()
-      .withMessage('usesPlatformDrivers debe ser un valor booleano (true/false)')
-  ],
-  (req, res, next) => {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-    next();
-  },
-  createBranch
-);
 
 /**
  * @route   GET /api/restaurant/orders
@@ -463,7 +232,7 @@ router.get('/orders',
   requireRole(['owner', 'branch_manager', 'order_manager', 'kitchen_staff']), 
   requireRestaurantLocation,
   validateQuery(orderQuerySchema),
-  getRestaurantOrders);
+  asyncHandler(getRestaurantOrders));
 
 /**
  * @route   PATCH /api/restaurant/orders/:orderId/status
@@ -477,7 +246,7 @@ router.patch('/orders/:orderId/status',
   requireRestaurantLocation,
   validateParams(orderParamsSchema),
   validate(updateOrderStatusSchema),
-  updateOrderStatus
+  asyncHandler(updateOrderStatus)
 );
 
 /**
@@ -514,7 +283,7 @@ router.patch('/orders/:orderId/reject',
     }
     next();
   },
-  rejectOrder
+  asyncHandler(rejectOrder)
 );
 
 /**
@@ -525,7 +294,7 @@ router.patch('/orders/:orderId/reject',
 router.get('/wallet/balance',
   requireRole(['owner']),
   requireRestaurantLocation,
-  getRestaurantWallet
+  asyncHandler(getRestaurantWallet)
 );
 
 /**
@@ -541,7 +310,7 @@ router.get('/wallet/transactions',
   requireRole(['owner']),
   requireRestaurantLocation,
   validateQuery(metricsQuerySchema),
-  getRestaurantWalletTransactions
+  asyncHandler(getRestaurantWalletTransactions)
 );
 
 /**
@@ -555,7 +324,7 @@ router.get('/metrics/earnings',
   requireRole(['owner']),
   requireRestaurantLocation,
   validateQuery(metricsQuerySchema),
-  getRestaurantEarningsSummary
+  asyncHandler(getRestaurantEarningsSummary)
 );
 
 /**
@@ -567,7 +336,7 @@ router.get('/metrics/earnings',
 router.get('/metrics/dashboard-summary',
   requireRole(['owner']),
   requireRestaurantLocation,
-  getDashboardSummary
+  asyncHandler(getDashboardSummary)
 );
 
 /**
@@ -582,7 +351,7 @@ router.get('/subcategories',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateQuery(subcategoryQuerySchema),
-  getRestaurantSubcategories
+  asyncHandler(getRestaurantSubcategories)
 );
 
 /**
@@ -597,7 +366,7 @@ router.post('/subcategories',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validate(createSubcategorySchema),
-  createSubcategory
+  asyncHandler(createSubcategory)
 );
 
 /**
@@ -614,7 +383,7 @@ router.patch('/subcategories/:subcategoryId',
   requireRestaurantLocation,
   validateParams(subcategoryParamsSchema),
   validate(updateSubcategorySchema),
-  updateSubcategory
+  asyncHandler(updateSubcategory)
 );
 
 /**
@@ -627,7 +396,7 @@ router.delete('/subcategories/:subcategoryId',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateParams(subcategoryParamsSchema),
-  deleteSubcategory
+  asyncHandler(deleteSubcategory)
 );
 
 /**
@@ -642,7 +411,7 @@ router.post(
   requireRestaurantLocation,
   uploadProduct.single('image'),
   handleMulterError,
-  uploadProductImage
+  asyncHandler(uploadProductImage)
 );
 
 /**
@@ -687,7 +456,7 @@ router.get('/products',
     }
     next();
   },
-  getRestaurantProducts
+  asyncHandler(getRestaurantProducts)
 );
 
 /**
@@ -705,7 +474,7 @@ router.post('/products',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validate(createProductSchema),
-  createProduct
+  asyncHandler(createProduct)
 );
 
 /**
@@ -737,7 +506,7 @@ router.patch('/products/deactivate-by-tag',
     }
     next();
   },
-  deactivateProductsByTag
+  asyncHandler(deactivateProductsByTag)
 );
 
 /**
@@ -757,7 +526,7 @@ router.patch('/products/:productId',
   requireRestaurantLocation,
   validateParams(productParamsSchema),
   validate(updateProductSchema),
-  updateProduct
+  asyncHandler(updateProduct)
 );
 
 /**
@@ -770,7 +539,7 @@ router.delete('/products/:productId',
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateParams(productParamsSchema),
-  deleteProduct
+  asyncHandler(deleteProduct)
 );
 
 // ========================================
@@ -790,7 +559,7 @@ router.post(
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validate(createGroupSchema),
-  createModifierGroup
+  asyncHandler(createModifierGroup)
 );
 
 /**
@@ -803,7 +572,7 @@ router.get(
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateQuery(groupQuerySchema),
-  getModifierGroups
+  asyncHandler(getModifierGroups)
 );
 
 /**
@@ -821,7 +590,7 @@ router.patch(
   requireRestaurantLocation,
   validateParams(groupParamsSchema),
   validate(updateGroupSchema),
-  updateModifierGroup
+  asyncHandler(updateModifierGroup)
 );
 
 /**
@@ -835,7 +604,7 @@ router.delete(
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateParams(groupParamsSchema),
-  deleteModifierGroup
+  asyncHandler(deleteModifierGroup)
 );
 
 // ========================================
@@ -856,7 +625,7 @@ router.post(
   requireRestaurantLocation,
   validateParams(groupParamsSchema),
   validate(createOptionSchema),
-  createModifierOption
+  asyncHandler(createModifierOption)
 );
 
 /**
@@ -873,7 +642,7 @@ router.patch(
   requireRestaurantLocation,
   validateParams(optionParamsSchema),
   validate(updateOptionSchema),
-  updateModifierOption
+  asyncHandler(updateModifierOption)
 );
 
 /**
@@ -887,7 +656,7 @@ router.delete(
   requireRole(['owner', 'branch_manager']),
   requireRestaurantLocation,
   validateParams(optionParamsSchema),
-  deleteModifierOption
+  asyncHandler(deleteModifierOption)
 );
 
 // ========================================
@@ -905,7 +674,7 @@ router.post(
   requireRole(['owner']),
   upload.single('logo'),
   handleMulterError,
-  uploadRestaurantLogo
+  asyncHandler(uploadRestaurantLogo)
 );
 
 /**
@@ -919,7 +688,7 @@ router.post(
   requireRole(['owner']),
   upload.single('image'),
   handleMulterError,
-  uploadRestaurantLogo
+  asyncHandler(uploadRestaurantLogo)
 );
 
 /**
@@ -933,7 +702,7 @@ router.post(
   requireRole(['owner']),
   uploadCover.single('cover'),
   handleMulterError,
-  uploadRestaurantCover
+  asyncHandler(uploadRestaurantCover)
 );
 
 /**
@@ -947,7 +716,7 @@ router.post(
   requireRole(['owner']),
   uploadCover.single('image'),
   handleMulterError,
-  uploadRestaurantCover
+  asyncHandler(uploadRestaurantCover)
 );
 
 module.exports = router;

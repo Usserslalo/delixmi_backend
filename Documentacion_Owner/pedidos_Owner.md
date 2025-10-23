@@ -832,7 +832,23 @@ const updateOrderStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus, {
     required_error: "El nuevo estado es requerido",
     invalid_type_error: "Estado inválido"
+  }),
+  rejectionReason: z.string({
+    invalid_type_error: "La razón de cancelación debe ser un texto"
   })
+    .min(10, "La razón de cancelación debe tener al menos 10 caracteres")
+    .max(500, "La razón de cancelación no puede exceder 500 caracteres")
+    .trim()
+    .optional()
+    .refine((val, ctx) => {
+      // Si el estado es 'cancelled', rejectionReason es obligatorio
+      if (ctx.parent.status === 'cancelled' && (!val || val.trim().length < 10)) {
+        return false;
+      }
+      return true;
+    }, {
+      message: "La razón de cancelación es obligatoria y debe tener al menos 10 caracteres cuando el estado es 'cancelled'"
+    })
 });
 ```
 
@@ -841,6 +857,7 @@ const updateOrderStatusSchema = z.object({
 |-----------|------|-----------|-------------|---------|
 | `orderId` | BigInt | Sí | ID del pedido a actualizar | `1` |
 | `status` | String | Sí | Nuevo estado del pedido | `"preparing"` |
+| `rejectionReason` | String | Condicional | Obligatorio solo si status es 'cancelled'. Debe tener entre 10 y 500 caracteres. Contiene la justificación del rechazo/cancelación. | `"Producto no disponible en el momento"` |
 
 #### Estados de Pedido Disponibles (OrderStatus)
 ```javascript
@@ -946,6 +963,8 @@ const finalStates = ['delivered', 'cancelled', 'refunded'];
    - **✅ Notificación Drivers**: Si el estado cambia a `preparing` (implementado)
 
 #### Ejemplo de Request
+
+##### Ejemplo 1: Cambio de Estado Normal
 ```bash
 PATCH /api/restaurant/orders/1/status
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -953,6 +972,18 @@ Content-Type: application/json
 
 {
   "status": "preparing"
+}
+```
+
+##### Ejemplo 2: Cancelación con Razón
+```bash
+PATCH /api/restaurant/orders/1/status
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "status": "cancelled",
+  "rejectionReason": "Producto no disponible en el momento. Nos disculpamos por las molestias."
 }
 ```
 
@@ -1101,6 +1132,54 @@ Content-Type: application/json
 }
 ```
 
+##### Error 400 - Razón de Cancelación Requerida
+```json
+{
+  "status": "error",
+  "message": "La razón de cancelación es obligatoria y debe tener al menos 10 caracteres cuando el estado es 'cancelled'",
+  "timestamp": "2025-10-20T17:35:01.506Z",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "rejectionReason",
+      "message": "La razón de cancelación es obligatoria y debe tener al menos 10 caracteres cuando el estado es 'cancelled'"
+    }
+  ]
+}
+```
+
+##### Error 400 - Razón de Cancelación Muy Corta
+```json
+{
+  "status": "error",
+  "message": "La razón de cancelación debe tener al menos 10 caracteres",
+  "timestamp": "2025-10-20T17:35:01.506Z",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "rejectionReason",
+      "message": "La razón de cancelación debe tener al menos 10 caracteres"
+    }
+  ]
+}
+```
+
+##### Error 400 - Razón de Cancelación Muy Larga
+```json
+{
+  "status": "error",
+  "message": "La razón de cancelación no puede exceder 500 caracteres",
+  "timestamp": "2025-10-20T17:35:01.506Z",
+  "code": "VALIDATION_ERROR",
+  "details": [
+    {
+      "field": "rejectionReason",
+      "message": "La razón de cancelación no puede exceder 500 caracteres"
+    }
+  ]
+}
+```
+
 ##### Error 401 - No Autenticado
 ```json
 {
@@ -1177,28 +1256,42 @@ Content-Type: application/json
    - Verifica permisos por rol para cada transición
    - Bloquea cambios en estados finales (`delivered`, `cancelled`, `refunded`)
 
-2. **Notificaciones en Tiempo Real**:
+2. **Validación Condicional de Cancelaciones**:
+   - **Campo `rejectionReason`**: Obligatorio solo cuando `status` es `'cancelled'`
+   - **Longitud**: Debe tener entre 10 y 500 caracteres
+   - **Validación inteligente**: Usa `refine` de Zod para validación condicional
+   - **Mensajes específicos**: Errores claros para cada caso de validación
+
+3. **Transacciones Atómicas**:
+   - **Operaciones atómicas**: Todas las actualizaciones en una transacción de Prisma
+   - **Consistencia garantizada**: No hay estados intermedios inconsistentes
+   - **Rollback automático**: En caso de error, se revierten todos los cambios
+   - **Actualización de pagos**: Estado de pago actualizado automáticamente en cancelaciones
+
+4. **Notificaciones en Tiempo Real**:
    - Siempre emite evento WebSocket `order_update` al cliente
    - Notifica automáticamente cambios de estado
 
-3. **Efectos Secundarios Preparados**:
-   - **TODO**: Reembolso automático para cancelaciones de pagos completados
+5. **Efectos Secundarios Preparados**:
+   - **✅ IMPLEMENTADO**: Actualización automática de estado de pago en cancelaciones
    - **✅ IMPLEMENTADO**: Notificación automática a repartidores cuando el pedido cambia a estado 'preparing'
+   - **Campos adicionales**: `rejectionReason` y `cancelledAt` se registran en cancelaciones
 
-4. **Sistema de Notificaciones a Repartidores**:
+6. **Sistema de Notificaciones a Repartidores**:
    - **Estado 'preparing'**: Notifica automáticamente a repartidores disponibles
    - **Repartidores de Plataforma**: Busca drivers con estado 'online' dentro de un radio de 10km de la sucursal
    - **Repartidores del Restaurante**: Busca drivers asignados al restaurante con estado 'online'
    - **Evento WebSocket**: `available_order` enviado a cada repartidor elegible con payload completo del pedido
    - **Logging**: Registra todas las notificaciones enviadas y errores del proceso
 
-5. **Modelo de Negocio Simplificado**:
+7. **Modelo de Negocio Simplificado**:
    - Implementa el modelo "one Owner = one primary branch"
    - Solo permite actualizar pedidos de la sucursal principal del restaurante
 
-6. **Logging Completo**:
+8. **Logging Completo**:
    - Registra todas las transiciones de estado
    - Incluye información de usuario y contexto para auditoría
+   - Registra razones de cancelación para trazabilidad
 
 ---
 

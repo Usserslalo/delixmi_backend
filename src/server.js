@@ -52,10 +52,10 @@ const corsOptions = {
     } else {
       // Permitir otros orígenes en desarrollo, bloquear en producción
       if (process.env.NODE_ENV === 'production') {
-        console.warn(`⚠️ Origen no permitido bloqueado: ${origin}`);
+        logger.warn('Origen no permitido bloqueado', { origin });
         callback(new Error('No permitido por CORS'));
       } else {
-        console.log(`✅ Origen permitido en desarrollo: ${origin}`);
+        logger.debug('Origen permitido en desarrollo', { origin });
         callback(null, true);
       }
     }
@@ -111,16 +111,17 @@ app.use(express.urlencoded({ extended: true }));
 const publicPath = path.join(__dirname, '../public');
 const uploadsPath = path.join(__dirname, '../public/uploads');
 
-console.log(`📂 Configurando archivos estáticos:`);
-console.log(`📂 Public path: ${publicPath}`);
-console.log(`📂 Uploads path: ${uploadsPath}`);
+logger.info('Configurando archivos estáticos', {
+  publicPath,
+  uploadsPath
+});
 
 // Verificar que los directorios existan
 if (!fs.existsSync(publicPath)) {
-  console.warn(`⚠️ Directorio public no existe: ${publicPath}`);
+  logger.warn('Directorio public no existe', { publicPath });
 }
 if (!fs.existsSync(uploadsPath)) {
-  console.warn(`⚠️ Directorio uploads no existe: ${uploadsPath}`);
+  logger.warn('Directorio uploads no existe', { uploadsPath });
 }
 
 // Servir archivos estáticos generales desde public
@@ -133,7 +134,7 @@ app.use('/uploads', express.static(uploadsPath, {
   index: false, // No servir index.html para directorios
   setHeaders: (res, filePath) => {
     // Log para debugging
-    console.log(`📁 Sirviendo archivo estático: ${filePath}`);
+    logger.debug('Sirviendo archivo estático', { filePath });
     
     // Determinar MIME type correcto
     const mimeType = mime.lookup(filePath) || 'application/octet-stream';
@@ -154,8 +155,11 @@ app.use('/uploads', express.static(uploadsPath, {
 
 // Middleware de logging para debugging de requests de uploads
 app.use('/uploads', (req, res, next) => {
-  console.log(`🔍 Request para archivo: ${req.method} ${req.path}`);
-  console.log(`🔍 User-Agent: ${req.get('User-Agent')}`);
+  logger.debug('Request para archivo', {
+    method: req.method,
+    path: req.path,
+    userAgent: req.get('User-Agent')
+  });
   
   // Si es un request de archivo específico, verificar si existe
   if (req.path && req.path.includes('.')) {
@@ -163,22 +167,29 @@ app.use('/uploads', (req, res, next) => {
     const uploadsPath = path.join(__dirname, '../public/uploads');
     const fullPath = path.join(uploadsPath, req.path.substring(1)); // Remove leading /
     
-    console.log(`🔍 Verificando archivo: ${fullPath}`);
-    console.log(`🔍 Archivo existe: ${fs.existsSync(fullPath)}`);
+    logger.debug('Verificando archivo', {
+      fullPath,
+      exists: fs.existsSync(fullPath)
+    });
     
     if (!fs.existsSync(fullPath)) {
-      console.error(`❌ Archivo no encontrado: ${req.path}`);
-      console.error(`❌ Ruta completa: ${fullPath}`);
+      logger.error('Archivo no encontrado', {
+        path: req.path,
+        fullPath
+      });
       
       // Listar archivos en el directorio padre para debugging
       try {
         const dirPath = path.dirname(fullPath);
         if (fs.existsSync(dirPath)) {
           const files = fs.readdirSync(dirPath);
-          console.error(`📂 Archivos en directorio ${dirPath}:`, files);
+          logger.debug('Archivos en directorio', { dirPath, files });
         }
       } catch (err) {
-        console.error(`❌ Error leyendo directorio: ${err.message}`);
+        logger.error('Error leyendo directorio', { 
+          error: err.message,
+          dirPath 
+        });
       }
     }
   }
@@ -228,7 +239,7 @@ app.get('/test-uploads', (req, res) => {
   try {
     const uploadsPath = path.join(__dirname, '../public/uploads');
     
-    console.log(`🔍 Testing uploads directory: ${uploadsPath}`);
+    logger.debug('Testing uploads directory', { uploadsPath });
     
     const testFiles = {
       'logo_1760761445771_3877.jpg': path.join(uploadsPath, 'logos', 'logo_1760761445771_3877.jpg'),
@@ -269,11 +280,14 @@ app.get('/test-uploads', (req, res) => {
       results.directoryReadError = err.message;
     }
     
-    console.log(`📊 Upload test results:`, JSON.stringify(results, null, 2));
+    logger.info('Upload test results', { results });
     
     res.json(results);
   } catch (error) {
-    console.error('❌ Error en test-uploads:', error);
+    logger.error('Error en test-uploads', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ 
       success: false,
       error: error.message,
@@ -464,31 +478,31 @@ httpServer.listen(PORT, () => {
   });
   
   // También mantener logs en consola para desarrollo
-  console.log(`🚀 Servidor iniciado en puerto ${PORT}`);
-  console.log(`📍 URL: http://localhost:${PORT}`);
-  console.log(`🔍 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔌 Socket.io disponible en: http://localhost:${PORT}`);
+  logger.info(`🚀 Servidor iniciado en puerto ${PORT}`);
+  logger.info(`📍 URL: http://localhost:${PORT}`);
+  logger.info(`🔍 Health check: http://localhost:${PORT}/health`);
+  logger.info(`🔌 Socket.io disponible en: http://localhost:${PORT}`);
 });
 
 // Manejo de cierre graceful
 process.on('SIGINT', async () => {
   logger.info('Señal SIGINT recibida, cerrando servidor...');
-  console.log('\n🛑 Cerrando servidor...');
+  logger.info('🛑 Cerrando servidor...');
   await disconnect();
   httpServer.close(() => {
     logger.info('Servidor cerrado correctamente');
-    console.log('✅ Servidor cerrado correctamente');
+    logger.info('✅ Servidor cerrado correctamente');
     process.exit(0);
   });
 });
 
 process.on('SIGTERM', async () => {
   logger.info('Señal SIGTERM recibida, cerrando servidor...');
-  console.log('\n🛑 Cerrando servidor...');
+  logger.info('🛑 Cerrando servidor...');
   await disconnect();
   httpServer.close(() => {
     logger.info('Servidor cerrado correctamente');
-    console.log('✅ Servidor cerrado correctamente');
+    logger.info('✅ Servidor cerrado correctamente');
     process.exit(0);
   });
 });

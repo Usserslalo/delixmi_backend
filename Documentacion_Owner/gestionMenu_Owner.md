@@ -226,6 +226,16 @@ Value: [Seleccionar archivo de imagen]
 }
 ```
 
+**8. Error de integridad de archivo (500)**
+```json
+{
+  "status": "error",
+  "message": "Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.",
+  "code": "FILE_INTEGRITY_ERROR"
+}
+```
+*Ocurre si, después de una subida de archivo exitosa, el servidor no puede verificar la integridad física del archivo en el disco. Esto indica un problema del servidor y el cliente debería reintentar la subida.*
+
 #### Notas Importantes
 
 1. **Separación de responsabilidades:** Este endpoint solo sube la imagen y devuelve la URL. No actualiza ningún producto en la base de datos.

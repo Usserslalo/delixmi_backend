@@ -65,25 +65,58 @@ class DriverRepository {
         }
       });
 
-      // 2. Actualizar el estado del repartidor
-      const updatedDriverProfile = await prisma.driverProfile.update({
-        where: { userId: userId },
-        data: {
-          status: newStatus,
-          lastSeenAt: new Date(),
-          updatedAt: new Date()
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              lastname: true,
-              email: true,
-              phone: true
-            }
+      // 2. Actualizar el estado del repartidor usando transacción para garantizar atomicidad
+      const updatedDriverProfile = await prisma.$transaction(async (tx) => {
+        // 2.1. Validación condicional: Verificar ubicación válida si cambia a 'online'
+        if (newStatus === 'online') {
+          const hasValidLocation = existingDriverProfile.currentLatitude && existingDriverProfile.currentLongitude;
+          
+          if (!hasValidLocation) {
+            logger.warn('Intento de cambiar a online sin ubicación válida', {
+              requestId,
+              meta: { 
+                userId, 
+                newStatus,
+                currentLatitude: existingDriverProfile.currentLatitude,
+                currentLongitude: existingDriverProfile.currentLongitude
+              }
+            });
+
+            const error = {
+              status: 400,
+              message: 'No se puede cambiar a online sin una ubicación válida registrada',
+              code: 'INVALID_LOCATION_FOR_ONLINE_STATUS',
+              details: {
+                userId: userId,
+                currentStatus: existingDriverProfile.status,
+                newStatus: newStatus,
+                suggestion: 'Actualiza tu ubicación GPS antes de cambiar a estado online'
+              }
+            };
+            throw error;
           }
         }
+
+        // 2.2. Actualizar el estado del repartidor
+        return await tx.driverProfile.update({
+          where: { userId: userId },
+          data: {
+            status: newStatus,
+            lastSeenAt: new Date(),
+            updatedAt: new Date()
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                email: true,
+                phone: true
+              }
+            }
+          }
+        });
       });
 
       logger.info('Estado del repartidor actualizado exitosamente', {

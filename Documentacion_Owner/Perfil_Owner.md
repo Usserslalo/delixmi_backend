@@ -912,6 +912,16 @@ Content-Type: multipart/form-data (automático)
 }
 ```
 
+**500 Internal Server Error - Error de integridad de archivo:**
+```json
+{
+  "status": "error",
+  "message": "Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.",
+  "code": "FILE_INTEGRITY_ERROR"
+}
+```
+*Ocurre si, después de una subida de archivo exitosa, el servidor no puede verificar la integridad física del archivo en el disco. Esto indica un problema del servidor y el cliente debería reintentar la subida.*
+
 #### Lógica de Acceso a Datos
 - **Multer:** Maneja la subida y almacenamiento de archivos
 - **Almacenamiento:** Disco local en `public/uploads/logos/`
@@ -1166,6 +1176,16 @@ Content-Type: multipart/form-data (automático)
   "code": "NO_RESTAURANT_ASSIGNED"
 }
 ```
+
+**500 Internal Server Error - Error de integridad de archivo:**
+```json
+{
+  "status": "error",
+  "message": "Error al procesar el archivo. El archivo no pudo ser guardado correctamente en el servidor.",
+  "code": "FILE_INTEGRITY_ERROR"
+}
+```
+*Ocurre si, después de una subida de archivo exitosa, el servidor no puede verificar la integridad física del archivo en el disco. Esto indica un problema del servidor y el cliente debería reintentar la subida.*
 
 #### Lógica de Acceso a Datos
 - **Multer:** Maneja la subida y almacenamiento de archivos usando `uploadCover`

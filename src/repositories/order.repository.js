@@ -296,9 +296,10 @@ class OrderRepository {
    * @param {string} newStatus - Nuevo estado del pedido
    * @param {number} userId - ID del usuario que realiza la actualización
    * @param {string} requestId - ID de la request para logging
+   * @param {string} [rejectionReason] - Razón de cancelación (requerida si newStatus es 'cancelled')
    * @returns {Promise<Object>} Pedido actualizado con relaciones completas
    */
-  static async updateOrderStatus(orderId, newStatus, userId, requestId) {
+  static async updateOrderStatus(orderId, newStatus, userId, requestId, rejectionReason = null) {
     try {
       logger.debug('Iniciando actualización de estado de pedido', {
         requestId,
@@ -470,13 +471,115 @@ class OrderRepository {
         }
       });
 
-      // 7. Actualizar el estado del pedido
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { 
+      // 7. Actualizar el estado del pedido usando transacción para garantizar atomicidad
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        // Actualizar el estado del pedido
+        const updateData = { 
           status: newStatus,
           updatedAt: new Date()
+        };
+
+        // Si es cancelación, agregar razón de rechazo
+        if (newStatus === 'cancelled' && rejectionReason) {
+          updateData.rejectionReason = rejectionReason;
+          updateData.cancelledAt = new Date();
         }
+
+        await tx.order.update({
+          where: { id: orderId },
+          data: updateData
+        });
+
+        // Si es cancelación y hay pago completado, actualizar estado del pago
+        if (newStatus === 'cancelled' && order.payment && order.payment.status === 'completed' && order.payment.provider !== 'cash') {
+          await tx.payment.update({
+            where: { id: order.payment.id },
+            data: {
+              status: 'refunded',
+              refundedAt: new Date()
+            }
+          });
+        }
+
+        // Obtener el pedido actualizado con relaciones completas
+        return await tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                email: true,
+                phone: true
+              }
+            },
+            address: {
+              select: {
+                id: true,
+                alias: true,
+                street: true,
+                exteriorNumber: true,
+                interiorNumber: true,
+                neighborhood: true,
+                city: true,
+                state: true,
+                zipCode: true,
+                references: true,
+                latitude: true,
+                longitude: true
+              }
+            },
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+                phone: true
+              }
+            },
+            deliveryDriver: {
+              select: {
+                id: true,
+                name: true,
+                lastname: true,
+                phone: true
+              }
+            },
+            orderItems: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    imageUrl: true
+                  }
+                },
+                modifiers: {
+                  include: {
+                    modifierOption: {
+                      select: {
+                        name: true,
+                        price: true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            payment: {
+              select: {
+                id: true,
+                amount: true,
+                currency: true,
+                provider: true,
+                status: true,
+                createdAt: true
+              }
+            }
+          }
+        });
       });
 
       // 8. Emitir evento WebSocket (si está disponible)
@@ -516,15 +619,141 @@ class OrderRepository {
 
       // La notificación a repartidores se manejará después de obtener el updatedOrder completo
 
-      // 10. Obtener el pedido actualizado con relaciones completas
-      const updatedOrder = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              lastname: true,
+      // 10. Formatear el pedido para la respuesta
+      const formattedOrder = {
+        id: updatedOrder.id.toString(),
+        status: updatedOrder.status,
+        subtotal: Number(updatedOrder.subtotal),
+        deliveryFee: Number(updatedOrder.deliveryFee),
+        total: Number(updatedOrder.total),
+        commissionRateSnapshot: Number(updatedOrder.commissionRateSnapshot),
+        platformFee: Number(updatedOrder.platformFee),
+        restaurantPayout: Number(updatedOrder.restaurantPayout),
+        paymentMethod: updatedOrder.paymentMethod,
+        paymentStatus: updatedOrder.paymentStatus,
+        orderPlacedAt: updatedOrder.orderPlacedAt,
+        orderDeliveredAt: updatedOrder.orderDeliveredAt,
+        specialInstructions: updatedOrder.specialInstructions,
+        rejectionReason: updatedOrder.rejectionReason,
+        cancelledAt: updatedOrder.cancelledAt,
+        createdAt: updatedOrder.createdAt,
+        updatedAt: updatedOrder.updatedAt,
+        customer: {
+          id: updatedOrder.customer.id,
+          name: updatedOrder.customer.name,
+          lastname: updatedOrder.customer.lastname,
+          email: updatedOrder.customer.email,
+          phone: updatedOrder.customer.phone
+        },
+        address: {
+          id: updatedOrder.address.id,
+          alias: updatedOrder.address.alias,
+          street: updatedOrder.address.street,
+          exteriorNumber: updatedOrder.address.exteriorNumber,
+          interiorNumber: updatedOrder.address.interiorNumber,
+          neighborhood: updatedOrder.address.neighborhood,
+          city: updatedOrder.address.city,
+          state: updatedOrder.address.state,
+          zipCode: updatedOrder.address.zipCode,
+          references: updatedOrder.address.references,
+          coordinates: {
+            latitude: Number(updatedOrder.address.latitude),
+            longitude: Number(updatedOrder.address.longitude)
+          }
+        },
+        branch: {
+          id: updatedOrder.branch.id,
+          name: updatedOrder.branch.name,
+          address: updatedOrder.branch.address,
+          phone: updatedOrder.branch.phone
+        },
+        deliveryDriver: updatedOrder.deliveryDriver ? {
+          id: updatedOrder.deliveryDriver.id,
+          name: updatedOrder.deliveryDriver.name,
+          lastname: updatedOrder.deliveryDriver.lastname,
+          phone: updatedOrder.deliveryDriver.phone
+        } : null,
+        payment: updatedOrder.payment ? {
+          id: updatedOrder.payment.id.toString(),
+          status: updatedOrder.payment.status,
+          provider: updatedOrder.payment.provider,
+          amount: Number(updatedOrder.payment.amount),
+          currency: updatedOrder.payment.currency,
+          createdAt: updatedOrder.payment.createdAt
+        } : null,
+        orderItems: updatedOrder.orderItems.map(item => ({
+          id: item.id.toString(),
+          productId: item.productId,
+          quantity: item.quantity,
+          pricePerUnit: Number(item.pricePerUnit),
+          product: {
+            id: item.product.id,
+            name: item.product.name,
+            imageUrl: item.product.imageUrl,
+            price: Number(item.product.price)
+          },
+          modifiers: item.modifiers.map(mod => ({
+            id: mod.id.toString(),
+            modifierOption: {
+              name: mod.modifierOption.name,
+              price: Number(mod.modifierOption.price)
+            }
+          }))
+        }))
+      };
+
+      // 11. Notificar a repartidores si el pedido está listo para recogida
+      if (newStatus === 'ready_for_pickup') {
+        try {
+          const { getIo } = require('../config/socket');
+          const io = getIo();
+          if (io) {
+            io.emit('order_ready_for_pickup', {
+              orderId: orderId.toString(),
+              branchId: updatedOrder.branch.id,
+              customerAddress: updatedOrder.address,
+              orderItems: updatedOrder.orderItems,
+              estimatedDeliveryTime: 30 // minutos
+            });
+            logger.debug('Notificación de pedido listo enviada a repartidores', {
+              requestId,
+              meta: { orderId: orderId.toString() }
+            });
+          }
+        } catch (notificationError) {
+          logger.warn('Error notificando a repartidores', {
+            requestId,
+            meta: { error: notificationError.message }
+          });
+        }
+      }
+
+      return formattedOrder;
+
+    } catch (error) {
+      // Serializar de forma segura para evitar problemas con BigInt
+      const safeError = {
+        message: error.message || 'Error desconocido',
+        code: error.code || 'UNKNOWN_ERROR',
+        status: error.status || undefined
+      };
+      
+      logger.error('Error actualizando estado de pedido', {
+        requestId,
+        meta: { 
+          orderId: orderId.toString(), 
+          newStatus, 
+          userId,
+          error: safeError
+        }
+      });
+      
+      throw error;
+    }
+  }
+}
+
+module.exports = OrderRepository;
               email: true,
               phone: true
             }

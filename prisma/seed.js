@@ -22,12 +22,6 @@ async function main() {
     await prisma.productModifier.deleteMany({});
     console.log('✅ ProductModifiers eliminados');
     
-    await prisma.modifierOption.deleteMany({});
-    console.log('✅ ModifierOptions eliminados');
-    
-    await prisma.modifierGroup.deleteMany({});
-    console.log('✅ ModifierGroups eliminados');
-    
     await prisma.orderItemModifier.deleteMany({});
     console.log('✅ OrderItemModifiers eliminados');
     
@@ -39,6 +33,12 @@ async function main() {
     
     await prisma.order.deleteMany({});
     console.log('✅ Orders eliminados');
+    
+    await prisma.modifierOption.deleteMany({});
+    console.log('✅ ModifierOptions eliminados');
+    
+    await prisma.modifierGroup.deleteMany({});
+    console.log('✅ ModifierGroups eliminados');
     
     // Eliminar transacciones de wallet antes de las wallets
     await prisma.driverWalletTransaction.deleteMany({});
@@ -360,7 +360,7 @@ async function main() {
         name: 'Admin',
         lastname: 'Delixmi',
         email: 'admin@delixmi.com',
-        phone: '1111111111',
+        phone: '1234567890',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -374,7 +374,7 @@ async function main() {
         name: 'Ana',
         lastname: 'García',
         email: 'ana.garcia@pizzeria.com',
-        phone: '2222222222',
+        phone: '6666666666',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -388,7 +388,7 @@ async function main() {
         name: 'Carlos',
         lastname: 'Rodriguez',
         email: 'carlos.rodriguez@pizzeria.com',
-        phone: '3333333333',
+        phone: '7777777777',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -402,7 +402,7 @@ async function main() {
         name: 'Miguel',
         lastname: 'Hernández',
         email: 'miguel.hernandez@repartidor.com',
-        phone: '5555555555',
+        phone: '8888888888',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -416,7 +416,7 @@ async function main() {
         name: 'Sofía',
         lastname: 'López',
         email: 'sofia.lopez@email.com',
-        phone: '4444444444',
+        phone: '9999999999',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -425,12 +425,83 @@ async function main() {
     });
     console.log('✅ Sofía usuario creado');
 
+    // Usuarios adicionales con direcciones reales de Ixmiquilpan
+    const magueyBlancoUser = await prisma.user.create({
+      data: {
+        name: 'María',
+        lastname: 'Hernández',
+        email: 'maria.hernandez@magueyblanco.com',
+        phone: '1111111111',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ María (Maguey Blanco) usuario creado');
+
+    const centroUser = await prisma.user.create({
+      data: {
+        name: 'Roberto',
+        lastname: 'García',
+        email: 'roberto.garcia@centro.com',
+        phone: '2222222222',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ Roberto (Centro) usuario creado');
+
+    const elThepeUser = await prisma.user.create({
+      data: {
+        name: 'Carmen',
+        lastname: 'Martínez',
+        email: 'carmen.martinez@elthepe.com',
+        phone: '3333333333',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ Carmen (El Thepe) usuario creado');
+
+    const cantinelaUser = await prisma.user.create({
+      data: {
+        name: 'Luis',
+        lastname: 'Rodríguez',
+        email: 'luis.rodriguez@cantinela.com',
+        phone: '4444444444',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ Luis (Cantinela) usuario creado');
+
+    const panalesUser = await prisma.user.create({
+      data: {
+        name: 'Patricia',
+        lastname: 'López',
+        email: 'patricia.lopez@panales.com',
+        phone: '5555555555',
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+        status: 'active'
+      }
+    });
+    console.log('✅ Patricia (Panales) usuario creado');
+
     const kenjiUser = await prisma.user.create({
       data: {
         name: 'Kenji',
         lastname: 'Tanaka',
         email: 'kenji.tanaka@sushi.com',
-        phone: '6666666666',
+        phone: '0000000000',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -479,6 +550,197 @@ async function main() {
     });
     console.log('✅ Restaurante Sushi creado');
 
+    // Restaurantes reales de Ixmiquilpan
+    const carnitasOinkRestaurant = await prisma.restaurant.create({
+      data: {
+        ownerId: magueyBlancoUser.id,
+        name: 'Carnitas Oink',
+        category: 'Carnitas',
+        description: 'Las mejores carnitas de Ixmiquilpan, preparadas con receta tradicional y ingredientes frescos.',
+        logoUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&h=400&fit=crop',
+        phone: '+52 771 111 1111',
+        email: 'contacto@carnitasoink.com',
+        address: 'Av. Hidalgo 123, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.479658646668057,
+        longitude: -99.23937723339617,
+        commissionRate: 12.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurante Carnitas Oink creado');
+
+    const elMexicanoRestaurant = await prisma.restaurant.create({
+      data: {
+        ownerId: centroUser.id,
+        name: 'El Mexicano',
+        category: 'Comida Mexicana',
+        description: 'Auténtica comida mexicana con los sabores tradicionales de nuestro país.',
+        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=1200&h=400&fit=crop',
+        phone: '+52 771 222 2222',
+        email: 'contacto@elmexicano.com',
+        address: 'Calle Morelos 45, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.48076577652864,
+        longitude: -99.24914222465573,
+        commissionRate: 13.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurante El Mexicano creado');
+
+    const candelabrosRestaurant = await prisma.restaurant.create({
+      data: {
+        ownerId: elThepeUser.id,
+        name: 'Candelabros',
+        category: 'Restaurante',
+        description: 'Restaurante elegante con ambiente familiar y platillos gourmet.',
+        logoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&h=400&fit=crop',
+        phone: '+52 771 333 3333',
+        email: 'contacto@candelabros.com',
+        address: 'Av. Juárez 200, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.48375643496373,
+        longitude: -99.21540196476,
+        commissionRate: 14.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurante Candelabros creado');
+
+    const pueblitoPizzaRestaurant = await prisma.restaurant.create({
+      data: {
+        ownerId: cantinelaUser.id,
+        name: 'Pueblito Pizza',
+        category: 'Pizzas',
+        description: 'Pizzas artesanales con ingredientes frescos y sabores únicos.',
+        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
+        phone: '+52 771 444 4444',
+        email: 'contacto@pueblitopizza.com',
+        address: 'Calle Hidalgo 78, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.483765482910094,
+        longitude: -99.21798054998867,
+        commissionRate: 12.50,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurante Pueblito Pizza creado');
+
+    const restaurantCazadores = await prisma.restaurant.create({
+      data: {
+        ownerId: panalesUser.id,
+        name: 'Restaurant Cazadores',
+        category: 'Carnes',
+        description: 'Especialistas en carnes a la parrilla y platillos de caza.',
+        logoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1558030006-450675393462?w=1200&h=400&fit=crop',
+        phone: '+52 771 555 5555',
+        email: 'contacto@cazadores.com',
+        address: 'Av. Insurgentes 150, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.473625604434577,
+        longitude: -99.20859087343155,
+        commissionRate: 13.50,
+        status: 'active'
+      }
+    });
+    console.log('✅ Restaurant Cazadores creado');
+
+    const taqueriaJerusalen = await prisma.restaurant.create({
+      data: {
+        ownerId: magueyBlancoUser.id,
+        name: 'Taquería Jerusalén',
+        category: 'Tacos',
+        description: 'Los mejores tacos de Ixmiquilpan con salsas caseras y ingredientes frescos.',
+        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1200&h=400&fit=crop',
+        phone: '+52 771 666 6666',
+        email: 'contacto@taqueriajerusalen.com',
+        address: 'Calle 5 de Mayo 90, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.455943112030127,
+        longitude: -99.18375189545016,
+        commissionRate: 11.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Taquería Jerusalén creada');
+
+    const carnitasOink3 = await prisma.restaurant.create({
+      data: {
+        ownerId: elThepeUser.id,
+        name: 'Carnitas OINK 3 en el Tephé',
+        category: 'Carnitas',
+        description: 'Sucursal de Carnitas Oink en El Tephé, misma calidad y sabor.',
+        logoUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&h=400&fit=crop',
+        phone: '+52 771 777 7777',
+        email: 'contacto@carnitasoink3.com',
+        address: 'El Tephé, Ixmiquilpan, Hgo.',
+        latitude: 20.447809398208438,
+        longitude: -99.17746846701719,
+        commissionRate: 12.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Carnitas OINK 3 en el Tephé creada');
+
+    const cocinaDonaLala = await prisma.restaurant.create({
+      data: {
+        ownerId: cantinelaUser.id,
+        name: 'Cocina "Doña Lala"',
+        category: 'Comida Casera',
+        description: 'Comida casera tradicional con el sabor de la abuela.',
+        logoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=1200&h=400&fit=crop',
+        phone: '+52 771 888 8888',
+        email: 'contacto@donlala.com',
+        address: 'Col. El Tephé, Ixmiquilpan, Hgo.',
+        latitude: 20.440500796149163,
+        longitude: -99.16649192597929,
+        commissionRate: 10.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ Cocina "Doña Lala" creada');
+
+    const pollosLosPanchos = await prisma.restaurant.create({
+      data: {
+        ownerId: panalesUser.id,
+        name: 'Pollos Los Panchos',
+        category: 'Pollo',
+        description: 'Pollo rostizado y platillos de pollo con recetas familiares.',
+        logoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=1200&h=400&fit=crop',
+        phone: '+52 771 999 9999',
+        email: 'contacto@polloslospanchos.com',
+        address: 'Col. Panales, Ixmiquilpan, Hgo.',
+        latitude: 20.423813446550273,
+        longitude: -99.16883221660795,
+        commissionRate: 11.50,
+        status: 'active'
+      }
+    });
+    console.log('✅ Pollos Los Panchos creado');
+
+    const pizzasYahir = await prisma.restaurant.create({
+      data: {
+        ownerId: centroUser.id,
+        name: 'PIZZAS YAHIR',
+        category: 'Pizzas',
+        description: 'Pizzas deliciosas con ingredientes frescos y precios accesibles.',
+        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
+        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
+        phone: '+52 771 000 0000',
+        email: 'contacto@pizzasyahir.com',
+        address: 'Col. Maguey Blanco, Ixmiquilpan, Hgo.',
+        latitude: 20.38422296245514,
+        longitude: -99.19479359504597,
+        commissionRate: 12.00,
+        status: 'active'
+      }
+    });
+    console.log('✅ PIZZAS YAHIR creada');
+
     // Crear billeteras para restaurantes
     await prisma.restaurantWallet.create({
       data: { restaurantId: restaurant.id }
@@ -490,23 +752,75 @@ async function main() {
     });
     console.log('✅ Billetera de Sushi creada');
 
-    // 5.1. CREAR/OBTENER SUCURSALES PRINCIPALES
+    // Crear billeteras para los nuevos restaurantes
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: carnitasOinkRestaurant.id }
+    });
+    console.log('✅ Billetera de Carnitas Oink creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: elMexicanoRestaurant.id }
+    });
+    console.log('✅ Billetera de El Mexicano creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: candelabrosRestaurant.id }
+    });
+    console.log('✅ Billetera de Candelabros creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: pueblitoPizzaRestaurant.id }
+    });
+    console.log('✅ Billetera de Pueblito Pizza creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: restaurantCazadores.id }
+    });
+    console.log('✅ Billetera de Restaurant Cazadores creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: taqueriaJerusalen.id }
+    });
+    console.log('✅ Billetera de Taquería Jerusalén creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: carnitasOink3.id }
+    });
+    console.log('✅ Billetera de Carnitas OINK 3 creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: cocinaDonaLala.id }
+    });
+    console.log('✅ Billetera de Cocina Doña Lala creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: pollosLosPanchos.id }
+    });
+    console.log('✅ Billetera de Pollos Los Panchos creada');
+
+    await prisma.restaurantWallet.create({
+      data: { restaurantId: pizzasYahir.id }
+    });
+    console.log('✅ Billetera de PIZZAS YAHIR creada');
+
+    // 5.1. CREAR SUCURSALES PRINCIPALES
     console.log('🏢 Creando sucursales principales para restaurantes...');
     
     // Sucursal principal para Pizzería de Ana
     const anaPrimaryBranch = await prisma.branch.create({
       data: {
-        restaurantId: restaurant.id,
+        restaurant_id: restaurant.id,
         name: restaurant.name || 'Principal',
         address: restaurant.address || 'Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.',
         latitude: 20.489000,
         longitude: -99.230000,
         status: 'active',
-        deliveryFee: 25.00,
-        estimatedDeliveryMin: 30,
-        estimatedDeliveryMax: 45,
-        deliveryRadius: 5.0,
-        usesPlatformDrivers: true
+        delivery_fee: 25.00,
+        estimated_delivery_min: 30,
+        estimated_delivery_max: 45,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
       }
     });
     console.log(`✅ Sucursal Principal creada para Pizzería con ID: ${anaPrimaryBranch.id}`);
@@ -514,20 +828,237 @@ async function main() {
     // Sucursal principal para Sushi Master Kenji
     const kenjiPrimaryBranch = await prisma.branch.create({
       data: {
-        restaurantId: sushiRestaurant.id,
+        restaurant_id: sushiRestaurant.id,
         name: sushiRestaurant.name || 'Principal Sushi',
         address: sushiRestaurant.address || 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
         latitude: 20.486789,
         longitude: -99.212345,
         status: 'active',
-        deliveryFee: 30.00,
-        estimatedDeliveryMin: 25,
-        estimatedDeliveryMax: 40,
-        deliveryRadius: 4.5,
-        usesPlatformDrivers: true
+        delivery_fee: 30.00,
+        estimated_delivery_min: 25,
+        estimated_delivery_max: 40,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
       }
     });
     console.log(`✅ Sucursal Principal creada para Sushi con ID: ${kenjiPrimaryBranch.id}`);
+
+    // Sucursales para los nuevos restaurantes de Ixmiquilpan
+    const carnitasOinkBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: carnitasOinkRestaurant.id,
+        name: carnitasOinkRestaurant.name || 'Principal',
+        address: carnitasOinkRestaurant.address || 'Av. Hidalgo 123, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.479658646668057,
+        longitude: -99.23937723339617,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Carnitas Oink con ID: ${carnitasOinkBranch.id}`);
+
+    const elMexicanoBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: elMexicanoRestaurant.id,
+        name: elMexicanoRestaurant.name || 'Principal',
+        address: elMexicanoRestaurant.address || 'Calle Morelos 45, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.48076577652864,
+        longitude: -99.24914222465573,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para El Mexicano con ID: ${elMexicanoBranch.id}`);
+
+    const candelabrosBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: candelabrosRestaurant.id,
+        name: candelabrosRestaurant.name || 'Principal',
+        address: candelabrosRestaurant.address || 'Av. Juárez 200, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.48375643496373,
+        longitude: -99.21540196476,
+        status: 'active',
+        delivery_fee: 30.00,
+        estimated_delivery_min: 25,
+        estimated_delivery_max: 40,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Candelabros con ID: ${candelabrosBranch.id}`);
+
+    const pueblitoPizzaBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: pueblitoPizzaRestaurant.id,
+        name: pueblitoPizzaRestaurant.name || 'Principal',
+        address: pueblitoPizzaRestaurant.address || 'Calle Hidalgo 78, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.483765482910094,
+        longitude: -99.21798054998867,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Pueblito Pizza con ID: ${pueblitoPizzaBranch.id}`);
+
+    const restaurantCazadoresBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: restaurantCazadores.id,
+        name: restaurantCazadores.name || 'Principal',
+        address: restaurantCazadores.address || 'Av. Insurgentes 150, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.473625604434577,
+        longitude: -99.20859087343155,
+        status: 'active',
+        delivery_fee: 30.00,
+        estimated_delivery_min: 25,
+        estimated_delivery_max: 40,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Restaurant Cazadores con ID: ${restaurantCazadoresBranch.id}`);
+
+    const taqueriaJerusalenBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: taqueriaJerusalen.id,
+        name: taqueriaJerusalen.name || 'Principal',
+        address: taqueriaJerusalen.address || 'Calle 5 de Mayo 90, Centro, Ixmiquilpan, Hgo.',
+        latitude: 20.455943112030127,
+        longitude: -99.18375189545016,
+        status: 'active',
+        delivery_fee: 20.00,
+        estimated_delivery_min: 15,
+        estimated_delivery_max: 30,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Taquería Jerusalén con ID: ${taqueriaJerusalenBranch.id}`);
+
+    const carnitasOink3Branch = await prisma.branch.create({
+      data: {
+        restaurant_id: carnitasOink3.id,
+        name: carnitasOink3.name || 'Principal',
+        address: carnitasOink3.address || 'El Tephé, Ixmiquilpan, Hgo.',
+        latitude: 20.447809398208438,
+        longitude: -99.17746846701719,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Carnitas OINK 3 con ID: ${carnitasOink3Branch.id}`);
+
+    const cocinaDonaLalaBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: cocinaDonaLala.id,
+        name: cocinaDonaLala.name || 'Principal',
+        address: cocinaDonaLala.address || 'Col. El Tephé, Ixmiquilpan, Hgo.',
+        latitude: 20.440500796149163,
+        longitude: -99.16649192597929,
+        status: 'active',
+        delivery_fee: 20.00,
+        estimated_delivery_min: 15,
+        estimated_delivery_max: 30,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Cocina Doña Lala con ID: ${cocinaDonaLalaBranch.id}`);
+
+    const pollosLosPanchosBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: pollosLosPanchos.id,
+        name: pollosLosPanchos.name || 'Principal',
+        address: pollosLosPanchos.address || 'Col. Panales, Ixmiquilpan, Hgo.',
+        latitude: 20.423813446550273,
+        longitude: -99.16883221660795,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para Pollos Los Panchos con ID: ${pollosLosPanchosBranch.id}`);
+
+    const pizzasYahirBranch = await prisma.branch.create({
+      data: {
+        restaurant_id: pizzasYahir.id,
+        name: pizzasYahir.name || 'Principal',
+        address: pizzasYahir.address || 'Col. Maguey Blanco, Ixmiquilpan, Hgo.',
+        latitude: 20.38422296245514,
+        longitude: -99.19479359504597,
+        status: 'active',
+        delivery_fee: 25.00,
+        estimated_delivery_min: 20,
+        estimated_delivery_max: 35,
+        delivery_radius: 8.0,
+        uses_platform_drivers: true,
+        updated_at: new Date()
+      }
+    });
+    console.log(`✅ Sucursal Principal creada para PIZZAS YAHIR con ID: ${pizzasYahirBranch.id}`);
+
+    // 5.2. CREAR HORARIOS DE SUCURSALES
+    console.log('🕒 Creando horarios de sucursales...');
+    
+    // Horarios para Sucursal de Pizzería de Ana (Lunes a Domingo, 8:00-22:00)
+    const anaScheduleData = [];
+    for (let day = 0; day < 7; day++) {
+      anaScheduleData.push({
+        branchId: anaPrimaryBranch.id,
+        dayOfWeek: day,
+        opening_time: '08:00:00',
+        closing_time: '22:00:00',
+        is_closed: false
+      });
+    }
+    await prisma.branchSchedule.createMany({
+      data: anaScheduleData
+    });
+    console.log('✅ Horarios de Pizzería creados');
+
+    // Horarios para Sucursal de Sushi Master Kenji (Lunes a Domingo, 11:00-23:00)
+    const kenjiScheduleData = [];
+    for (let day = 0; day < 7; day++) {
+      kenjiScheduleData.push({
+        branchId: kenjiPrimaryBranch.id,
+        dayOfWeek: day,
+        opening_time: '11:00:00',
+        closing_time: '23:00:00',
+        is_closed: false
+      });
+    }
+    await prisma.branchSchedule.createMany({
+      data: kenjiScheduleData
+    });
+    console.log('✅ Horarios de Sushi creados');
 
     // 6. CREAR CATEGORÍAS
     console.log('📂 Creando categorías...');
@@ -870,6 +1401,92 @@ async function main() {
     });
     console.log('✅ Dirección Oficina creada');
 
+    // Direcciones reales de Ixmiquilpan para los nuevos usuarios
+    const magueyBlancoAddress = await prisma.address.create({
+      data: {
+        userId: magueyBlancoUser.id,
+        alias: 'Casa',
+        street: 'Calle Principal',
+        exteriorNumber: '45',
+        neighborhood: 'Maguey Blanco',
+        city: 'Ixmiquilpan',
+        state: 'Hidalgo',
+        zipCode: '42300',
+        references: 'Casa de dos pisos con portón azul.',
+        latitude: 20.410283147342966,
+        longitude: -99.16951988486106
+      }
+    });
+    console.log('✅ Dirección Maguey Blanco creada');
+
+    const centroAddress = await prisma.address.create({
+      data: {
+        userId: centroUser.id,
+        alias: 'Casa',
+        street: 'Av. Juárez',
+        exteriorNumber: '200',
+        neighborhood: 'Centro',
+        city: 'Ixmiquilpan',
+        state: 'Hidalgo',
+        zipCode: '42300',
+        references: 'Casa colonial en el centro histórico.',
+        latitude: 20.48013898568814,
+        longitude: -99.21503608010381
+      }
+    });
+    console.log('✅ Dirección Centro creada');
+
+    const elThepeAddress = await prisma.address.create({
+      data: {
+        userId: elThepeUser.id,
+        alias: 'Casa',
+        street: 'Calle del Tephé',
+        exteriorNumber: '78',
+        neighborhood: 'El Tephé',
+        city: 'Ixmiquilpan',
+        state: 'Hidalgo',
+        zipCode: '42300',
+        references: 'Casa con jardín y árboles frutales.',
+        latitude: 20.445308197339457,
+        longitude: -99.16680420619456
+      }
+    });
+    console.log('✅ Dirección El Tephé creada');
+
+    const cantinelaAddress = await prisma.address.create({
+      data: {
+        userId: cantinelaUser.id,
+        alias: 'Casa',
+        street: 'Calle Cantinela',
+        exteriorNumber: '123',
+        neighborhood: 'Cantinela',
+        city: 'Ixmiquilpan',
+        state: 'Hidalgo',
+        zipCode: '42300',
+        references: 'Casa moderna con terraza.',
+        latitude: 20.45657215348233,
+        longitude: -99.21193505527792
+      }
+    });
+    console.log('✅ Dirección Cantinela creada');
+
+    const panalesAddress = await prisma.address.create({
+      data: {
+        userId: panalesUser.id,
+        alias: 'Casa',
+        street: 'Calle Panales',
+        exteriorNumber: '56',
+        neighborhood: 'Panales',
+        city: 'Ixmiquilpan',
+        state: 'Hidalgo',
+        zipCode: '42300',
+        references: 'Casa con vista a las montañas.',
+        latitude: 20.47222118035888,
+        longitude: -99.26627369368394
+      }
+    });
+    console.log('✅ Dirección Panales creada');
+
     // 10. CREAR ASIGNACIONES DE ROLES DE USUARIO
     console.log('👤 Creando asignaciones de roles...');
     
@@ -891,7 +1508,24 @@ async function main() {
     await prisma.userRoleAssignment.create({
       data: { userId: kenjiUser.id, roleId: ownerRole.id, restaurantId: sushiRestaurant.id }
     });
-    console.log('✅ 6 asignaciones de roles creadas');
+
+    // Asignaciones de roles para los nuevos usuarios
+    await prisma.userRoleAssignment.create({
+      data: { userId: magueyBlancoUser.id, roleId: customerRole.id }
+    });
+    await prisma.userRoleAssignment.create({
+      data: { userId: centroUser.id, roleId: customerRole.id }
+    });
+    await prisma.userRoleAssignment.create({
+      data: { userId: elThepeUser.id, roleId: customerRole.id }
+    });
+    await prisma.userRoleAssignment.create({
+      data: { userId: cantinelaUser.id, roleId: customerRole.id }
+    });
+    await prisma.userRoleAssignment.create({
+      data: { userId: panalesUser.id, roleId: customerRole.id }
+    });
+    console.log('✅ 11 asignaciones de roles creadas');
 
     // 11. CREAR PERFILES DE REPARTIDOR
     console.log('🚗 Creando perfiles de repartidor...');
@@ -1197,7 +1831,7 @@ async function main() {
         addressId: casaAddress.id,
         status: 'confirmed',
         subtotal: 480.00, // Pizza Hawaiana (150 + 15 + 45) + 2x Margherita (135 x 2) = 210 + 270 = 480
-        deliveryFee: anaPrimaryBranch.deliveryFee, // 25.00
+        deliveryFee: anaPrimaryBranch.delivery_fee, // 25.00
         total: 505.00, // 480 + 25
         commissionRateSnapshot: restaurant.commissionRate, // 12.50
         platformFee: 60.00, // (480 * 12.50 / 100)
@@ -1218,7 +1852,7 @@ async function main() {
         addressId: oficinaAddress.id,
         status: 'preparing',
         subtotal: 93.00, // Nigiri de Salmón (85 + 0 + 8) = 93
-        deliveryFee: kenjiPrimaryBranch.deliveryFee, // 30.00
+        deliveryFee: kenjiPrimaryBranch.delivery_fee, // 30.00
         total: 123.00,
         commissionRateSnapshot: sushiRestaurant.commissionRate, // 15.00
         platformFee: 13.95, // (93 * 15 / 100)
@@ -1326,7 +1960,7 @@ async function main() {
         name: 'Carlos',
         lastname: 'Pérez',
         email: 'carlos.perez@driver.com',
-        phone: '7777777777',
+        phone: '9876543210',
         password: hashedPassword,
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -1364,7 +1998,7 @@ async function main() {
         addressId: casaAddress.id,
         status: 'pending',
         subtotal: 145.50,
-        deliveryFee: 25.00,
+        deliveryFee: anaPrimaryBranch.delivery_fee,
         total: 170.50,
         commissionRateSnapshot: restaurant.commissionRate,
         platformFee: 18.19,
@@ -1407,7 +2041,7 @@ async function main() {
         addressId: oficinaAddress.id,
         status: 'placed',
         subtotal: 270.00,
-        deliveryFee: 25.00,
+        deliveryFee: anaPrimaryBranch.delivery_fee,
         total: 295.00,
         commissionRateSnapshot: restaurant.commissionRate,
         platformFee: 33.75,
@@ -1449,7 +2083,7 @@ async function main() {
         addressId: casaAddress.id,
         status: 'ready_for_pickup',
         subtotal: 180.00,
-        deliveryFee: 25.00,
+        deliveryFee: anaPrimaryBranch.delivery_fee,
         total: 205.00,
         commissionRateSnapshot: restaurant.commissionRate,
         platformFee: 22.50,
@@ -1492,7 +2126,7 @@ async function main() {
         deliveryDriverId: miguelUser.id, // Ya está asignado
         status: 'out_for_delivery',
         subtotal: 160.00,
-        deliveryFee: 25.00,
+        deliveryFee: anaPrimaryBranch.delivery_fee,
         total: 185.00,
         commissionRateSnapshot: restaurant.commissionRate,
         platformFee: 20.00,
@@ -1535,7 +2169,7 @@ async function main() {
         deliveryDriverId: miguelUser.id,
         status: 'delivered',
         subtotal: 350.00,
-        deliveryFee: 25.00,
+        deliveryFee: anaPrimaryBranch.delivery_fee,
         total: 375.00,
         commissionRateSnapshot: restaurant.commissionRate,
         platformFee: 43.75,
@@ -1587,7 +2221,7 @@ async function main() {
         addressId: oficinaAddress.id,
         status: 'cancelled',
         subtotal: 95.00,
-        deliveryFee: 30.00,
+        deliveryFee: kenjiPrimaryBranch.delivery_fee,
         total: 125.00,
         commissionRateSnapshot: sushiRestaurant.commissionRate,
         platformFee: 14.25,
@@ -1625,14 +2259,15 @@ async function main() {
     console.log('\n📊 Resumen de datos creados:');
     console.log('- 10 roles');
     console.log('- 19 permisos');
-    console.log('- 7 usuarios (incluye repartidor adicional)');
-    console.log('- 2 restaurantes (Pizzería + Sushi)');
-    console.log('- 2 sucursales principales (una por restaurante)');
+    console.log('- 12 usuarios (incluye repartidor adicional + 5 clientes de Ixmiquilpan)');
+    console.log('- 12 restaurantes (Pizzería + Sushi + 10 restaurantes de Ixmiquilpan)');
+    console.log('- 12 sucursales principales (una por restaurante)');
+    console.log('- 84 horarios de sucursales (7 días x 12 sucursales)');
     console.log('- 6 categorías');
     console.log('- 14 subcategorías');
     console.log('- 17 productos (10 pizza + 7 sushi)');
-    console.log('- 2 direcciones (cliente Sofía)');
-    console.log('- 7 asignaciones de roles');
+    console.log('- 7 direcciones (Sofía + 5 clientes de Ixmiquilpan)');
+    console.log('- 11 asignaciones de roles');
     console.log('- 2 perfiles de repartidor (Miguel + Carlos)');
     console.log('- 5 grupos de modificadores');
     console.log('- 25 opciones de modificadores');
@@ -1653,11 +2288,28 @@ async function main() {
     console.log('- Miguel (miguel.hernandez@repartidor.com) - Repartidor de plataforma');
     console.log('- Carlos Pérez (carlos.perez@driver.com) - Repartidor adicional');
     console.log('- Sofía (sofia.lopez@email.com) - Cliente');
+    console.log('\n🏠 Clientes de Ixmiquilpan:');
+    console.log('- María (maria.hernandez@magueyblanco.com) - Maguey Blanco');
+    console.log('- Roberto (roberto.garcia@centro.com) - Centro');
+    console.log('- Carmen (carmen.martinez@elthepe.com) - El Tephé');
+    console.log('- Luis (luis.rodriguez@cantinela.com) - Cantinela');
+    console.log('- Patricia (patricia.lopez@panales.com) - Panales');
     
     console.log('\n📍 Ubicaciones actualizadas:');
     console.log('- Restaurante Pizzería de Ana: Cerca del cliente Sofía');
     console.log('- Repartidor Miguel: Posicionado cerca del restaurante');
     console.log('- Repartidor Carlos: Posicionado cerca del restaurante');
+    console.log('\n🏪 Restaurantes de Ixmiquilpan:');
+    console.log('- Carnitas Oink: Centro de Ixmiquilpan');
+    console.log('- El Mexicano: Centro de Ixmiquilpan');
+    console.log('- Candelabros: Centro de Ixmiquilpan');
+    console.log('- Pueblito Pizza: Centro de Ixmiquilpan');
+    console.log('- Restaurant Cazadores: Centro de Ixmiquilpan');
+    console.log('- Taquería Jerusalén: Zona comercial');
+    console.log('- Carnitas OINK 3: El Tephé');
+    console.log('- Cocina "Doña Lala": El Tephé');
+    console.log('- Pollos Los Panchos: Panales');
+    console.log('- PIZZAS YAHIR: Maguey Blanco');
     
     console.log('\n📦 Estados de pedidos creados:');
     console.log('- PENDING: Pedido recién creado (#3)');

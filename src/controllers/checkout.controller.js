@@ -425,12 +425,18 @@ const getPaymentStatus = async (req, res) => {
  */
 const createCashOrder = async (req, res) => {
   try {
-    console.log('💵 Iniciando creación de orden de pago en efectivo...');
+    logger.info('Iniciando creación de orden de pago en efectivo', {
+      requestId: req.id,
+      meta: { userId: req.user?.id }
+    });
 
     // 1. Validar errores de validación
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Errores de validación:', errors.array());
+      logger.warn('Errores de validación detectados', {
+        requestId: req.id,
+        meta: { errors: errors.array() }
+      });
       return res.status(400).json({
         status: 'error',
         message: 'Datos de entrada inválidos',
@@ -441,7 +447,10 @@ const createCashOrder = async (req, res) => {
     const { addressId, items, specialInstructions, useCart = false, restaurantId } = req.body;
     const userId = req.user.id;
 
-    console.log(`👤 Usuario: ${userId}, Dirección: ${addressId}, useCart: ${useCart}`);
+    logger.debug('Parámetros de la orden', {
+      requestId: req.id,
+      meta: { userId, addressId, useCart }
+    });
 
     // 1.1. Validar que si useCart es true, restaurantId sea obligatorio
     if (useCart && !restaurantId) {
@@ -468,16 +477,21 @@ const createCashOrder = async (req, res) => {
     });
 
     if (!address) {
-      console.log('❌ Dirección no encontrada o no pertenece al usuario');
+      logger.warn('Dirección no encontrada o no pertenece al usuario', {
+        requestId: req.id,
+        meta: { userId, addressId }
+      });
       return res.status(404).json({
         status: 'error',
         message: 'Dirección no encontrada'
       });
     }
 
-    console.log('✅ Dirección validada:', {
-      id: address.id,
-      alias: address.alias,
+    logger.debug('Dirección validada', {
+      requestId: req.id,
+      meta: {
+        addressId: address.id,
+        alias: address.alias,
       street: address.street,
       neighborhood: address.neighborhood
     });
@@ -488,7 +502,10 @@ const createCashOrder = async (req, res) => {
     let cartItemsWithModifiers = null;
     
     if (useCart) {
-      console.log(`🛒 Obteniendo items del carrito para restaurante ${restaurantId}`);
+      logger.debug('Obteniendo items del carrito para restaurante', {
+        requestId: req.id,
+        meta: { restaurantId }
+      });
       
       const cart = await prisma.cart.findUnique({
         where: {
@@ -545,13 +562,19 @@ const createCashOrder = async (req, res) => {
       
       itemsToProcess = cartItems;
       cartItemsWithModifiers = cart.items;
-      console.log(`✅ ${cartItems.length} items obtenidos del carrito`);
+      logger.debug('Items obtenidos del carrito', {
+        requestId: req.id,
+        meta: { itemsCount: cartItems.length }
+      });
     }
 
     // 4. VALIDACIÓN DE COBERTURA TEMPRANA
     // Obtener el primer producto para determinar la sucursal
     if (!itemsToProcess || itemsToProcess.length === 0) {
-      console.log('❌ No se proporcionaron productos');
+      logger.warn('No se proporcionaron productos', {
+        requestId: req.id,
+        meta: { userId }
+      });
       return res.status(400).json({
         status: 'error',
         message: 'Debe proporcionar al menos un producto'
@@ -587,11 +610,14 @@ const createCashOrder = async (req, res) => {
       const isCovered = isWithinCoverage(branch, address);
 
       if (!isCovered) {
-        console.log('❌ Dirección fuera del área de cobertura:', {
-          branchId: branch.id,
-          branchName: branch.name,
-          addressId: address.id,
-          addressAlias: address.alias
+        logger.warn('Dirección fuera del área de cobertura', {
+          requestId: req.id,
+          meta: {
+            branchId: branch.id,
+            branchName: branch.name,
+            addressId: address.id,
+            addressAlias: address.alias
+          }
         });
 
         return res.status(409).json({
@@ -608,7 +634,10 @@ const createCashOrder = async (req, res) => {
         });
       }
 
-      console.log('✅ Dirección dentro del área de cobertura');
+      logger.debug('Dirección dentro del área de cobertura', {
+        requestId: req.id,
+        meta: { branchId: branch.id, addressId: address.id }
+      });
     }
 
     // 5. Validar y obtener productos
@@ -627,7 +656,14 @@ const createCashOrder = async (req, res) => {
     });
 
     if (products.length !== productIds.length) {
-      console.log('❌ Algunos productos no fueron encontrados');
+      logger.warn('Algunos productos no fueron encontrados', {
+        requestId: req.id,
+        meta: { 
+          requestedCount: productIds.length, 
+          foundCount: products.length,
+          productIds 
+        }
+      });
       return res.status(404).json({
         status: 'error',
         message: 'Uno o más productos no fueron encontrados'
@@ -637,7 +673,10 @@ const createCashOrder = async (req, res) => {
     // 6. Validar que todos los productos son del mismo restaurante
     const restaurantIds = [...new Set(products.map(p => p.restaurant.id))];
     if (restaurantIds.length > 1) {
-      console.log('❌ Los productos deben ser del mismo restaurante');
+      logger.warn('Los productos deben ser del mismo restaurante', {
+        requestId: req.id,
+        meta: { restaurantIds }
+      });
       return res.status(400).json({
         status: 'error',
         message: 'Todos los productos deben ser del mismo restaurante'
@@ -645,15 +684,23 @@ const createCashOrder = async (req, res) => {
     }
 
     const restaurant = products[0].restaurant;
-    console.log(`✅ Restaurante validado: ${restaurant.name} (ID: ${restaurant.id})`);
+    logger.debug('Restaurante validado', {
+      requestId: req.id,
+      meta: { 
+        restaurantId: restaurant.id, 
+        restaurantName: restaurant.name 
+      }
+    });
 
     // 7. Obtener el branchId del primer producto
     const firstProduct = products[0];
     let branchId = 1; // Valor por defecto
     
-    console.log(`🔍 Producto seleccionado:`, {
-      productId: firstProduct.id,
-      productName: firstProduct.name,
+    logger.debug('Producto seleccionado para determinar sucursal', {
+      requestId: req.id,
+      meta: {
+        productId: firstProduct.id,
+        productName: firstProduct.name,
       restaurantId: firstProduct.restaurant.id,
       restaurantName: firstProduct.restaurant.name,
       branchesCount: firstProduct.restaurant.branches ? firstProduct.restaurant.branches.length : 0,
@@ -662,9 +709,18 @@ const createCashOrder = async (req, res) => {
     
     if (firstProduct.restaurant.branches && firstProduct.restaurant.branches.length > 0) {
       branchId = firstProduct.restaurant.branches[0].id;
-      console.log(`✅ BranchId obtenido del producto: ${branchId}`);
+      logger.debug('BranchId obtenido del producto', {
+        requestId: req.id,
+        meta: { branchId }
+      });
     } else {
-      console.log(`⚠️ No se encontraron sucursales para el restaurante ${firstProduct.restaurant.name}, usando branchId por defecto: ${branchId}`);
+      logger.warn('No se encontraron sucursales para el restaurante, usando branchId por defecto', {
+        requestId: req.id,
+        meta: { 
+          restaurantName: firstProduct.restaurant.name,
+          defaultBranchId: branchId 
+        }
+      });
     }
 
     // 8. Validar horario de la sucursal
@@ -672,7 +728,14 @@ const createCashOrder = async (req, res) => {
     const currentDayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
     const currentTime = currentDate.toTimeString().slice(0, 8); // HH:MM:SS
 
-    console.log(`🔍 Validando horario de sucursal ${branchId} - Día: ${currentDayOfWeek}, Hora: ${currentTime}`);
+    logger.debug('Validando horario de sucursal', {
+      requestId: req.id,
+      meta: { 
+        branchId, 
+        currentDayOfWeek, 
+        currentTime 
+      }
+    });
 
     const branchSchedule = await prisma.branchSchedule.findFirst({
       where: {
@@ -682,7 +745,10 @@ const createCashOrder = async (req, res) => {
     });
 
     if (!branchSchedule) {
-      console.log(`❌ No se encontró horario para la sucursal ${branchId} en el día ${currentDayOfWeek}`);
+      logger.warn('No se encontró horario para la sucursal', {
+        requestId: req.id,
+        meta: { branchId, currentDayOfWeek }
+      });
       return res.status(409).json({
         status: 'error',
         message: 'El restaurante está cerrado hoy'
@@ -690,7 +756,10 @@ const createCashOrder = async (req, res) => {
     }
 
     if (branchSchedule.isClosed) {
-      console.log(`❌ Sucursal ${branchId} está cerrada hoy (isClosed: true)`);
+      logger.warn('Sucursal está cerrada hoy', {
+        requestId: req.id,
+        meta: { branchId, isClosed: branchSchedule.isClosed }
+      });
       return res.status(409).json({
         status: 'error',
         message: 'El restaurante está cerrado hoy'
@@ -701,7 +770,16 @@ const createCashOrder = async (req, res) => {
     const openingTime = branchSchedule.openingTime; // Ya es string HH:MM:SS
     const closingTime = branchSchedule.closingTime; // Ya es string HH:MM:SS
 
-    console.log(`🕐 Horario de hoy: ${openingTime} a ${closingTime}, Hora actual: ${currentTime}`);
+    logger.debug('Horario de sucursal', {
+      requestId: req.id,
+      meta: {
+        branchId,
+        openingTime,
+        closingTime,
+        currentTime,
+        is24Hours: branchSchedule.is24Hours
+      }
+    });
 
     // Convertir tiempos a minutos para comparación correcta
     const timeToMinutes = (timeString) => {
@@ -717,14 +795,25 @@ const createCashOrder = async (req, res) => {
     const is24Hours = openingMinutes === 0 && closingMinutes >= 1439; // 23:59 = 1439 minutos
 
     if (!is24Hours && (currentMinutes < openingMinutes || currentMinutes > closingMinutes)) {
-      console.log(`❌ Hora actual ${currentTime} está fuera del horario de atención ${openingTime}-${closingTime}`);
+      logger.warn('Hora actual está fuera del horario de atención', {
+        requestId: req.id,
+        meta: {
+          branchId,
+          currentTime,
+          openingTime,
+          closingTime
+        }
+      });
       return res.status(409).json({
         status: 'error',
         message: `El restaurante está cerrado en este momento. Horario de hoy: ${openingTime} a ${closingTime}`
       });
     }
 
-    console.log(`✅ Sucursal ${branchId} está abierta - continuando con el proceso de pago`);
+    logger.debug('Sucursal está abierta, continuando con el proceso de pago', {
+      requestId: req.id,
+      meta: { branchId }
+    });
 
     // 9. Obtener la sucursal para cálculos
     const branch = firstProduct.restaurant.branches[0];
@@ -734,7 +823,12 @@ const createCashOrder = async (req, res) => {
     try {
       pricing = await calculateOrderPricing(itemsToProcess, products, branch, address);
     } catch (error) {
-      console.error('❌ Error calculando precios:', error);
+      logger.error('Error calculando precios', {
+        requestId: req.id,
+        error: error.message,
+        stack: error.stack,
+        meta: { userId, branchId }
+      });
       return res.status(500).json({
         status: 'error',
         message: 'Error en el cálculo de precios',
@@ -756,7 +850,10 @@ const createCashOrder = async (req, res) => {
     for (const item of itemsToProcess) {
       const product = products.find(p => p.id === item.productId);
       if (!product) {
-        console.log(`❌ Producto no encontrado: ${item.productId}`);
+        logger.warn('Producto no encontrado', {
+          requestId: req.id,
+          meta: { productId: item.productId }
+        });
         return res.status(404).json({
           status: 'error',
           message: `Producto con ID ${item.productId} no encontrado`
@@ -764,7 +861,13 @@ const createCashOrder = async (req, res) => {
       }
 
       if (!product.isAvailable) {
-        console.log(`❌ Producto no disponible: ${product.name}`);
+        logger.warn('Producto no disponible', {
+          requestId: req.id,
+          meta: { 
+            productId: product.id, 
+            productName: product.name 
+          }
+        });
         return res.status(400).json({
           status: 'error',
           message: `El producto ${product.name} no está disponible`
@@ -781,11 +884,21 @@ const createCashOrder = async (req, res) => {
         total: itemTotal
       });
 
-      console.log(`✅ Producto: ${product.name} x${item.quantity} = $${itemTotal}`);
+      logger.debug('Producto procesado', {
+        requestId: req.id,
+        meta: {
+          productName: product.name,
+          quantity: item.quantity,
+          itemTotal
+        }
+      });
     }
 
     // 13. Crear orden y pago usando transacción
-    console.log('💾 Creando orden y pago en efectivo...');
+    logger.info('Creando orden y pago en efectivo', {
+      requestId: req.id,
+      meta: { userId, branchId }
+    });
     
     // Mapear items del carrito por productId para acceso rápido a modificadores
     const cartItemsMap = new Map();
@@ -816,7 +929,10 @@ const createCashOrder = async (req, res) => {
         }
       });
 
-      console.log(`✅ Orden creada con ID: ${order.id}`);
+      logger.info('Orden creada exitosamente', {
+        requestId: req.id,
+        meta: { orderId: order.id }
+      });
 
       // Crear items de la orden y copiar modificadores si es necesario
       for (const item of orderItems) {
@@ -832,7 +948,13 @@ const createCashOrder = async (req, res) => {
         // Copiar modificadores del carrito al item de la orden si existen
         const cartItem = cartItemsMap.get(item.productId);
         if (cartItem && cartItem.modifiers && cartItem.modifiers.length > 0) {
-          console.log(`🔄 Copiando ${cartItem.modifiers.length} modificadores para producto ${item.productId}`);
+          logger.debug('Copiando modificadores para producto', {
+            requestId: req.id,
+            meta: {
+              productId: item.productId,
+              modifiersCount: cartItem.modifiers.length
+            }
+          });
           
           for (const cartModifier of cartItem.modifiers) {
             await tx.orderItemModifier.create({
@@ -843,11 +965,17 @@ const createCashOrder = async (req, res) => {
             });
           }
           
-          console.log(`✅ Modificadores copiados para productId ${item.productId}`);
+          logger.debug('Modificadores copiados para producto', {
+            requestId: req.id,
+            meta: { productId: item.productId }
+          });
         }
       }
 
-      console.log(`✅ ${orderItems.length} items de orden creados`);
+      logger.debug('Items de orden creados', {
+        requestId: req.id,
+        meta: { itemsCount: orderItems.length }
+      });
 
       // Crear registro de pago
       const payment = await tx.payment.create({
@@ -861,14 +989,20 @@ const createCashOrder = async (req, res) => {
         }
       });
 
-      console.log(`✅ Pago en efectivo creado con ID: ${payment.id}`);
+      logger.info('Pago en efectivo creado exitosamente', {
+        requestId: req.id,
+        meta: { paymentId: payment.id, orderId: order.id }
+      });
 
       return { order, payment };
     });
 
     // 14. Limpiar carrito del restaurante específico (solo si se usó carrito)
     if (useCart) {
-      console.log('🛒 Limpiando carrito del restaurante...');
+      logger.info('Limpiando carrito del restaurante', {
+        requestId: req.id,
+        meta: { restaurantId: restaurant.id }
+      });
       try {
         await prisma.cart.deleteMany({
           where: {
@@ -876,15 +1010,25 @@ const createCashOrder = async (req, res) => {
             restaurantId: restaurant.id
           }
         });
-        console.log(`✅ Carrito del restaurante ${restaurant.id} limpiado exitosamente`);
+        logger.info('Carrito del restaurante limpiado exitosamente', {
+          requestId: req.id,
+          meta: { restaurantId: restaurant.id }
+        });
       } catch (error) {
-        console.log('⚠️ Error limpiando carrito:', error.message);
+        logger.warn('Error limpiando carrito', {
+          requestId: req.id,
+          error: error.message,
+          meta: { restaurantId: restaurant.id }
+        });
         // No fallar el pedido por error en limpieza del carrito
       }
     }
 
     // 15. Emitir evento de nueva orden por Socket.io
-    console.log('📡 Emitiendo evento de nueva orden...');
+    logger.info('Emitiendo evento de nueva orden', {
+      requestId: req.id,
+      meta: { branchId, orderId: result.order.id }
+    });
     try {
       const io = getIo();
       io.to(`branch_${branchId}`).emit('new_order', {
@@ -896,13 +1040,27 @@ const createCashOrder = async (req, res) => {
         estimatedDeliveryTime: estimatedDeliveryTime.timeRange,
         orderPlacedAt: result.order.orderPlacedAt
       });
-      console.log(`✅ Evento emitido a la sala branch_${branchId}`);
+      logger.info('Evento de nueva orden emitido exitosamente', {
+        requestId: req.id,
+        meta: { branchId, orderId: result.order.id }
+      });
     } catch (error) {
-      console.log('⚠️ Socket.io no disponible:', error.message);
+      logger.warn('Socket.io no disponible', {
+        requestId: req.id,
+        error: error.message,
+        meta: { branchId }
+      });
     }
 
     // 16. Respuesta exitosa
-    console.log('🎉 Orden de pago en efectivo creada exitosamente');
+    logger.info('Orden de pago en efectivo creada exitosamente', {
+      requestId: req.id,
+      meta: { 
+        orderId: result.order.id, 
+        paymentId: result.payment.id,
+        total: Number(total)
+      }
+    });
     
     res.status(201).json({
       status: 'success',
@@ -944,7 +1102,12 @@ const createCashOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error creando orden de pago en efectivo:', error);
+    logger.error('Error creando orden de pago en efectivo', {
+      requestId: req.id,
+      error: error.message,
+      stack: error.stack,
+      meta: { userId: req.user?.id }
+    });
     res.status(500).json({
       status: 'error',
       message: 'Error interno del servidor',

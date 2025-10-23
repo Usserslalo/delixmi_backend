@@ -75,7 +75,23 @@ const updateOrderStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus, {
     required_error: "El nuevo estado es requerido",
     invalid_type_error: "Estado inválido"
+  }),
+  rejectionReason: z.string({
+    invalid_type_error: "La razón de cancelación debe ser un texto"
   })
+    .min(10, "La razón de cancelación debe tener al menos 10 caracteres")
+    .max(500, "La razón de cancelación no puede exceder 500 caracteres")
+    .trim()
+    .optional()
+    .refine((val, ctx) => {
+      // Si el estado es 'cancelled', rejectionReason es obligatorio
+      if (ctx.parent.status === 'cancelled' && (!val || val.trim().length < 10)) {
+        return false;
+      }
+      return true;
+    }, {
+      message: "La razón de cancelación es obligatoria y debe tener al menos 10 caracteres cuando el estado es 'cancelled'"
+    })
 });
 
 module.exports = {
