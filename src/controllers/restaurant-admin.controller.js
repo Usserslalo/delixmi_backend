@@ -2262,6 +2262,143 @@ const getDashboardSummary = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene las sucursales del restaurante del usuario autenticado
+ * @route GET /api/restaurant/branches
+ * @access Private (Owner Only)
+ */
+const getRestaurantBranches = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status, page = 1, pageSize = 20 } = req.query;
+    const requestId = req.id;
+
+    logger.info('Solicitud de sucursales del restaurante', {
+      requestId,
+      meta: { userId, status, page, pageSize }
+    });
+
+    // Obtener el restaurante del usuario
+    const restaurant = await RestaurantRepository.getRestaurantByUserId(userId, requestId);
+    
+    if (!restaurant) {
+      return ResponseService.error(
+        res,
+        'Restaurante no encontrado',
+        404,
+        'RESTAURANT_NOT_FOUND',
+        { suggestion: 'Contacta al administrador para configurar tu restaurante' }
+      );
+    }
+
+    // Construir filtros
+    const where = {
+      restaurantId: restaurant.id
+    };
+
+    if (status) {
+      where.status = status.toUpperCase();
+    }
+
+    // Calcular paginación
+    const skip = (page - 1) * pageSize;
+    const take = parseInt(pageSize);
+
+    // Obtener sucursales con paginación
+    const [branches, totalCount] = await prisma.$transaction([
+      prisma.branch.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          schedules: {
+            select: {
+              id: true,
+              dayOfWeek: true,
+              openTime: true,
+              closeTime: true,
+              isOpen: true
+            }
+          }
+        }
+      }),
+      prisma.branch.count({ where })
+    ]);
+
+    // Calcular metadatos de paginación
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    // Formatear sucursales
+    const formattedBranches = branches.map(branch => ({
+      id: branch.id,
+      name: branch.name,
+      address: branch.address,
+      phone: branch.phone,
+      latitude: Number(branch.latitude),
+      longitude: Number(branch.longitude),
+      deliveryRadius: Number(branch.deliveryRadius),
+      status: branch.status,
+      usesPlatformDrivers: branch.usesPlatformDrivers,
+      createdAt: branch.createdAt,
+      updatedAt: branch.updatedAt,
+      schedules: branch.schedules.map(schedule => ({
+        id: schedule.id,
+        dayOfWeek: schedule.dayOfWeek,
+        openTime: schedule.openTime,
+        closeTime: schedule.closeTime,
+        isOpen: schedule.isOpen
+      }))
+    }));
+
+    logger.info('Sucursales obtenidas exitosamente', {
+      requestId,
+      meta: { 
+        userId, 
+        restaurantId: restaurant.id,
+        totalFound: totalCount,
+        returned: formattedBranches.length
+      }
+    });
+
+    return ResponseService.success(
+      res,
+      'Sucursales obtenidas exitosamente',
+      {
+        branches: formattedBranches,
+        pagination: {
+          currentPage: parseInt(page),
+          pageSize: parseInt(pageSize),
+          totalCount,
+          totalPages,
+          hasNextPage,
+          hasPreviousPage
+        }
+      }
+    );
+
+  } catch (error) {
+    logger.error('Error obteniendo sucursales del restaurante', {
+      requestId: req.id,
+      meta: { 
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack
+      }
+    });
+
+    return ResponseService.error(
+      res,
+      'Error interno del servidor',
+      500,
+      'INTERNAL_ERROR',
+      { originalError: error.message }
+    );
+  }
+};
+
 module.exports = {
   getRestaurantOrders,
   updateOrderStatus,
@@ -2286,6 +2423,8 @@ module.exports = {
   getRestaurantWallet,
   getRestaurantWalletTransactions,
   getRestaurantEarningsSummary,
-  getDashboardSummary
+  getDashboardSummary,
+  getRestaurantBranches
 };
+
 

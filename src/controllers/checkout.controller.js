@@ -492,8 +492,9 @@ const createCashOrder = async (req, res) => {
       meta: {
         addressId: address.id,
         alias: address.alias,
-      street: address.street,
-      neighborhood: address.neighborhood
+        street: address.street,
+        neighborhood: address.neighborhood
+      }
     });
 
     // 3. Si useCart es true, obtener items del carrito
@@ -701,10 +702,11 @@ const createCashOrder = async (req, res) => {
       meta: {
         productId: firstProduct.id,
         productName: firstProduct.name,
-      restaurantId: firstProduct.restaurant.id,
-      restaurantName: firstProduct.restaurant.name,
-      branchesCount: firstProduct.restaurant.branches ? firstProduct.restaurant.branches.length : 0,
-      branches: firstProduct.restaurant.branches
+        restaurantId: firstProduct.restaurant.id,
+        restaurantName: firstProduct.restaurant.name,
+        branchesCount: firstProduct.restaurant.branches ? firstProduct.restaurant.branches.length : 0,
+        branches: firstProduct.restaurant.branches
+      }
     });
     
     if (firstProduct.restaurant.branches && firstProduct.restaurant.branches.length > 0) {

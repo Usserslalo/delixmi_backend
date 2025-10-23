@@ -1,0 +1,590 @@
+{
+  "timestamp": "2025-10-23 11:20:53.768",
+  "level": "error",
+  "message": "uncaughtException: getRestaurantBranches is not defined\nReferenceError: getRestaurantBranches is not defined\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:214:16)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js:332:31)",
+  "error": {},
+  "stack": "ReferenceError: getRestaurantBranches is not defined\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:214:16)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js:332:31)",
+  "exception": true,
+  "date": "Thu Oct 23 2025 11:20:53 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 92,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 106274816,
+      "heapTotal": 71794688,
+      "heapUsed": 43105232,
+      "external": 3612771,
+      "arrayBuffers": 77684
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 5933.437
+  },
+  "trace": [
+    {
+      "column": 16,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js",
+      "function": null,
+      "line": 214,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1706,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 31,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js",
+      "function": null,
+      "line": 332,
+      "method": null,
+      "native": false
+    }
+  ]
+}
+{
+  "timestamp": "2025-10-23 11:25:01.552",
+  "level": "error",
+  "message": "uncaughtException: Cannot access 'getRestaurantBranches' before initialization\nReferenceError: Cannot access 'getRestaurantBranches' before initialization\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js:2290:3)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:14:545)",
+  "error": {},
+  "stack": "ReferenceError: Cannot access 'getRestaurantBranches' before initialization\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js:2290:3)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:14:545)",
+  "exception": true,
+  "date": "Thu Oct 23 2025 11:25:01 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 4512,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 106094592,
+      "heapTotal": 71462912,
+      "heapUsed": 41693176,
+      "external": 3612771,
+      "arrayBuffers": 77684
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 6181.218
+  },
+  "trace": [
+    {
+      "column": 3,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js",
+      "function": null,
+      "line": 2290,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1706,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 545,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js",
+      "function": null,
+      "line": 14,
+      "method": null,
+      "native": false
+    }
+  ]
+}
+{
+  "timestamp": "2025-10-23 11:25:35.336",
+  "level": "error",
+  "message": "uncaughtException: Cannot access 'getRestaurantBranches' before initialization\nReferenceError: Cannot access 'getRestaurantBranches' before initialization\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js:2290:3)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:14:545)",
+  "error": {},
+  "stack": "ReferenceError: Cannot access 'getRestaurantBranches' before initialization\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js:2290:3)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js:14:545)",
+  "exception": true,
+  "date": "Thu Oct 23 2025 11:25:35 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 11376,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 105443328,
+      "heapTotal": 70746112,
+      "heapUsed": 42499552,
+      "external": 3612771,
+      "arrayBuffers": 77684
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 6215
+  },
+  "trace": [
+    {
+      "column": 3,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\restaurant-admin.controller.js",
+      "function": null,
+      "line": 2290,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1706,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 545,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\restaurant-admin.routes.js",
+      "function": null,
+      "line": 14,
+      "method": null,
+      "native": false
+    }
+  ]
+}
+{
+  "timestamp": "2025-10-23 11:35:45.508",
+  "level": "error",
+  "message": "uncaughtException: Unexpected token ')'\nC:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\checkout.controller.js:497\n    });\n     ^\n\nSyntaxError: Unexpected token ')'\n    at wrapSafe (node:internal/modules/cjs/loader:1638:18)\n    at Module._compile (node:internal/modules/cjs/loader:1680:20)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js:4:28)",
+  "error": {},
+  "stack": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\checkout.controller.js:497\n    });\n     ^\n\nSyntaxError: Unexpected token ')'\n    at wrapSafe (node:internal/modules/cjs/loader:1638:18)\n    at Module._compile (node:internal/modules/cjs/loader:1680:20)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js:4:28)",
+  "exception": true,
+  "date": "Thu Oct 23 2025 11:35:45 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 9936,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 108929024,
+      "heapTotal": 70746112,
+      "heapUsed": 44756848,
+      "external": 3612771,
+      "arrayBuffers": 77684
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 6825.171
+  },
+  "trace": [
+    {
+      "column": 18,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapSafe",
+      "line": 1638,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 20,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1680,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 28,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js",
+      "function": null,
+      "line": 4,
+      "method": null,
+      "native": false
+    }
+  ]
+}
+{
+  "timestamp": "2025-10-23 11:36:02.976",
+  "level": "error",
+  "message": "uncaughtException: Unexpected token ')'\nC:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\checkout.controller.js:709\n    });\n     ^\n\nSyntaxError: Unexpected token ')'\n    at wrapSafe (node:internal/modules/cjs/loader:1638:18)\n    at Module._compile (node:internal/modules/cjs/loader:1680:20)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js:4:28)",
+  "error": {},
+  "stack": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\controllers\\checkout.controller.js:709\n    });\n     ^\n\nSyntaxError: Unexpected token ')'\n    at wrapSafe (node:internal/modules/cjs/loader:1638:18)\n    at Module._compile (node:internal/modules/cjs/loader:1680:20)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js:4:28)",
+  "exception": true,
+  "date": "Thu Oct 23 2025 11:36:02 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 13060,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 108748800,
+      "heapTotal": 71532544,
+      "heapUsed": 43781176,
+      "external": 3612771,
+      "arrayBuffers": 77684
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 6842.64
+  },
+  "trace": [
+    {
+      "column": 18,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapSafe",
+      "line": 1638,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 20,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1680,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 28,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\checkout.routes.js",
+      "function": null,
+      "line": 4,
+      "method": null,
+      "native": false
+    }
+  ]
+}
