@@ -186,6 +186,17 @@ const logoutSchema = z.object({
     .regex(/^[a-f0-9]+$/i, 'El refresh token debe contener solo caracteres hexadecimales')
 });
 
+// Esquema para verificación de teléfono
+const verifyPhoneSchema = z.object({
+  otp: z
+    .string({
+      required_error: 'El código OTP es requerido',
+      invalid_type_error: 'El código OTP debe ser un texto'
+    })
+    .length(6, 'El código OTP debe tener exactamente 6 dígitos')
+    .regex(/^[0-9]+$/, 'El código OTP solo puede contener números')
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -195,6 +206,7 @@ module.exports = {
   updateProfileSchema,
   changePasswordSchema,
   refreshTokenSchema,
-  logoutSchema
+  logoutSchema,
+  verifyPhoneSchema
 };
 

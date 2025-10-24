@@ -588,3 +588,121 @@
     }
   ]
 }
+{
+  "timestamp": "2025-10-24 11:15:22.304",
+  "level": "error",
+  "message": "uncaughtException: sendPhoneVerification is not defined\nReferenceError: sendPhoneVerification is not defined\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\auth.routes.js:126:60)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js:330:20)",
+  "error": {},
+  "stack": "ReferenceError: sendPhoneVerification is not defined\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\auth.routes.js:126:60)\n    at Module._compile (node:internal/modules/cjs/loader:1706:14)\n    at Object..js (node:internal/modules/cjs/loader:1839:10)\n    at Module.load (node:internal/modules/cjs/loader:1441:32)\n    at Function._load (node:internal/modules/cjs/loader:1263:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n    at Module.require (node:internal/modules/cjs/loader:1463:12)\n    at require (node:internal/modules/helpers:147:16)\n    at Object.<anonymous> (C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js:330:20)",
+  "exception": true,
+  "date": "Fri Oct 24 2025 11:15:22 GMT-0600 (hora estándar central)",
+  "process": {
+    "pid": 16500,
+    "uid": null,
+    "gid": null,
+    "cwd": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend",
+    "execPath": "C:\\Program Files\\nodejs\\node.exe",
+    "version": "v22.19.0",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 82329600,
+      "heapTotal": 58871808,
+      "heapUsed": 36030888,
+      "external": 3638879,
+      "arrayBuffers": 77604
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 92000.656
+  },
+  "trace": [
+    {
+      "column": 60,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\routes\\auth.routes.js",
+      "function": null,
+      "line": 126,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module._compile",
+      "line": 1706,
+      "method": "_compile",
+      "native": false
+    },
+    {
+      "column": 10,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Object..js",
+      "line": 1839,
+      "method": ".js",
+      "native": false
+    },
+    {
+      "column": 32,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.load",
+      "line": 1441,
+      "method": "load",
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Function._load",
+      "line": 1263,
+      "method": "_load",
+      "native": false
+    },
+    {
+      "column": 14,
+      "file": "node:diagnostics_channel",
+      "function": "TracingChannel.traceSync",
+      "line": 322,
+      "method": "traceSync",
+      "native": false
+    },
+    {
+      "column": 24,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "wrapModuleLoad",
+      "line": 237,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 12,
+      "file": "node:internal/modules/cjs/loader",
+      "function": "Module.require",
+      "line": 1463,
+      "method": "require",
+      "native": false
+    },
+    {
+      "column": 16,
+      "file": "node:internal/modules/helpers",
+      "function": "require",
+      "line": 147,
+      "method": null,
+      "native": false
+    },
+    {
+      "column": 20,
+      "file": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\src\\server.js",
+      "function": null,
+      "line": 330,
+      "method": null,
+      "native": false
+    }
+  ]
+}

@@ -182,8 +182,7 @@ const login = async (req, res) => {
                 displayName: true
               }
             },
-            restaurantId: true,
-            branchId: true
+            restaurantId: true
           }
         }
       }
@@ -270,8 +269,7 @@ const login = async (req, res) => {
             roleId: assignment.roleId,
             roleName: assignment.role.name,
             roleDisplayName: assignment.role.displayName,
-            restaurantId: assignment.restaurantId,
-            branchId: assignment.branchId
+            restaurantId: assignment.restaurantId
           }))
         },
         expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m'
@@ -537,7 +535,8 @@ const refreshToken = async (req, res) => {
                 name: true,
                 displayName: true
               }
-            }
+            },
+            restaurantId: true
           }
         }
       }
@@ -888,7 +887,7 @@ const resendVerification = async (req, res) => {
  */
 const sendPhoneVerification = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     // Obtener información del usuario
     const user = await prisma.user.findUnique({
@@ -1008,18 +1007,9 @@ const sendPhoneVerification = async (req, res) => {
  */
 const verifyPhone = async (req, res) => {
   try {
-    // Verificar errores de validación
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Datos de entrada inválidos',
-        errors: errors.array()
-      });
-    }
-
+    // Los datos ya están validados por Zod
     const { otp } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     // Obtener información del usuario
     const user = await prisma.user.findUnique({
@@ -1325,6 +1315,31 @@ const resetPassword = async (req, res) => {
 };
 
 /**
+ * Controlador para health check
+ * GET /api/auth/health
+ */
+const healthCheck = async (req, res) => {
+  try {
+    res.json({
+      status: 'success',
+      message: 'Servicio de autenticación funcionando correctamente',
+      data: {
+        timestamp: new Date().toISOString(),
+        service: 'auth-service',
+        version: '1.0.0'
+      }
+    });
+  } catch (error) {
+    console.error('Error en health check:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
  * Controlador temporal para obtener token de verificación (solo para testing)
  * GET /api/auth/get-verification-token/:userId
  */
@@ -1394,5 +1409,6 @@ module.exports = {
   resetPassword,
   sendPhoneVerification,
   verifyPhone,
+  healthCheck,
   getVerificationToken
 };

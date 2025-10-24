@@ -12,6 +12,9 @@ const {
   resendVerification,
   forgotPassword,
   resetPassword,
+  sendPhoneVerification,
+  verifyPhone,
+  healthCheck,
   getVerificationToken
 } = require('../controllers/auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
@@ -26,10 +29,18 @@ const {
   updateProfileSchema,
   changePasswordSchema,
   refreshTokenSchema,
-  logoutSchema
+  logoutSchema,
+  verifyPhoneSchema
 } = require('../validations/auth.validation');
 
 const router = express.Router();
+
+/**
+ * @route   GET /api/auth/health
+ * @desc    Health check del servicio de autenticación
+ * @access  Public
+ */
+router.get('/health', healthCheck);
 
 /**
  * @route   POST /api/auth/register
@@ -116,6 +127,20 @@ router.put('/profile', authenticateToken, validate(updateProfileSchema), updateP
  * @access  Private
  */
 router.put('/change-password', authenticateToken, validate(changePasswordSchema), changePassword);
+
+/**
+ * @route   POST /api/auth/send-phone-verification
+ * @desc    Enviar código OTP de verificación por SMS
+ * @access  Private
+ */
+router.post('/send-phone-verification', authenticateToken, sendPhoneVerification);
+
+/**
+ * @route   POST /api/auth/verify-phone
+ * @desc    Verificar código OTP de teléfono
+ * @access  Private
+ */
+router.post('/verify-phone', authenticateToken, validate(verifyPhoneSchema), verifyPhone);
 
 /**
  * @route   GET /api/auth/get-verification-token/:userId

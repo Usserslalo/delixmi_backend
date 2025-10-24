@@ -47,8 +47,7 @@ const authenticateToken = async (req, res, next) => {
                 displayName: true
               }
             },
-            restaurantId: true,
-            branchId: true
+            restaurantId: true
           }
         }
       }
@@ -87,8 +86,7 @@ const authenticateToken = async (req, res, next) => {
         roleId: assignment.roleId,
         roleName: assignment.role.name,
         roleDisplayName: assignment.role.displayName,
-        restaurantId: assignment.restaurantId,
-        branchId: assignment.branchId
+        restaurantId: assignment.restaurantId
       }))
     };
 
@@ -188,8 +186,7 @@ const optionalAuth = async (req, res, next) => {
                 displayName: true
               }
             },
-            restaurantId: true,
-            branchId: true
+            restaurantId: true
           }
         }
       }

@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:admin": "jest tests/admin/",
     "test:admin:watch": "jest tests/admin/ --watch",
+    "test:auth": "node scripts/test-auth-endpoints.js",
     "start": "node src/server.js",
     "build": "npm install && npx prisma migrate deploy && npx prisma generate",
     "dev": "nodemon src/server.js",
