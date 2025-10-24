@@ -7,7 +7,11 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:admin": "jest tests/admin/",
+    "test:admin:watch": "jest tests/admin/ --watch",
     "start": "node src/server.js",
     "build": "npm install && npx prisma migrate deploy && npx prisma generate",
     "dev": "nodemon src/server.js",
@@ -26,7 +30,7 @@
   "license": "ISC",
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
-    "@prisma/client": "^6.16.2",
+    "@prisma/client": "^6.18.0",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -44,7 +48,6 @@
     "mysql2": "^3.15.1",
     "nodemailer": "^7.0.6",
     "nodemailer-sendgrid-transport": "^0.2.0",
-    "prisma": "^6.16.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "twilio": "^5.10.1",
@@ -53,7 +56,12 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.10",
+    "prisma": "^6.18.0",
+    "supertest": "^7.1.4"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

@@ -1,2346 +1,426 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { Decimal } = require('@prisma/client/runtime/library');
 
 const prisma = new PrismaClient();
+const now = new Date();
+const hashedPassword = bcrypt.hashSync('supersecret', 10);
+
+// Función de ayuda para calcular los montos fiscales
+const calcPayouts = (subtotal, commissionRate, driverFeeGross = 40.00) => {
+    const subtotalDecimal = new Decimal(subtotal);
+    const commissionRateDecimal = new Decimal(commissionRate);
+    const driverFeeGrossDecimal = new Decimal(driverFeeGross);
+
+    // --- Montos para Restaurante (Cálculos de retención simplificados) ---
+    const platformFee = subtotalDecimal.mul(commissionRateDecimal).div(100).toDecimalPlaces(2);
+    const retainedIVA = platformFee.mul(0.10667).toDecimalPlaces(2); 
+    const retainedISR = platformFee.mul(0.01).toDecimalPlaces(2); 
+    const restaurantPayout = subtotalDecimal.sub(platformFee).add(retainedIVA).add(retainedISR).toDecimalPlaces(2);
+
+    // --- Montos para Driver (Cálculos de retención simplificados) ---
+    const driverRetainedIVA = driverFeeGrossDecimal.mul(0.02).toDecimalPlaces(2);
+    const driverRetainedISR = driverFeeGrossDecimal.mul(0.02).toDecimalPlaces(2);
+    const driverFeeNet = driverFeeGrossDecimal.sub(driverRetainedIVA).sub(driverRetainedISR).toDecimalPlaces(2);
+    
+    return { platformFee, retainedIVA, retainedISR, restaurantPayout, driverFeeGross: driverFeeGrossDecimal, driverRetainedIVA, driverRetainedISR, driverFeeNet };
+};
+
+// Función de ayuda para crear usuarios de manera segura (Patrón CreateMany + FindMany)
+async function createUsersAndMap() {
+    const baseUsersData = [
+        { name: 'Admin', lastname: 'Delixmi', email: 'admin@delixmi.com', phone: '1234567890' },
+        { name: 'Ana', lastname: 'García', email: 'ana.garcia@pizzeria.com', phone: '6666666666' },
+        { name: 'Carlos', lastname: 'Rodriguez', email: 'carlos.rodriguez@pizzeria.com', phone: '7777777777' }, 
+        { name: 'Miguel', lastname: 'Hernández', email: 'miguel.hernandez@repartidor.com', phone: '8888888888' }, 
+        { name: 'Sofía', lastname: 'López', email: 'sofia.lopez@email.com', phone: '9999999999' }, 
+        { name: 'Kenji', lastname: 'Tanaka', email: 'kenji.tanaka@sushi.com', phone: '0000000000' },
+        { name: 'Owner_A', lastname: 'Carnitas', email: 'owner_a@ixmiquilpan.com', phone: '1111111111' }, 
+        { name: 'Owner_B', lastname: 'Mexicano', email: 'owner_b@ixmiquilpan.com', phone: '2222222222' },
+        { name: 'Owner_C', lastname: 'Candelabros', email: 'owner_c@ixmiquilpan.com', phone: '3333333333' },
+        { name: 'Owner_D', lastname: 'Pueblito', email: 'owner_d@ixmiquilpan.com', phone: '4444444444' },
+        { name: 'Owner_E', lastname: 'Cazadores', email: 'owner_e@ixmiquilpan.com', phone: '5555555555' },
+        { name: 'Owner_F', lastname: 'Jerusalen', email: 'owner_f@ixmiquilpan.com', phone: '6666666661' },
+        { name: 'Owner_G', lastname: 'Oink3', email: 'owner_g@ixmiquilpan.com', phone: '6666666662' },
+        { name: 'Owner_H', lastname: 'DonaLala', email: 'owner_h@ixmiquilpan.com', phone: '6666666663' },
+        { name: 'Owner_I', lastname: 'Panchos', email: 'owner_i@ixmiquilpan.com', phone: '6666666664' },
+        { name: 'Owner_J', lastname: 'Yahir', email: 'owner_j@ixmiquilpan.com', phone: '6666666665' },
+        { name: 'Carlos', lastname: 'Pérez', email: 'carlos.perez@driver.com', phone: '9876543210' },
+    ];
+    
+    // 1. Crear todos los usuarios (createMany)
+    await prisma.user.createMany({ 
+        data: baseUsersData.map(u => ({ ...u, password: hashedPassword, emailVerifiedAt: now, phoneVerifiedAt: now, status: 'active' })) 
+    });
+
+    // 2. Buscar todos los usuarios creados (findMany)
+    const createdUsers = await prisma.user.findMany({ 
+        where: { email: { in: baseUsersData.map(u => u.email) } },
+        orderBy: { id: 'asc' } // Opcional, pero ayuda a la consistencia
+    });
+
+    // 3. Mapear las variables para fácil acceso
+    const userMap = createdUsers.reduce((acc, u) => {
+        // Usa el email completo para garantizar unicidad al mapear
+        acc[u.email] = u;
+        return acc;
+    }, {});
+    
+    // Devolver el mapa de variables nombradas
+    return {
+        adminUser: userMap['admin@delixmi.com'], 
+        anaUser: userMap['ana.garcia@pizzeria.com'], 
+        carlosUser: userMap['carlos.rodriguez@pizzeria.com'], 
+        miguelUser: userMap['miguel.hernandez@repartidor.com'], 
+        sofiaUser: userMap['sofia.lopez@email.com'], 
+        kenjiUser: userMap['kenji.tanaka@sushi.com'],
+        ownerAUser: userMap['owner_a@ixmiquilpan.com'], ownerBUser: userMap['owner_b@ixmiquilpan.com'], 
+        ownerCUser: userMap['owner_c@ixmiquilpan.com'], ownerDUser: userMap['owner_d@ixmiquilpan.com'], 
+        ownerEUser: userMap['owner_e@ixmiquilpan.com'], ownerFUser: userMap['owner_f@ixmiquilpan.com'],
+        ownerGUser: userMap['owner_g@ixmiquilpan.com'], ownerHUser: userMap['owner_h@ixmiquilpan.com'], 
+        ownerIUser: userMap['owner_i@ixmiquilpan.com'], ownerJUser: userMap['owner_j@ixmiquilpan.com'], 
+        carlosDriverUser: userMap['carlos.perez@driver.com'],
+    };
+}
 
 async function main() {
-  console.log('🌱 Iniciando proceso de seeding...');
-
-  try {
-    // ===== ELIMINACIÓN EN ORDEN INVERSO =====
-    console.log('🧹 Limpiando datos existentes...');
-    
-    await prisma.cartItemModifier.deleteMany({});
-    console.log('✅ CartItemModifiers eliminados');
-    
-    await prisma.cartItem.deleteMany({});
-    console.log('✅ CartItems eliminados');
-    
-    await prisma.cart.deleteMany({});
-    console.log('✅ Carts eliminados');
-    
-    await prisma.productModifier.deleteMany({});
-    console.log('✅ ProductModifiers eliminados');
-    
-    await prisma.orderItemModifier.deleteMany({});
-    console.log('✅ OrderItemModifiers eliminados');
-    
-    await prisma.orderItem.deleteMany({});
-    console.log('✅ OrderItems eliminados');
-    
-    await prisma.payment.deleteMany({});
-    console.log('✅ Payments eliminados');
-    
-    await prisma.order.deleteMany({});
-    console.log('✅ Orders eliminados');
-    
-    await prisma.modifierOption.deleteMany({});
-    console.log('✅ ModifierOptions eliminados');
-    
-    await prisma.modifierGroup.deleteMany({});
-    console.log('✅ ModifierGroups eliminados');
-    
-    // Eliminar transacciones de wallet antes de las wallets
-    await prisma.driverWalletTransaction.deleteMany({});
-    console.log('✅ DriverWalletTransactions eliminados');
-    
-    await prisma.restaurantWalletTransaction.deleteMany({});
-    console.log('✅ RestaurantWalletTransactions eliminados');
-    
-    await prisma.driverWallet.deleteMany({});
-    console.log('✅ DriverWallets eliminados');
-    
-    await prisma.restaurantWallet.deleteMany({});
-    console.log('✅ RestaurantWallets eliminados');
-    
-    await prisma.address.deleteMany({});
-    console.log('✅ Addresses eliminados');
-    
-    await prisma.driverProfile.deleteMany({});
-    console.log('✅ DriverProfiles eliminados');
-    
-    await prisma.userRoleAssignment.deleteMany({});
-    console.log('✅ UserRoleAssignments eliminados');
-    
-    await prisma.product.deleteMany({});
-    console.log('✅ Products eliminados');
-    
-    await prisma.subcategory.deleteMany({});
-    console.log('✅ Subcategories eliminadas');
-    
-    await prisma.category.deleteMany({});
-    console.log('✅ Categories eliminadas');
-    
-    await prisma.branchSchedule.deleteMany({});
-    console.log('✅ BranchSchedules eliminados');
-    
-    await prisma.branch.deleteMany({});
-    console.log('✅ Branches eliminadas');
-    
-    await prisma.restaurant.deleteMany({});
-    console.log('✅ Restaurants eliminados');
-    
-    await prisma.user.deleteMany({});
-    console.log('✅ Users eliminados');
-    
-    await prisma.roleHasPermission.deleteMany({});
-    console.log('✅ RoleHasPermissions eliminados');
-    
-    await prisma.permission.deleteMany({});
-    console.log('✅ Permissions eliminados');
-    
-    await prisma.role.deleteMany({});
-    console.log('✅ Roles eliminados');
-
-    // ===== CREACIÓN SECUENCIAL =====
-
-    // 1. CREAR ROLES (10 roles)
-    console.log('📋 Creando roles...');
-    const superAdminRole = await prisma.role.create({
-      data: {
-        name: 'super_admin',
-        displayName: 'Super Administrador',
-        description: 'Control total sobre la plataforma.'
-      }
-    });
-    console.log('✅ Super Admin role creado');
-
-    const platformManagerRole = await prisma.role.create({
-      data: {
-        name: 'platform_manager',
-        displayName: 'Gestor de Plataforma',
-        description: 'Gestiona las operaciones diarias de la plataforma.'
-      }
-    });
-    console.log('✅ Platform Manager role creado');
-
-    const supportAgentRole = await prisma.role.create({
-      data: {
-        name: 'support_agent',
-        displayName: 'Agente de Soporte',
-        description: 'Primera línea de atención para resolver dudas e incidentes.'
-      }
-    });
-    console.log('✅ Support Agent role creado');
-
-    const ownerRole = await prisma.role.create({
-      data: {
-        name: 'owner',
-        displayName: 'Dueño de Restaurante',
-        description: 'Control total sobre uno o más negocios en la app.'
-      }
-    });
-    console.log('✅ Owner role creado');
-
-    const branchManagerRole = await prisma.role.create({
-      data: {
-        name: 'branch_manager',
-        displayName: 'Gerente de Sucursal',
-        description: 'Gestiona las operaciones diarias de una sucursal específica.'
-      }
-    });
-    console.log('✅ Branch Manager role creado');
-
-    const orderManagerRole = await prisma.role.create({
-      data: {
-        name: 'order_manager',
-        displayName: 'Gestor de Pedidos',
-        description: 'Acepta y gestiona los pedidos entrantes en una sucursal.'
-      }
-    });
-    console.log('✅ Order Manager role creado');
-
-    const kitchenStaffRole = await prisma.role.create({
-      data: {
-        name: 'kitchen_staff',
-        displayName: 'Personal de Cocina',
-        description: 'Prepara los platillos para la entrega.'
-      }
-    });
-    console.log('✅ Kitchen Staff role creado');
-
-    const driverPlatformRole = await prisma.role.create({
-      data: {
-        name: 'driver_platform',
-        displayName: 'Repartidor de Plataforma',
-        description: 'Repartidor independiente que trabaja para la plataforma.'
-      }
-    });
-    console.log('✅ Driver Platform role creado');
-
-    const driverRestaurantRole = await prisma.role.create({
-      data: {
-        name: 'driver_restaurant',
-        displayName: 'Repartidor de Restaurante',
-        description: 'Empleado de un restaurante que solo entrega pedidos de ese negocio.'
-      }
-    });
-    console.log('✅ Driver Restaurant role creado');
-
-    const customerRole = await prisma.role.create({
-      data: {
-        name: 'customer',
-        displayName: 'Cliente',
-        description: 'Usuario final que realiza pedidos.'
-      }
-    });
-    console.log('✅ Customer role creado');
-
-    // 2. CREAR PERMISOS (19 permisos)
-    console.log('🔐 Creando permisos...');
-    const hashedPassword = await bcrypt.hash('supersecret', 10);
-
-    // Permisos para Productos
-    const productsCreatePerm = await prisma.permission.create({
-      data: { name: 'products.create', displayName: 'Crear Productos', module: 'products' }
-    });
-    const productsEditAllPerm = await prisma.permission.create({
-      data: { name: 'products.edit.all', displayName: 'Editar Cualquier Producto', module: 'products' }
-    });
-    const productsEditOwnPerm = await prisma.permission.create({
-      data: { name: 'products.edit.own', displayName: 'Editar Productos Propios', module: 'products' }
-    });
-    const productsDeleteOwnPerm = await prisma.permission.create({
-      data: { name: 'products.delete.own', displayName: 'Eliminar Productos Propios', module: 'products' }
-    });
-    const productsUpdateStockPerm = await prisma.permission.create({
-      data: { name: 'products.update.stock', displayName: 'Actualizar Stock de Producto', module: 'products' }
-    });
-
-    // Permisos para Pedidos
-    const ordersViewAllPerm = await prisma.permission.create({
-      data: { name: 'orders.view.all', displayName: 'Ver Todos los Pedidos', module: 'orders' }
-    });
-    const ordersViewOwnBranchPerm = await prisma.permission.create({
-      data: { name: 'orders.view.own_branch', displayName: 'Ver Pedidos de mi Sucursal', module: 'orders' }
-    });
-    const ordersAcceptPerm = await prisma.permission.create({
-      data: { name: 'orders.accept', displayName: 'Aceptar Pedidos', module: 'orders' }
-    });
-    const ordersRejectPerm = await prisma.permission.create({
-      data: { name: 'orders.reject', displayName: 'Rechazar Pedidos', module: 'orders' }
-    });
-    const ordersUpdateStatusPerm = await prisma.permission.create({
-      data: { name: 'orders.update.status', displayName: 'Actualizar Estado de Pedido', module: 'orders' }
-    });
-
-    // Permisos para Restaurantes
-    const restaurantsCreatePerm = await prisma.permission.create({
-      data: { name: 'restaurants.create', displayName: 'Crear Restaurantes', module: 'restaurants' }
-    });
-    const restaurantsEditAllPerm = await prisma.permission.create({
-      data: { name: 'restaurants.edit.all', displayName: 'Editar Cualquier Restaurante', module: 'restaurants' }
-    });
-    const restaurantsEditOwnPerm = await prisma.permission.create({
-      data: { name: 'restaurants.edit.own', displayName: 'Editar mi Restaurante', module: 'restaurants' }
-    });
-    const restaurantsAssignUsersPerm = await prisma.permission.create({
-      data: { name: 'restaurants.assign.users', displayName: 'Asignar Usuarios a mi Restaurante', module: 'restaurants' }
-    });
-
-    // Permisos para Usuarios
-    const usersCreatePerm = await prisma.permission.create({
-      data: { name: 'users.create', displayName: 'Crear Usuarios', module: 'users' }
-    });
-    const usersEditAllPerm = await prisma.permission.create({
-      data: { name: 'users.edit.all', displayName: 'Editar Cualquier Usuario', module: 'users' }
-    });
-    const usersViewAllPerm = await prisma.permission.create({
-      data: { name: 'users.view.all', displayName: 'Ver Todos los Usuarios', module: 'users' }
-    });
-
-    // Permisos para Reembolsos
-    const refundsIssueLowValuePerm = await prisma.permission.create({
-      data: { name: 'refunds.issue.low_value', displayName: 'Emitir Reembolsos de Bajo Valor', module: 'refunds' }
-    });
-    const refundsIssueHighValuePerm = await prisma.permission.create({
-      data: { name: 'refunds.issue.high_value', displayName: 'Emitir Reembolsos de Alto Valor', module: 'refunds' }
-    });
-    console.log('✅ 19 permisos creados');
-
-    // 3. CREAR ASIGNACIONES DE PERMISOS A ROLES
-    console.log('🔗 Asignando permisos a roles...');
-    
-    // Super Admin - Todos los permisos
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: superAdminRole.id, permissionId: productsCreatePerm.id },
-        { roleId: superAdminRole.id, permissionId: productsEditAllPerm.id },
-        { roleId: superAdminRole.id, permissionId: productsEditOwnPerm.id },
-        { roleId: superAdminRole.id, permissionId: productsDeleteOwnPerm.id },
-        { roleId: superAdminRole.id, permissionId: productsUpdateStockPerm.id },
-        { roleId: superAdminRole.id, permissionId: ordersViewAllPerm.id },
-        { roleId: superAdminRole.id, permissionId: ordersViewOwnBranchPerm.id },
-        { roleId: superAdminRole.id, permissionId: ordersAcceptPerm.id },
-        { roleId: superAdminRole.id, permissionId: ordersRejectPerm.id },
-        { roleId: superAdminRole.id, permissionId: ordersUpdateStatusPerm.id },
-        { roleId: superAdminRole.id, permissionId: restaurantsCreatePerm.id },
-        { roleId: superAdminRole.id, permissionId: restaurantsEditAllPerm.id },
-        { roleId: superAdminRole.id, permissionId: restaurantsEditOwnPerm.id },
-        { roleId: superAdminRole.id, permissionId: restaurantsAssignUsersPerm.id },
-        { roleId: superAdminRole.id, permissionId: usersCreatePerm.id },
-        { roleId: superAdminRole.id, permissionId: usersEditAllPerm.id },
-        { roleId: superAdminRole.id, permissionId: usersViewAllPerm.id },
-        { roleId: superAdminRole.id, permissionId: refundsIssueLowValuePerm.id },
-        { roleId: superAdminRole.id, permissionId: refundsIssueHighValuePerm.id }
-      ]
-    });
-
-    // Owner - Permisos de su restaurante
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: ownerRole.id, permissionId: productsCreatePerm.id },
-        { roleId: ownerRole.id, permissionId: productsEditOwnPerm.id },
-        { roleId: ownerRole.id, permissionId: productsDeleteOwnPerm.id },
-        { roleId: ownerRole.id, permissionId: productsUpdateStockPerm.id },
-        { roleId: ownerRole.id, permissionId: ordersViewOwnBranchPerm.id },
-        { roleId: ownerRole.id, permissionId: ordersAcceptPerm.id },
-        { roleId: ownerRole.id, permissionId: ordersRejectPerm.id },
-        { roleId: ownerRole.id, permissionId: ordersUpdateStatusPerm.id },
-        { roleId: ownerRole.id, permissionId: restaurantsEditOwnPerm.id },
-        { roleId: ownerRole.id, permissionId: restaurantsAssignUsersPerm.id }
-      ]
-    });
-
-    // Branch Manager - Permisos de su sucursal
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: branchManagerRole.id, permissionId: ordersViewOwnBranchPerm.id },
-        { roleId: branchManagerRole.id, permissionId: ordersAcceptPerm.id },
-        { roleId: branchManagerRole.id, permissionId: ordersRejectPerm.id },
-        { roleId: branchManagerRole.id, permissionId: ordersUpdateStatusPerm.id },
-        { roleId: branchManagerRole.id, permissionId: productsEditOwnPerm.id },
-        { roleId: branchManagerRole.id, permissionId: productsUpdateStockPerm.id }
-      ]
-    });
-
-    // Order Manager - Gestión de pedidos
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: orderManagerRole.id, permissionId: ordersViewOwnBranchPerm.id },
-        { roleId: orderManagerRole.id, permissionId: ordersAcceptPerm.id },
-        { roleId: orderManagerRole.id, permissionId: ordersRejectPerm.id }
-      ]
-    });
-
-    // Kitchen Staff - Actualización de estados
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: kitchenStaffRole.id, permissionId: ordersUpdateStatusPerm.id },
-        { roleId: kitchenStaffRole.id, permissionId: productsUpdateStockPerm.id }
-      ]
-    });
-
-    // Platform Manager - Gestión de plataforma
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: platformManagerRole.id, permissionId: ordersViewAllPerm.id },
-        { roleId: platformManagerRole.id, permissionId: restaurantsCreatePerm.id },
-        { roleId: platformManagerRole.id, permissionId: restaurantsEditAllPerm.id },
-        { roleId: platformManagerRole.id, permissionId: usersViewAllPerm.id },
-        { roleId: platformManagerRole.id, permissionId: refundsIssueLowValuePerm.id }
-      ]
-    });
-
-    // Support Agent - Soporte básico
-    await prisma.roleHasPermission.createMany({
-      data: [
-        { roleId: supportAgentRole.id, permissionId: ordersViewAllPerm.id },
-        { roleId: supportAgentRole.id, permissionId: usersViewAllPerm.id },
-        { roleId: supportAgentRole.id, permissionId: refundsIssueLowValuePerm.id }
-      ]
-    });
-    console.log('✅ Asignaciones de permisos creadas');
-
-    // 4. CREAR USUARIOS (5 usuarios)
-    console.log('👥 Creando usuarios...');
-    
-    const adminUser = await prisma.user.create({
-      data: {
-        name: 'Admin',
-        lastname: 'Delixmi',
-        email: 'admin@delixmi.com',
-        phone: '1234567890',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Admin usuario creado');
-
-    const anaUser = await prisma.user.create({
-      data: {
-        name: 'Ana',
-        lastname: 'García',
-        email: 'ana.garcia@pizzeria.com',
-        phone: '6666666666',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Ana usuario creado');
-
-    const carlosUser = await prisma.user.create({
-      data: {
-        name: 'Carlos',
-        lastname: 'Rodriguez',
-        email: 'carlos.rodriguez@pizzeria.com',
-        phone: '7777777777',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Carlos usuario creado');
-
-    const miguelUser = await prisma.user.create({
-      data: {
-        name: 'Miguel',
-        lastname: 'Hernández',
-        email: 'miguel.hernandez@repartidor.com',
-        phone: '8888888888',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Miguel usuario creado');
-
-    const sofiaUser = await prisma.user.create({
-      data: {
-        name: 'Sofía',
-        lastname: 'López',
-        email: 'sofia.lopez@email.com',
-        phone: '9999999999',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Sofía usuario creado');
-
-    // Usuarios adicionales con direcciones reales de Ixmiquilpan
-    const magueyBlancoUser = await prisma.user.create({
-      data: {
-        name: 'María',
-        lastname: 'Hernández',
-        email: 'maria.hernandez@magueyblanco.com',
-        phone: '1111111111',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ María (Maguey Blanco) usuario creado');
-
-    const centroUser = await prisma.user.create({
-      data: {
-        name: 'Roberto',
-        lastname: 'García',
-        email: 'roberto.garcia@centro.com',
-        phone: '2222222222',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Roberto (Centro) usuario creado');
-
-    const elThepeUser = await prisma.user.create({
-      data: {
-        name: 'Carmen',
-        lastname: 'Martínez',
-        email: 'carmen.martinez@elthepe.com',
-        phone: '3333333333',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Carmen (El Thepe) usuario creado');
-
-    const cantinelaUser = await prisma.user.create({
-      data: {
-        name: 'Luis',
-        lastname: 'Rodríguez',
-        email: 'luis.rodriguez@cantinela.com',
-        phone: '4444444444',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Luis (Cantinela) usuario creado');
-
-    const panalesUser = await prisma.user.create({
-      data: {
-        name: 'Patricia',
-        lastname: 'López',
-        email: 'patricia.lopez@panales.com',
-        phone: '5555555555',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Patricia (Panales) usuario creado');
-
-    const kenjiUser = await prisma.user.create({
-      data: {
-        name: 'Kenji',
-        lastname: 'Tanaka',
-        email: 'kenji.tanaka@sushi.com',
-        phone: '0000000000',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-    console.log('✅ Kenji usuario creado');
-
-    // 5. CREAR RESTAURANTES
-    console.log('🏪 Creando restaurantes...');
-    const restaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: anaUser.id, // Ana García
-        name: 'Pizzería de Ana',
-        category: 'Pizzas',
-        description: 'Las mejores pizzas artesanales de la región, con ingredientes frescos y locales.',
-        logoUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
-        phone: '+52 771 123 4567',
-        email: 'contacto@pizzeriadeana.com',
-        address: 'Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.',
-        latitude: 20.489000,
-        longitude: -99.230000,
-        commissionRate: 12.50,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante Pizzería creado');
-
-    const sushiRestaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: kenjiUser.id, // Kenji Tanaka
-        name: 'Sushi Master Kenji',
-        category: 'Sushi',
-        description: 'Auténtico sushi japonés preparado por maestros sushiman con ingredientes frescos importados de Japón.',
-        logoUrl: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?w=1200&h=400&fit=crop',
-        phone: '+52 771 456 7890',
-        email: 'contacto@sushimasterkenji.com',
-        address: 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.486789,
-        longitude: -99.212345,
-        commissionRate: 15.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante Sushi creado');
-
-    // Restaurantes reales de Ixmiquilpan
-    const carnitasOinkRestaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: magueyBlancoUser.id,
-        name: 'Carnitas Oink',
-        category: 'Carnitas',
-        description: 'Las mejores carnitas de Ixmiquilpan, preparadas con receta tradicional y ingredientes frescos.',
-        logoUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&h=400&fit=crop',
-        phone: '+52 771 111 1111',
-        email: 'contacto@carnitasoink.com',
-        address: 'Av. Hidalgo 123, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.479658646668057,
-        longitude: -99.23937723339617,
-        commissionRate: 12.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante Carnitas Oink creado');
-
-    const elMexicanoRestaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: centroUser.id,
-        name: 'El Mexicano',
-        category: 'Comida Mexicana',
-        description: 'Auténtica comida mexicana con los sabores tradicionales de nuestro país.',
-        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=1200&h=400&fit=crop',
-        phone: '+52 771 222 2222',
-        email: 'contacto@elmexicano.com',
-        address: 'Calle Morelos 45, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.48076577652864,
-        longitude: -99.24914222465573,
-        commissionRate: 13.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante El Mexicano creado');
-
-    const candelabrosRestaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: elThepeUser.id,
-        name: 'Candelabros',
-        category: 'Restaurante',
-        description: 'Restaurante elegante con ambiente familiar y platillos gourmet.',
-        logoUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&h=400&fit=crop',
-        phone: '+52 771 333 3333',
-        email: 'contacto@candelabros.com',
-        address: 'Av. Juárez 200, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.48375643496373,
-        longitude: -99.21540196476,
-        commissionRate: 14.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante Candelabros creado');
-
-    const pueblitoPizzaRestaurant = await prisma.restaurant.create({
-      data: {
-        ownerId: cantinelaUser.id,
-        name: 'Pueblito Pizza',
-        category: 'Pizzas',
-        description: 'Pizzas artesanales con ingredientes frescos y sabores únicos.',
-        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
-        phone: '+52 771 444 4444',
-        email: 'contacto@pueblitopizza.com',
-        address: 'Calle Hidalgo 78, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.483765482910094,
-        longitude: -99.21798054998867,
-        commissionRate: 12.50,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurante Pueblito Pizza creado');
-
-    const restaurantCazadores = await prisma.restaurant.create({
-      data: {
-        ownerId: panalesUser.id,
-        name: 'Restaurant Cazadores',
-        category: 'Carnes',
-        description: 'Especialistas en carnes a la parrilla y platillos de caza.',
-        logoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1558030006-450675393462?w=1200&h=400&fit=crop',
-        phone: '+52 771 555 5555',
-        email: 'contacto@cazadores.com',
-        address: 'Av. Insurgentes 150, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.473625604434577,
-        longitude: -99.20859087343155,
-        commissionRate: 13.50,
-        status: 'active'
-      }
-    });
-    console.log('✅ Restaurant Cazadores creado');
-
-    const taqueriaJerusalen = await prisma.restaurant.create({
-      data: {
-        ownerId: magueyBlancoUser.id,
-        name: 'Taquería Jerusalén',
-        category: 'Tacos',
-        description: 'Los mejores tacos de Ixmiquilpan con salsas caseras y ingredientes frescos.',
-        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1200&h=400&fit=crop',
-        phone: '+52 771 666 6666',
-        email: 'contacto@taqueriajerusalen.com',
-        address: 'Calle 5 de Mayo 90, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.455943112030127,
-        longitude: -99.18375189545016,
-        commissionRate: 11.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Taquería Jerusalén creada');
-
-    const carnitasOink3 = await prisma.restaurant.create({
-      data: {
-        ownerId: elThepeUser.id,
-        name: 'Carnitas OINK 3 en el Tephé',
-        category: 'Carnitas',
-        description: 'Sucursal de Carnitas Oink en El Tephé, misma calidad y sabor.',
-        logoUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1200&h=400&fit=crop',
-        phone: '+52 771 777 7777',
-        email: 'contacto@carnitasoink3.com',
-        address: 'El Tephé, Ixmiquilpan, Hgo.',
-        latitude: 20.447809398208438,
-        longitude: -99.17746846701719,
-        commissionRate: 12.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Carnitas OINK 3 en el Tephé creada');
-
-    const cocinaDonaLala = await prisma.restaurant.create({
-      data: {
-        ownerId: cantinelaUser.id,
-        name: 'Cocina "Doña Lala"',
-        category: 'Comida Casera',
-        description: 'Comida casera tradicional con el sabor de la abuela.',
-        logoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=1200&h=400&fit=crop',
-        phone: '+52 771 888 8888',
-        email: 'contacto@donlala.com',
-        address: 'Col. El Tephé, Ixmiquilpan, Hgo.',
-        latitude: 20.440500796149163,
-        longitude: -99.16649192597929,
-        commissionRate: 10.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ Cocina "Doña Lala" creada');
-
-    const pollosLosPanchos = await prisma.restaurant.create({
-      data: {
-        ownerId: panalesUser.id,
-        name: 'Pollos Los Panchos',
-        category: 'Pollo',
-        description: 'Pollo rostizado y platillos de pollo con recetas familiares.',
-        logoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=1200&h=400&fit=crop',
-        phone: '+52 771 999 9999',
-        email: 'contacto@polloslospanchos.com',
-        address: 'Col. Panales, Ixmiquilpan, Hgo.',
-        latitude: 20.423813446550273,
-        longitude: -99.16883221660795,
-        commissionRate: 11.50,
-        status: 'active'
-      }
-    });
-    console.log('✅ Pollos Los Panchos creado');
-
-    const pizzasYahir = await prisma.restaurant.create({
-      data: {
-        ownerId: centroUser.id,
-        name: 'PIZZAS YAHIR',
-        category: 'Pizzas',
-        description: 'Pizzas deliciosas con ingredientes frescos y precios accesibles.',
-        logoUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop',
-        coverPhotoUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=1200&h=400&fit=crop',
-        phone: '+52 771 000 0000',
-        email: 'contacto@pizzasyahir.com',
-        address: 'Col. Maguey Blanco, Ixmiquilpan, Hgo.',
-        latitude: 20.38422296245514,
-        longitude: -99.19479359504597,
-        commissionRate: 12.00,
-        status: 'active'
-      }
-    });
-    console.log('✅ PIZZAS YAHIR creada');
-
-    // Crear billeteras para restaurantes
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: restaurant.id }
-    });
-    console.log('✅ Billetera de Pizzería creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: sushiRestaurant.id }
-    });
-    console.log('✅ Billetera de Sushi creada');
-
-    // Crear billeteras para los nuevos restaurantes
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: carnitasOinkRestaurant.id }
-    });
-    console.log('✅ Billetera de Carnitas Oink creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: elMexicanoRestaurant.id }
-    });
-    console.log('✅ Billetera de El Mexicano creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: candelabrosRestaurant.id }
-    });
-    console.log('✅ Billetera de Candelabros creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: pueblitoPizzaRestaurant.id }
-    });
-    console.log('✅ Billetera de Pueblito Pizza creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: restaurantCazadores.id }
-    });
-    console.log('✅ Billetera de Restaurant Cazadores creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: taqueriaJerusalen.id }
-    });
-    console.log('✅ Billetera de Taquería Jerusalén creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: carnitasOink3.id }
-    });
-    console.log('✅ Billetera de Carnitas OINK 3 creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: cocinaDonaLala.id }
-    });
-    console.log('✅ Billetera de Cocina Doña Lala creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: pollosLosPanchos.id }
-    });
-    console.log('✅ Billetera de Pollos Los Panchos creada');
-
-    await prisma.restaurantWallet.create({
-      data: { restaurantId: pizzasYahir.id }
-    });
-    console.log('✅ Billetera de PIZZAS YAHIR creada');
-
-    // 5.1. CREAR SUCURSALES PRINCIPALES
-    console.log('🏢 Creando sucursales principales para restaurantes...');
-    
-    // Sucursal principal para Pizzería de Ana
-    const anaPrimaryBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: restaurant.id,
-        name: restaurant.name || 'Principal',
-        address: restaurant.address || 'Av. Felipe Ángeles 15, San Nicolás, Ixmiquilpan, Hgo.',
-        latitude: 20.489000,
-        longitude: -99.230000,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 30,
-        estimated_delivery_max: 45,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Pizzería con ID: ${anaPrimaryBranch.id}`);
-
-    // Sucursal principal para Sushi Master Kenji
-    const kenjiPrimaryBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: sushiRestaurant.id,
-        name: sushiRestaurant.name || 'Principal Sushi',
-        address: sushiRestaurant.address || 'Av. Juárez 85, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.486789,
-        longitude: -99.212345,
-        status: 'active',
-        delivery_fee: 30.00,
-        estimated_delivery_min: 25,
-        estimated_delivery_max: 40,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Sushi con ID: ${kenjiPrimaryBranch.id}`);
-
-    // Sucursales para los nuevos restaurantes de Ixmiquilpan
-    const carnitasOinkBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: carnitasOinkRestaurant.id,
-        name: carnitasOinkRestaurant.name || 'Principal',
-        address: carnitasOinkRestaurant.address || 'Av. Hidalgo 123, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.479658646668057,
-        longitude: -99.23937723339617,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Carnitas Oink con ID: ${carnitasOinkBranch.id}`);
-
-    const elMexicanoBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: elMexicanoRestaurant.id,
-        name: elMexicanoRestaurant.name || 'Principal',
-        address: elMexicanoRestaurant.address || 'Calle Morelos 45, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.48076577652864,
-        longitude: -99.24914222465573,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para El Mexicano con ID: ${elMexicanoBranch.id}`);
-
-    const candelabrosBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: candelabrosRestaurant.id,
-        name: candelabrosRestaurant.name || 'Principal',
-        address: candelabrosRestaurant.address || 'Av. Juárez 200, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.48375643496373,
-        longitude: -99.21540196476,
-        status: 'active',
-        delivery_fee: 30.00,
-        estimated_delivery_min: 25,
-        estimated_delivery_max: 40,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Candelabros con ID: ${candelabrosBranch.id}`);
-
-    const pueblitoPizzaBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: pueblitoPizzaRestaurant.id,
-        name: pueblitoPizzaRestaurant.name || 'Principal',
-        address: pueblitoPizzaRestaurant.address || 'Calle Hidalgo 78, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.483765482910094,
-        longitude: -99.21798054998867,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Pueblito Pizza con ID: ${pueblitoPizzaBranch.id}`);
-
-    const restaurantCazadoresBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: restaurantCazadores.id,
-        name: restaurantCazadores.name || 'Principal',
-        address: restaurantCazadores.address || 'Av. Insurgentes 150, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.473625604434577,
-        longitude: -99.20859087343155,
-        status: 'active',
-        delivery_fee: 30.00,
-        estimated_delivery_min: 25,
-        estimated_delivery_max: 40,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Restaurant Cazadores con ID: ${restaurantCazadoresBranch.id}`);
-
-    const taqueriaJerusalenBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: taqueriaJerusalen.id,
-        name: taqueriaJerusalen.name || 'Principal',
-        address: taqueriaJerusalen.address || 'Calle 5 de Mayo 90, Centro, Ixmiquilpan, Hgo.',
-        latitude: 20.455943112030127,
-        longitude: -99.18375189545016,
-        status: 'active',
-        delivery_fee: 20.00,
-        estimated_delivery_min: 15,
-        estimated_delivery_max: 30,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Taquería Jerusalén con ID: ${taqueriaJerusalenBranch.id}`);
-
-    const carnitasOink3Branch = await prisma.branch.create({
-      data: {
-        restaurant_id: carnitasOink3.id,
-        name: carnitasOink3.name || 'Principal',
-        address: carnitasOink3.address || 'El Tephé, Ixmiquilpan, Hgo.',
-        latitude: 20.447809398208438,
-        longitude: -99.17746846701719,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Carnitas OINK 3 con ID: ${carnitasOink3Branch.id}`);
-
-    const cocinaDonaLalaBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: cocinaDonaLala.id,
-        name: cocinaDonaLala.name || 'Principal',
-        address: cocinaDonaLala.address || 'Col. El Tephé, Ixmiquilpan, Hgo.',
-        latitude: 20.440500796149163,
-        longitude: -99.16649192597929,
-        status: 'active',
-        delivery_fee: 20.00,
-        estimated_delivery_min: 15,
-        estimated_delivery_max: 30,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Cocina Doña Lala con ID: ${cocinaDonaLalaBranch.id}`);
-
-    const pollosLosPanchosBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: pollosLosPanchos.id,
-        name: pollosLosPanchos.name || 'Principal',
-        address: pollosLosPanchos.address || 'Col. Panales, Ixmiquilpan, Hgo.',
-        latitude: 20.423813446550273,
-        longitude: -99.16883221660795,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para Pollos Los Panchos con ID: ${pollosLosPanchosBranch.id}`);
-
-    const pizzasYahirBranch = await prisma.branch.create({
-      data: {
-        restaurant_id: pizzasYahir.id,
-        name: pizzasYahir.name || 'Principal',
-        address: pizzasYahir.address || 'Col. Maguey Blanco, Ixmiquilpan, Hgo.',
-        latitude: 20.38422296245514,
-        longitude: -99.19479359504597,
-        status: 'active',
-        delivery_fee: 25.00,
-        estimated_delivery_min: 20,
-        estimated_delivery_max: 35,
-        delivery_radius: 8.0,
-        uses_platform_drivers: true,
-        updated_at: new Date()
-      }
-    });
-    console.log(`✅ Sucursal Principal creada para PIZZAS YAHIR con ID: ${pizzasYahirBranch.id}`);
-
-    // 5.2. CREAR HORARIOS DE SUCURSALES
-    console.log('🕒 Creando horarios de sucursales...');
-    
-    // Horarios para Sucursal de Pizzería de Ana (Lunes a Domingo, 8:00-22:00)
-    const anaScheduleData = [];
-    for (let day = 0; day < 7; day++) {
-      anaScheduleData.push({
-        branchId: anaPrimaryBranch.id,
-        dayOfWeek: day,
-        opening_time: '08:00:00',
-        closing_time: '22:00:00',
-        is_closed: false
-      });
+    console.log('🌱 Iniciando proceso de seeding con Schema V7.2 (FINAL)...');
+
+    try {
+        // ===========================================
+        // ===== ELIMINACIÓN EN ORDEN INVERSO (Secuencia Segura) =====
+        // ===========================================
+        console.log('🧹 Limpiando datos existentes...');
+
+        // 1. Logs, Transaccionales y Tablas con FK a Orders/Products/Users
+        await prisma.auditLog.deleteMany({});
+        await prisma.notification.deleteMany({});
+        await prisma.complaint.deleteMany({});
+        await prisma.rating.deleteMany({});
+        await prisma.adminMessage.deleteMany({});
+        await prisma.refreshToken.deleteMany({});
+        await prisma.productInventoryLog.deleteMany({});
+        await prisma.driverSession.deleteMany({});
+        await prisma.routeLog.deleteMany({});
+        await prisma.driverAssignmentLog.deleteMany({});
+
+        await prisma.cartItemModifier.deleteMany({});
+        await prisma.cartItem.deleteMany({});
+        await prisma.cart.deleteMany({});
+        
+        await prisma.orderItemModifier.deleteMany({});
+        await prisma.orderItem.deleteMany({});
+        await prisma.payment.deleteMany({});
+        await prisma.driverWalletTransaction.deleteMany({});
+        await prisma.restaurantWalletTransaction.deleteMany({});
+        await prisma.order.deleteMany({});
+
+        // 2. Relaciones y Entidades Principales (Modificadores, Productos, Categorías)
+        await prisma.restaurantPromotion.deleteMany({});
+        await prisma.restaurantServiceArea.deleteMany({});
+        await prisma.productModifier.deleteMany({});
+        await prisma.modifierOption.deleteMany({});
+        await prisma.modifierGroup.deleteMany({});
+        await prisma.product.deleteMany({});
+        await prisma.subcategory.deleteMany({});
+        await prisma.category.deleteMany({});
+
+        // 3. Wallets, Configs, Perfiles y Raíz
+        await prisma.restaurantSchedule.deleteMany({});
+        await prisma.restaurantConfig.deleteMany({});
+        await prisma.restaurantMetrics.deleteMany({});
+        await prisma.restaurantWallet.deleteMany({});
+        await prisma.driverWallet.deleteMany({});
+        await prisma.driverProfile.deleteMany({});
+        await prisma.serviceArea.deleteMany({});
+        await prisma.userRoleAssignment.deleteMany({});
+        await prisma.address.deleteMany({});
+        await prisma.restaurant.deleteMany({});
+        await prisma.user.deleteMany({});
+        await prisma.roleHasPermission.deleteMany({});
+        await prisma.permission.deleteMany({});
+        await prisma.role.deleteMany({});
+        await prisma.globalConfig.deleteMany({});
+        
+        console.log('✅ Limpieza de todas las tablas completada.');
+
+        // 1. CONFIGURACIÓN GLOBAL Y GEOGRAFÍA
+        console.log('⚙️ Creando GlobalConfig y ServiceArea...');
+        await prisma.globalConfig.create({
+            data: {
+                id: 1, defaultDeliveryRadius: new Decimal('10.00'), globalCommissionRate: new Decimal('15.00'),
+                baseDeliveryFee: new Decimal('35.00'), systemTerms: 'Términos y condiciones de la plataforma...',
+                systemPrivacyPolicy: 'Política de privacidad de la plataforma...',
+                minAppVersionCustomer: '1.0.0', minAppVersionDriver: '1.0.0', minAppVersionRestaurant: '1.0.0',
+            }
+        });
+
+        const centroServiceArea = await prisma.serviceArea.create({
+            data: { name: 'Ixmiquilpan Centro', type: 'CITY', centerLatitude: new Decimal('20.480000'), centerLongitude: new Decimal('-99.215000'), radiusKm: new Decimal('5.00'), isActive: true }
+        });
+        console.log('✅ GlobalConfig y ServiceArea creados.');
+
+        // 2. ROLES, PERMISOS
+        console.log('📋 Creando roles y permisos...');
+        
+        const rolesData = [
+            { name: 'super_admin', displayName: 'Super Administrador' }, { name: 'platform_manager', displayName: 'Gestor de Plataforma' },
+            { name: 'support_agent', displayName: 'Agente de Soporte' }, { name: 'owner', displayName: 'Dueño de Restaurante' },
+            { name: 'order_manager', displayName: 'Gestor de Pedidos' }, { name: 'kitchen_staff', displayName: 'Personal de Cocina' },
+            { name: 'driver_platform', displayName: 'Repartidor de Plataforma' }, { name: 'customer', displayName: 'Cliente' },
+        ];
+        await prisma.role.createMany({ data: rolesData });
+        const createdRoles = await prisma.role.findMany();
+        const roleMap = createdRoles.reduce((acc, r) => ({ ...acc, [r.name]: r }), {});
+
+        const permissionsData = [
+            { name: 'products.create', displayName: 'Crear Productos', module: 'products' }, { name: 'products.edit.all', displayName: 'Editar Cualquier Producto', module: 'products' },
+            { name: 'orders.view.all', displayName: 'Ver Todos los Pedidos', module: 'orders' }, { name: 'orders.update.status', displayName: 'Actualizar Estado de Pedido', module: 'orders' },
+            { name: 'restaurants.edit.all', displayName: 'Editar Cualquier Restaurante', module: 'restaurants' }, { name: 'users.view.all', displayName: 'Ver Todos los Usuarios', module: 'users' }, 
+            { name: 'platform.config.edit', displayName: 'Editar Configuración Global', module: 'platform' },
+        ];
+        await prisma.permission.createMany({ data: permissionsData });
+        const createdPermissions = await prisma.permission.findMany();
+        const permMap = createdPermissions.reduce((acc, p) => ({ ...acc, [p.name]: p }), {});
+
+        const allPermissionsForAdmin = createdPermissions.map(p => ({ roleId: roleMap['super_admin'].id, permissionId: p.id }));
+        await prisma.roleHasPermission.createMany({ data: allPermissionsForAdmin });
+        console.log('✅ Roles, Permisos y Asignaciones Admin creadas.');
+
+        // 3. USUARIOS (Utilizando la función robusta)
+        console.log('👥 Creando usuarios...');
+        const userVariables = await createUsersAndMap();
+        const { adminUser, anaUser, carlosUser, miguelUser, sofiaUser, kenjiUser, ownerAUser, ownerBUser, ownerCUser, ownerDUser, ownerEUser, ownerFUser, ownerGUser, ownerHUser, ownerIUser, ownerJUser, carlosDriverUser } = userVariables;
+        console.log(`✅ ${Object.keys(userVariables).length - 1} usuarios creados.`); // -1 por la key 'allOwners' que fue removida
+
+        // 4. RESTAURANTES, WALLETS, CONFIGS, METRICS, SCHEDULES
+        console.log('🏪 Creando restaurantes y sus componentes...');
+        const restData = [
+            { owner: anaUser, name: 'Pizzería de Ana', category: 'Pizzas', lat: '20.489000', lon: '-99.230000', commission: '12.50', autoAccept: true, phone: anaUser.phone },
+            { owner: kenjiUser, name: 'Sushi Master Kenji', category: 'Sushi', lat: '20.486789', lon: '-99.212345', commission: '15.00', autoAccept: false, phone: kenjiUser.phone },
+            { owner: ownerAUser, name: 'Carnitas Oink', category: 'Carnitas', lat: '20.479658', lon: '-99.239377', commission: '12.00', autoAccept: false, phone: ownerAUser.phone },
+            { owner: ownerBUser, name: 'El Mexicano', category: 'Comida Mexicana', lat: '20.480765', lon: '-99.249142', commission: '13.00', autoAccept: false, phone: ownerBUser.phone },
+            { owner: ownerCUser, name: 'Candelabros', category: 'Restaurante', lat: '20.483756', lon: '-99.215401', commission: '14.00', autoAccept: false, phone: ownerCUser.phone },
+            { owner: ownerDUser, name: 'Pueblito Pizza', category: 'Pizzas', lat: '20.483765', lon: '-99.217980', commission: '12.50', autoAccept: true, phone: ownerDUser.phone },
+            { owner: ownerEUser, name: 'Restaurant Cazadores', category: 'Carnes', lat: '20.473625', lon: '-99.208590', commission: '13.50', autoAccept: false, phone: ownerEUser.phone },
+            { owner: ownerFUser, name: 'Taquería Jerusalén', category: 'Tacos', lat: '20.455943', lon: '-99.183751', commission: '11.00', autoAccept: true, phone: ownerFUser.phone },
+            { owner: ownerGUser, name: 'Carnitas OINK 3 en el Tephé', category: 'Carnitas', lat: '20.447809', lon: '-99.177468', commission: '12.00', autoAccept: false, phone: ownerGUser.phone },
+            { owner: ownerHUser, name: 'Cocina "Doña Lala"', category: 'Comida Casera', lat: '20.440500', lon: '-99.166491', commission: '10.00', autoAccept: true, phone: ownerHUser.phone },
+            { owner: ownerIUser, name: 'Pollos Los Panchos', category: 'Pollo', lat: '20.423813', lon: '-99.168832', commission: '11.50', autoAccept: false, phone: ownerIUser.phone },
+            { owner: ownerJUser, name: 'PIZZAS YAHIR', category: 'Pizzas', lat: '20.384222', lon: '-99.194793', commission: '12.00', autoAccept: true, phone: ownerJUser.phone },
+        ];
+
+        const createdRestaurants = await Promise.all(restData.map(data => 
+            prisma.restaurant.create({
+                data: {
+                    ownerId: data.owner.id, name: data.name, category: data.category,
+                    description: `Las mejores ${data.category} de la zona.`, email: `contacto@${data.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, phone: data.phone,
+                    address: `Dirección de prueba para ${data.name}`,
+                    latitude: new Decimal(data.lat), longitude: new Decimal(data.lon), commissionRate: new Decimal(data.commission),
+                    delivery_fee: new Decimal('25.00'), delivery_radius: new Decimal('8.00'), status: 'active',
+                    logoUrl: 'https://placehold.co/400x400/png', coverPhotoUrl: 'https://placehold.co/1200x400/png',
+                    wallet: { create: { balance: new Decimal(0) } },
+                    config: { create: { autoAcceptOrders: data.autoAccept, maxDeliveryRadius: new Decimal('10.00'), minOrderAmount: new Decimal('50.00'), deliveryTimeEstimate: 30 } },
+                    metrics: { create: { totalOrders: 0, totalRevenue: new Decimal(0), averageOrderValue: new Decimal(0) } },
+                    schedules: { createMany: {
+                        data: Array.from({ length: 7 }, (_, day) => ({ dayOfWeek: day, openTime: '08:00:00', closeTime: '22:00:00', isActive: true }))
+                    }},
+                    serviceAreas: { create: { serviceAreaId: centroServiceArea.id } },
+                }
+            })
+        ));
+
+        const [restaurant, sushiRestaurant] = createdRestaurants;
+        console.log(`✅ ${createdRestaurants.length} Restaurantes creados con componentes y Owners únicos.`);
+        
+        // 5. ASIGNACIONES DE ROLES DE USUARIO
+        console.log('👤 Creando asignaciones de roles...');
+        const userRoleAssignmentsData = [
+            { userId: adminUser.id, roleId: roleMap.super_admin.id },
+            { userId: carlosUser.id, roleId: roleMap.order_manager.id, restaurantId: restaurant.id },
+            { userId: miguelUser.id, roleId: roleMap.driver_platform.id },
+            { userId: sofiaUser.id, roleId: roleMap.customer.id },
+            { userId: carlosDriverUser.id, roleId: roleMap.driver_platform.id },
+        ];
+        
+        // Asignar rol 'owner' a cada dueño con su restaurantId
+        restData.forEach((data, index) => {
+            const restaurant = createdRestaurants[index];
+            userRoleAssignmentsData.push({ 
+                userId: data.owner.id, 
+                roleId: roleMap.owner.id, 
+                restaurantId: restaurant.id 
+            });
+        });
+        
+        await prisma.userRoleAssignment.createMany({
+            data: userRoleAssignmentsData
+        });
+        
+        console.log(`✅ ${userRoleAssignmentsData.length} asignaciones de roles creadas.`);
+
+        // 6. PERFILES DE REPARTIDOR (DriverProfile y DriverWallet)
+        await Promise.all([
+            prisma.driverProfile.create({ data: { userId: miguelUser.id, vehicleType: 'motorcycle', licensePlate: 'HGO-ABC-123', status: 'online', currentLatitude: new Decimal('20.489500'), currentLongitude: new Decimal('-99.232000'), lastSeenAt: now, kycStatus: 'approved', rfc: 'MIGH880101XYZ', opcionPagoDefinitivo: true } }),
+            prisma.driverProfile.create({ data: { userId: carlosDriverUser.id, vehicleType: 'car', licensePlate: 'HGO-XYZ-789', status: 'offline', currentLatitude: new Decimal('20.490000'), currentLongitude: new Decimal('-99.235000'), lastSeenAt: now, kycStatus: 'under_review', rfc: 'CARP990202ABC', opcionPagoDefinitivo: false } }),
+        ]);
+        await prisma.driverWallet.createMany({ data: [{ driverId: miguelUser.id }, { driverId: carlosDriverUser.id }] });
+        console.log('✅ Perfiles y Wallets de repartidor creadas.');
+
+        // 7. CATEGORÍAS Y SUBCATEGORÍAS
+        const [pizzasCategory, bebidasCategory, entradasCategory, postresCategory, sushiCategory, bebidasJaponesasCategory] = await Promise.all([
+            prisma.category.create({ data: { name: 'Pizzas' } }), prisma.category.create({ data: { name: 'Bebidas' } }),
+            prisma.category.create({ data: { name: 'Entradas' } }), prisma.category.create({ data: { name: 'Postres' } }),
+            prisma.category.create({ data: { name: 'Sushi' } }), prisma.category.create({ data: { name: 'Bebidas Japonesas' } }),
+        ]);
+        
+        const [tradicionalesSub, gourmetSub, refrescosSub, nigiriSub] = await Promise.all([
+            prisma.subcategory.create({ data: { restaurantId: restaurant.id, categoryId: pizzasCategory.id, name: 'Pizzas Tradicionales', displayOrder: 1 } }),
+            prisma.subcategory.create({ data: { restaurantId: restaurant.id, categoryId: pizzasCategory.id, name: 'Pizzas Gourmet', displayOrder: 2 } }),
+            prisma.subcategory.create({ data: { restaurantId: restaurant.id, categoryId: bebidasCategory.id, name: 'Refrescos', displayOrder: 4 } }),
+            prisma.subcategory.create({ data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Nigiri', displayOrder: 10 } }),
+        ]);
+
+        // 8. PRODUCTOS (Con stockQuantity y Tags)
+        const [pizzaHawaiana, pizzaPepperoni, cocaCola, salmonNigiri] = await Promise.all([
+            prisma.product.create({ data: { restaurantId: restaurant.id, subcategoryId: tradicionalesSub.id, name: 'Pizza Hawaiana', description: 'La clásica pizza con jamón y piña fresca.', price: new Decimal('150.00'), stockQuantity: 50, tags: 'pizza, jamon, pina' } }),
+            prisma.product.create({ data: { restaurantId: restaurant.id, subcategoryId: tradicionalesSub.id, name: 'Pizza de Pepperoni', description: 'Generosa porción de pepperoni.', price: new Decimal('145.50'), stockQuantity: 50, tags: 'pizza, pepperoni' } }),
+            prisma.product.create({ data: { restaurantId: restaurant.id, subcategoryId: refrescosSub.id, name: 'Coca-Cola 600ml', description: 'Refresco de cola bien frío.', price: new Decimal('25.00'), stockQuantity: 100, tags: 'bebida, refresco' } }),
+            prisma.product.create({ data: { restaurantId: sushiRestaurant.id, subcategoryId: nigiriSub.id, name: 'Nigiri de Salmón', description: 'Fresco salmón sobre arroz.', price: new Decimal('85.00'), stockQuantity: 60, tags: 'sushi, salmon, nigiri' } }),
+        ]);
+
+        // 9. DIRECCIONES
+        const [casaAddress, oficinaAddress] = await Promise.all([
+            prisma.address.create({ data: { userId: sofiaUser.id, alias: 'Casa', street: 'Av. Felipe Ángeles', exteriorNumber: '21', neighborhood: 'San Nicolás', city: 'Ixmiquilpan', state: 'Hidalgo', zipCode: '42300', latitude: new Decimal('20.488765'), longitude: new Decimal('-99.234567') } }),
+            prisma.address.create({ data: { userId: sofiaUser.id, alias: 'Oficina', street: 'Calle Hidalgo', exteriorNumber: '125', neighborhood: 'Centro', city: 'Ixmiquilpan', state: 'Hidalgo', zipCode: '42300', latitude: new Decimal('20.485123'), longitude: new Decimal('-99.220456') } }),
+        ]);
+
+        // 10. GRUPOS Y OPCIONES DE MODIFICADORES
+        const [tamanoGroup, extrasGroup, nivelPicanteGroup] = await Promise.all([
+            prisma.modifierGroup.create({ data: { name: 'Tamaño', restaurantId: restaurant.id, minSelection: 1, maxSelection: 1 } }),
+            prisma.modifierGroup.create({ data: { name: 'Extras', restaurantId: restaurant.id, minSelection: 0, maxSelection: 5 } }),
+            prisma.modifierGroup.create({ data: { name: 'Nivel de Picante', restaurantId: sushiRestaurant.id, minSelection: 1, maxSelection: 1 } }),
+        ]);
+
+        const [grandeOption, extraQuesoOption, sinCebollaOption, pocoPicanteOption] = await Promise.all([
+            prisma.modifierOption.create({ data: { name: 'Grande (12 pulgadas)', price: new Decimal('45.00'), modifierGroupId: tamanoGroup.id } }),
+            prisma.modifierOption.create({ data: { name: 'Extra Queso', price: new Decimal('15.00'), modifierGroupId: extrasGroup.id } }),
+            prisma.modifierOption.create({ data: { name: 'Sin Cebolla', price: new Decimal('0.00'), modifierGroupId: extrasGroup.id } }),
+            prisma.modifierOption.create({ data: { name: 'Poco Picante', price: new Decimal('0.00'), modifierGroupId: nivelPicanteGroup.id } }),
+        ]);
+
+        await prisma.productModifier.createMany({
+            data: [
+                { productId: pizzaHawaiana.id, modifierGroupId: tamanoGroup.id },
+                { productId: pizzaHawaiana.id, modifierGroupId: extrasGroup.id },
+                { productId: salmonNigiri.id, modifierGroupId: nivelPicanteGroup.id },
+            ]
+        });
+        console.log('✅ Modificadores y asociaciones creadas.');
+
+        // 11. FLUJO COMPLETO DE PEDIDOS Y LOGS (Transaccionales y Forenses)
+        console.log('📦 Creando flujo de pedidos y logs forenses...');
+        
+        // --- Pedido 1: DELIVERED (El más completo) ---
+        const order1Subtotal = pizzaHawaiana.price.add(grandeOption.price).add(extraQuesoOption.price);
+        const order1Fees = calcPayouts(order1Subtotal.toNumber(), restaurant.commissionRate.toNumber());
+        
+        const order1 = await prisma.order.create({
+            data: {
+                customerId: sofiaUser.id, restaurantId: restaurant.id, addressId: casaAddress.id, deliveryDriverId: miguelUser.id, status: 'delivered',
+                subtotal: order1Subtotal, deliveryFee: restaurant.delivery_fee, total: order1Subtotal.add(restaurant.delivery_fee),
+                commissionRateSnapshot: restaurant.commissionRate, paymentMethod: 'CARD_ONLINE', paymentStatus: 'completed',
+                platformFee: order1Fees.platformFee, retainedIVA: order1Fees.retainedIVA, retainedISR: order1Fees.retainedISR, restaurantPayout: order1Fees.restaurantPayout,
+                driverFeeGross: order1Fees.driverFeeGross, driverRetainedIVA: order1Fees.driverRetainedIVA, driverRetainedISR: order1Fees.driverRetainedISR, driverFeeNet: order1Fees.driverFeeNet,
+                orderPlacedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), orderDeliveredAt: new Date(Date.now() - 2.5 * 60 * 60 * 1000),
+            }
+        });
+
+        const orderItem1 = await prisma.orderItem.create({ data: { orderId: order1.id, productId: pizzaHawaiana.id, quantity: 1, pricePerUnit: order1Subtotal, } });
+        await prisma.orderItemModifier.createMany({
+            data: [{ orderItemId: orderItem1.id, modifierOptionId: grandeOption.id }, { orderItemId: orderItem1.id, modifierOptionId: extraQuesoOption.id }, { orderItemId: orderItem1.id, modifierOptionId: sinCebollaOption.id }]
+        });
+        await prisma.payment.create({ data: { orderId: order1.id, amount: order1.total, provider: 'mercadopago', providerPaymentId: 'MP-001', status: 'completed' } });
+        
+        // Transacciones y Logs Forenses del Pedido 1
+        const restaurantWallet = await prisma.restaurantWallet.findUnique({ where: { restaurantId: restaurant.id } });
+        const driverWallet = await prisma.driverWallet.findUnique({ where: { driverId: miguelUser.id } });
+
+        await prisma.restaurantWalletTransaction.create({ data: { walletId: restaurantWallet.id, orderId: order1.id, type: 'RESTAURANT_ORDER_CREDIT', amount: order1.restaurantPayout, balanceAfter: order1.restaurantPayout, description: 'Ingreso por Pedido #1' } });
+        await prisma.driverWalletTransaction.create({ data: { walletId: driverWallet.id, orderId: order1.id, type: 'DRIVER_DELIVERY_FEE_CREDIT', amount: order1.driverFeeNet, balanceAfter: order1.driverFeeNet, description: 'Pago por entrega Pedido #1' } });
+        await prisma.rating.create({ data: { orderId: order1.id, restaurantId: restaurant.id, customerId: sofiaUser.id, driverId: miguelUser.id, restaurantScore: 5, driverScore: 5, comment: 'Entrega perfecta y a tiempo.' } });
+        await prisma.routeLog.createMany({ data: [ { orderId: order1.id, driverId: miguelUser.id, latitude: new Decimal('20.489000'), longitude: new Decimal('-99.230000'), eventType: 'Pickup_Arrival' }, ] });
+        await prisma.auditLog.create({ data: { userId: carlosUser.id, action: 'CONFIRMED', entity: 'ORDER', entityId: order1.id, details: JSON.stringify({ status_old: 'pending', status_new: 'confirmed' }) } });
+        await prisma.notification.create({ data: { userId: sofiaUser.id, title: 'Pedido Entregado!', message: 'Tu pedido #1 ha sido completado.', type: 'ORDER_UPDATE' } });
+        await prisma.productInventoryLog.create({ data: { productId: pizzaHawaiana.id, userId: carlosUser.id, change: -1, newQuantity: 49, reason: 'ORDER_SALE' } });
+        await prisma.restaurantPromotion.create({ data: { restaurantId: restaurant.id, startDate: new Date(), endDate: new Date(Date.now() + 86400000 * 7), pricePaid: new Decimal(500), displayPriority: 1, approvedBy: adminUser.id, approvedAt: now } });
+        await prisma.driverSession.create({ data: { driverId: miguelUser.id, start_time: new Date(Date.now() - 4 * 60 * 60 * 1000), sessionType: 'ACTIVE', ordersCompleted: 2 } });
+        
+        // --- Pedido 2: READY_FOR_PICKUP (Para pruebas de asignación) ---
+        const order2Subtotal = salmonNigiri.price.add(pocoPicanteOption.price);
+        const order2Fees = calcPayouts(order2Subtotal.toNumber(), sushiRestaurant.commissionRate.toNumber());
+        
+        const order2 = await prisma.order.create({
+            data: {
+                customerId: sofiaUser.id, restaurantId: sushiRestaurant.id, addressId: oficinaAddress.id, status: 'ready_for_pickup',
+                subtotal: order2Subtotal, deliveryFee: sushiRestaurant.delivery_fee, total: order2Subtotal.add(sushiRestaurant.delivery_fee),
+                commissionRateSnapshot: sushiRestaurant.commissionRate, paymentMethod: 'CASH', paymentStatus: 'pending',
+                platformFee: order2Fees.platformFee, retainedIVA: order2Fees.retainedIVA, retainedISR: order2Fees.retainedISR, restaurantPayout: order2Fees.restaurantPayout,
+                orderPlacedAt: new Date(Date.now() - 30 * 60 * 1000),
+            }
+        });
+        await prisma.orderItem.create({ data: { orderId: order2.id, productId: salmonNigiri.id, quantity: 1, pricePerUnit: order2Subtotal } });
+        await prisma.payment.create({ data: { orderId: order2.id, amount: order2.total, provider: 'cash', status: 'pending' } });
+        
+        // Logs de Asignación (Rechazado y Ofrecido)
+        await prisma.driverAssignmentLog.create({ data: { orderId: order2.id, driverId: carlosDriverUser.id, status: 'REJECTED', rejectionReason: 'TOO_FAR', assignedAt: new Date(Date.now() - 5 * 60 * 1000), respondedAt: new Date(Date.now() - 4 * 60 * 1000) } });
+        await prisma.driverAssignmentLog.create({ data: { orderId: order2.id, driverId: miguelUser.id, status: 'OFFERED', assignedAt: new Date(Date.now() - 2 * 60 * 1000) } });
+        
+        // --- Pedido 3: CANCELLED (Con Reembolso y Queja) ---
+        const order3Subtotal = pizzaPepperoni.price.mul(2);
+        const order3Fees = calcPayouts(order3Subtotal.toNumber(), restaurant.commissionRate.toNumber());
+        const order3 = await prisma.order.create({
+            data: {
+                customerId: sofiaUser.id, restaurantId: restaurant.id, addressId: casaAddress.id, status: 'cancelled',
+                subtotal: order3Subtotal, deliveryFee: restaurant.delivery_fee, total: order3Subtotal.add(restaurant.delivery_fee),
+                commissionRateSnapshot: restaurant.commissionRate, paymentMethod: 'CARD_ONLINE', paymentStatus: 'refunded',
+                platformFee: order3Fees.platformFee, retainedIVA: order3Fees.retainedIVA, retainedISR: order3Fees.retainedISR, restaurantPayout: order3Fees.restaurantPayout,
+                orderPlacedAt: new Date(Date.now() - 10 * 60 * 60 * 1000),
+            }
+        });
+        await prisma.orderItem.create({ data: { orderId: order3.id, productId: pizzaPepperoni.id, quantity: 2, pricePerUnit: pizzaPepperoni.price } });
+        await prisma.payment.create({ data: { orderId: order3.id, amount: order3.total, provider: 'stripe', providerPaymentId: 'STR-REFUNDED', status: 'refunded' } });
+        await prisma.complaint.create({ data: { userId: sofiaUser.id, restaurantId: restaurant.id, orderId: order3.id, subject: 'Pedido Cancelado', description: 'La comida nunca llegó y el restaurante no respondía.', status: 'resolved' } });
+        await prisma.auditLog.create({ data: { userId: adminUser.id, action: 'REFUNDED', entity: 'ORDER', entityId: order3.id, details: JSON.stringify({ reason: 'Customer Cancelation' }) } });
+
+
+        console.log('✅ Flujo completo de pedidos y logs forenses creado.');
+        
+        console.log('\n🎉 ¡Seeding completado exitosamente!');
+        console.log('\n🌟 Resumen: Schema V7.2 Completamente Sincronizado.');
+        console.log('📦 Data Forense: Pedido #1 (DELIVERED) contiene TODA la data de Logs, Transacciones y Rating.');
+        console.log('🧪 Pruebas: Pedido #2 (READY_FOR_PICKUP) para probar asignación de Drivers (Miguel y Carlos).');
+        console.log('🔑 Contraseña para todos los usuarios: **supersecret**');
+        console.log('👥 Usuarios Principales:');
+        console.log(`- Admin: ${adminUser.email}`);
+        console.log(`- Owner Pizzería: ${anaUser.email}`);
+        console.log(`- Gestor Pedidos: ${carlosUser.email}`);
+        console.log(`- Driver Activo: ${miguelUser.email}`);
+
+    } catch (error) {
+        console.error('❌ Error durante el seeding:', error);
+        // Mostrar detalles del error para depuración
+        console.error('Detalles del error:', JSON.stringify(error, null, 2));
+        throw error;
     }
-    await prisma.branchSchedule.createMany({
-      data: anaScheduleData
-    });
-    console.log('✅ Horarios de Pizzería creados');
-
-    // Horarios para Sucursal de Sushi Master Kenji (Lunes a Domingo, 11:00-23:00)
-    const kenjiScheduleData = [];
-    for (let day = 0; day < 7; day++) {
-      kenjiScheduleData.push({
-        branchId: kenjiPrimaryBranch.id,
-        dayOfWeek: day,
-        opening_time: '11:00:00',
-        closing_time: '23:00:00',
-        is_closed: false
-      });
-    }
-    await prisma.branchSchedule.createMany({
-      data: kenjiScheduleData
-    });
-    console.log('✅ Horarios de Sushi creados');
-
-    // 6. CREAR CATEGORÍAS
-    console.log('📂 Creando categorías...');
-    
-    const pizzasCategory = await prisma.category.create({
-      data: { name: 'Pizzas' }
-    });
-    const bebidasCategory = await prisma.category.create({
-      data: { name: 'Bebidas' }
-    });
-    const entradasCategory = await prisma.category.create({
-      data: { name: 'Entradas' }
-    });
-    const postresCategory = await prisma.category.create({
-      data: { name: 'Postres' }
-    });
-    const sushiCategory = await prisma.category.create({
-      data: { name: 'Sushi' }
-    });
-    const bebidasJaponesasCategory = await prisma.category.create({
-      data: { name: 'Bebidas Japonesas' }
-    });
-    console.log('✅ 6 categorías creadas');
-
-    // 7. CREAR SUBCATEGORÍAS
-    console.log('📁 Creando subcategorías...');
-    
-    const tradicionalesSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: pizzasCategory.id, name: 'Pizzas Tradicionales', displayOrder: 1 }
-    });
-    const gourmetSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: pizzasCategory.id, name: 'Pizzas Gourmet', displayOrder: 2 }
-    });
-    const vegetarianasSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: pizzasCategory.id, name: 'Pizzas Vegetarianas', displayOrder: 3 }
-    });
-    const refrescosSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: bebidasCategory.id, name: 'Refrescos', displayOrder: 4 }
-    });
-    const aguasFrescasSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: bebidasCategory.id, name: 'Aguas Frescas', displayOrder: 5 }
-    });
-    const bebidasCalientesSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: bebidasCategory.id, name: 'Bebidas Calientes', displayOrder: 6 }
-    });
-    const aperitivosSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: entradasCategory.id, name: 'Aperitivos', displayOrder: 7 }
-    });
-    const heladosSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: postresCategory.id, name: 'Helados', displayOrder: 8 }
-    });
-    const pastelesSub = await prisma.subcategory.create({
-      data: { restaurantId: restaurant.id, categoryId: postresCategory.id, name: 'Pasteles', displayOrder: 9 }
-    });
-
-    // Subcategorías para Sushi
-    const nigiriSub = await prisma.subcategory.create({
-      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Nigiri', displayOrder: 10 }
-    });
-    const rollsSub = await prisma.subcategory.create({
-      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Rolls', displayOrder: 11 }
-    });
-    const sashimiSub = await prisma.subcategory.create({
-      data: { restaurantId: sushiRestaurant.id, categoryId: sushiCategory.id, name: 'Sashimi', displayOrder: 12 }
-    });
-    const tempuraSub = await prisma.subcategory.create({
-      data: { restaurantId: sushiRestaurant.id, categoryId: entradasCategory.id, name: 'Tempura', displayOrder: 13 }
-    });
-    const sakeSub = await prisma.subcategory.create({
-      data: { restaurantId: sushiRestaurant.id, categoryId: bebidasJaponesasCategory.id, name: 'Sake', displayOrder: 14 }
-    });
-    console.log('✅ 14 subcategorías creadas');
-
-    // 8. CREAR PRODUCTOS
-    console.log('🍕 Creando productos...');
-    
-    // Pizzas Tradicionales
-    const pizzaHawaiana = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: tradicionalesSub.id,
-        name: 'Pizza Hawaiana',
-        description: 'La clásica pizza con jamón y piña fresca.',
-        price: 150.00,
-        imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'pizza, jamon, pina'
-      }
-    });
-    const pizzaPepperoni = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: tradicionalesSub.id,
-        name: 'Pizza de Pepperoni',
-        description: 'Generosa porción de pepperoni sobre nuestra salsa especial de la casa.',
-        price: 145.50,
-        imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'pizza, pepperoni'
-      }
-    });
-    const pizzaMargherita = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: tradicionalesSub.id,
-        name: 'Pizza Margherita',
-        description: 'Pizza clásica con mozzarella fresca, tomate y albahaca.',
-        price: 135.00,
-        imageUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'pizza, vegetariana, mozzarella'
-      }
-    });
-
-    // Pizzas Gourmet
-    const pizzaQuattro = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: gourmetSub.id,
-        name: 'Pizza Quattro Stagioni',
-        description: 'Pizza gourmet con alcachofas, jamón, champiñones y aceitunas.',
-        price: 180.00,
-        imageUrl: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'pizza, gourmet, jamon, champinones, aceitunas'
-      }
-    });
-
-    // Pizzas Vegetarianas
-    const pizzaVegetariana = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: vegetarianasSub.id,
-        name: 'Pizza Vegetariana',
-        description: 'Pizza con champiñones, pimientos, cebolla, aceitunas y queso de cabra.',
-        price: 160.00,
-        imageUrl: 'https://images.unsplash.com/photo-1511689660979-10d2b1aada49?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'pizza, vegetariana, champinones, pimientos, cebolla, aceitunas'
-      }
-    });
-
-    // Refrescos
-    const cocaCola = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: refrescosSub.id,
-        name: 'Coca-Cola 600ml',
-        description: 'Refresco de cola bien frío.',
-        price: 25.00,
-        imageUrl: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'bebida, refresco, cola'
-      }
-    });
-    const sprite = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: refrescosSub.id,
-        name: 'Sprite 600ml',
-        description: 'Refresco de lima-limón bien frío.',
-        price: 25.00,
-        imageUrl: 'https://images.unsplash.com/photo-1625772452859-1c03d5bf1137?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'bebida, refresco, lima, limon'
-      }
-    });
-
-    // Aguas Frescas
-    const horchata = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: aguasFrescasSub.id,
-        name: 'Agua de Horchata',
-        description: 'Agua fresca de horchata natural.',
-        price: 20.00,
-        imageUrl: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'bebida, agua, horchata, natural'
-      }
-    });
-
-    // Aperitivos
-    const arosCebolla = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: aperitivosSub.id,
-        name: 'Aros de Cebolla',
-        description: 'Crujientes aros de cebolla empanizados.',
-        price: 45.00,
-        imageUrl: 'https://images.unsplash.com/photo-1639024471283-03518883512d?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'aperitivo, cebolla, empanizado, frito'
-      }
-    });
-
-    // Postres
-    const tiramisu = await prisma.product.create({
-      data: {
-        restaurantId: restaurant.id,
-        subcategoryId: pastelesSub.id,
-        name: 'Tiramisú',
-        description: 'Postre italiano con café, mascarpone y cacao.',
-        price: 55.00,
-        imageUrl: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'postre, italiano, cafe, mascarpone, cacao'
-      }
-    });
-
-    // Productos de Sushi
-    const salmonNigiri = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: nigiriSub.id,
-        name: 'Nigiri de Salmón',
-        description: 'Fresco salmón sobre arroz sazonado con vinagre de arroz.',
-        price: 85.00,
-        imageUrl: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sushi, salmon, nigiri, fresco'
-      }
-    });
-
-    const tunaNigiri = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: nigiriSub.id,
-        name: 'Nigiri de Atún',
-        description: 'Atún fresco de primera calidad sobre arroz sazonado.',
-        price: 95.00,
-        imageUrl: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sushi, atun, nigiri, premium'
-      }
-    });
-
-    const californiaRoll = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: rollsSub.id,
-        name: 'California Roll',
-        description: 'Roll clásico con cangrejo, aguacate y pepino, cubierto con hueva de pez volador.',
-        price: 120.00,
-        imageUrl: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sushi, roll, cangrejo, aguacate, pepino'
-      }
-    });
-
-    const dragonRoll = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: rollsSub.id,
-        name: 'Dragon Roll',
-        description: 'Roll con langostinos tempura y aguacate, cubierto con anguila y salsa teriyaki.',
-        price: 150.00,
-        imageUrl: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sushi, roll, langostino, tempura, aguacate, anguila'
-      }
-    });
-
-    const salmonSashimi = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: sashimiSub.id,
-        name: 'Sashimi de Salmón',
-        description: '5 piezas de salmón fresco cortado en láminas finas.',
-        price: 110.00,
-        imageUrl: 'https://images.unsplash.com/photo-1580822184713-fc5400e7fe10?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sushi, sashimi, salmon, fresco, 5 piezas'
-      }
-    });
-
-    const tempuraShrimp = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: tempuraSub.id,
-        name: 'Tempura de Camarones',
-        description: '6 camarones grandes empanizados con masa tempura crujiente.',
-        price: 80.00,
-        imageUrl: 'https://images.unsplash.com/photo-1599921829015-4e4094c0d5e2?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'tempura, camarones, frito, crujiente, 6 piezas'
-      }
-    });
-
-    const sakePremium = await prisma.product.create({
-      data: {
-        restaurantId: sushiRestaurant.id,
-        subcategoryId: sakeSub.id,
-        name: 'Sake Premium 180ml',
-        description: 'Sake japonés premium de alta calidad, perfecto para acompañar el sushi.',
-        price: 180.00,
-        imageUrl: 'https://images.unsplash.com/photo-1551095353-aab14e736426?w=500&h=500&fit=crop',
-        isAvailable: true,
-        tags: 'sake, alcohol, japones, premium, 180ml'
-      }
-    });
-
-    console.log('✅ 17 productos creados (10 pizza + 7 sushi)');
-
-    // 9. CREAR DIRECCIONES
-    console.log('📍 Creando direcciones...');
-    
-    const casaAddress = await prisma.address.create({
-      data: {
-        userId: sofiaUser.id,
-        alias: 'Casa',
-        street: 'Av. Felipe Ángeles',
-        exteriorNumber: '21',
-        neighborhood: 'San Nicolás',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa de dos pisos con portón de madera.',
-        latitude: 20.488765,
-        longitude: -99.234567
-      }
-    });
-    console.log('✅ Dirección Casa creada');
-
-    const oficinaAddress = await prisma.address.create({
-      data: {
-        userId: sofiaUser.id,
-        alias: 'Oficina',
-        street: 'Calle Hidalgo',
-        exteriorNumber: '125',
-        interiorNumber: 'A',
-        neighborhood: 'Centro',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Edificio de oficinas, segundo piso.',
-        latitude: 20.485123,
-        longitude: -99.220456
-      }
-    });
-    console.log('✅ Dirección Oficina creada');
-
-    // Direcciones reales de Ixmiquilpan para los nuevos usuarios
-    const magueyBlancoAddress = await prisma.address.create({
-      data: {
-        userId: magueyBlancoUser.id,
-        alias: 'Casa',
-        street: 'Calle Principal',
-        exteriorNumber: '45',
-        neighborhood: 'Maguey Blanco',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa de dos pisos con portón azul.',
-        latitude: 20.410283147342966,
-        longitude: -99.16951988486106
-      }
-    });
-    console.log('✅ Dirección Maguey Blanco creada');
-
-    const centroAddress = await prisma.address.create({
-      data: {
-        userId: centroUser.id,
-        alias: 'Casa',
-        street: 'Av. Juárez',
-        exteriorNumber: '200',
-        neighborhood: 'Centro',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa colonial en el centro histórico.',
-        latitude: 20.48013898568814,
-        longitude: -99.21503608010381
-      }
-    });
-    console.log('✅ Dirección Centro creada');
-
-    const elThepeAddress = await prisma.address.create({
-      data: {
-        userId: elThepeUser.id,
-        alias: 'Casa',
-        street: 'Calle del Tephé',
-        exteriorNumber: '78',
-        neighborhood: 'El Tephé',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa con jardín y árboles frutales.',
-        latitude: 20.445308197339457,
-        longitude: -99.16680420619456
-      }
-    });
-    console.log('✅ Dirección El Tephé creada');
-
-    const cantinelaAddress = await prisma.address.create({
-      data: {
-        userId: cantinelaUser.id,
-        alias: 'Casa',
-        street: 'Calle Cantinela',
-        exteriorNumber: '123',
-        neighborhood: 'Cantinela',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa moderna con terraza.',
-        latitude: 20.45657215348233,
-        longitude: -99.21193505527792
-      }
-    });
-    console.log('✅ Dirección Cantinela creada');
-
-    const panalesAddress = await prisma.address.create({
-      data: {
-        userId: panalesUser.id,
-        alias: 'Casa',
-        street: 'Calle Panales',
-        exteriorNumber: '56',
-        neighborhood: 'Panales',
-        city: 'Ixmiquilpan',
-        state: 'Hidalgo',
-        zipCode: '42300',
-        references: 'Casa con vista a las montañas.',
-        latitude: 20.47222118035888,
-        longitude: -99.26627369368394
-      }
-    });
-    console.log('✅ Dirección Panales creada');
-
-    // 10. CREAR ASIGNACIONES DE ROLES DE USUARIO
-    console.log('👤 Creando asignaciones de roles...');
-    
-    await prisma.userRoleAssignment.create({
-      data: { userId: adminUser.id, roleId: superAdminRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: anaUser.id, roleId: ownerRole.id, restaurantId: restaurant.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: carlosUser.id, roleId: branchManagerRole.id, restaurantId: restaurant.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: miguelUser.id, roleId: driverPlatformRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: sofiaUser.id, roleId: customerRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: kenjiUser.id, roleId: ownerRole.id, restaurantId: sushiRestaurant.id }
-    });
-
-    // Asignaciones de roles para los nuevos usuarios
-    await prisma.userRoleAssignment.create({
-      data: { userId: magueyBlancoUser.id, roleId: customerRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: centroUser.id, roleId: customerRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: elThepeUser.id, roleId: customerRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: cantinelaUser.id, roleId: customerRole.id }
-    });
-    await prisma.userRoleAssignment.create({
-      data: { userId: panalesUser.id, roleId: customerRole.id }
-    });
-    console.log('✅ 11 asignaciones de roles creadas');
-
-    // 11. CREAR PERFILES DE REPARTIDOR
-    console.log('🚗 Creando perfiles de repartidor...');
-    
-    await prisma.driverProfile.create({
-      data: {
-        userId: miguelUser.id,
-        vehicleType: 'motorcycle',
-        licensePlate: 'HGO-ABC-123',
-        status: 'online',
-        currentLatitude: 20.489500,
-        currentLongitude: -99.232000,
-        lastSeenAt: new Date(),
-        kycStatus: 'approved'
-      }
-    });
-    console.log('✅ Perfil de repartidor creado');
-
-    // Crear billetera del repartidor
-    await prisma.driverWallet.create({
-      data: { driverId: miguelUser.id }
-    });
-    console.log('✅ Billetera del repartidor creada');
-
-
-    // 12. CREAR GRUPOS DE MODIFICADORES
-    console.log('🔧 Creando grupos de modificadores...');
-    
-    // Grupos para Pizzería de Ana
-    const tamanoGroup = await prisma.modifierGroup.create({
-      data: {
-        name: 'Tamaño',
-        restaurantId: restaurant.id,
-        minSelection: 1,
-        maxSelection: 1
-      }
-    });
-    console.log('✅ Grupo Tamaño creado');
-
-    const extrasGroup = await prisma.modifierGroup.create({
-      data: {
-        name: 'Extras',
-        restaurantId: restaurant.id,
-        minSelection: 0,
-        maxSelection: 5
-      }
-    });
-    console.log('✅ Grupo Extras creado');
-
-    const sinIngredientesGroup = await prisma.modifierGroup.create({
-      data: {
-        name: 'Sin Ingredientes',
-        restaurantId: restaurant.id,
-        minSelection: 0,
-        maxSelection: 3
-      }
-    });
-    console.log('✅ Grupo Sin Ingredientes creado');
-
-    // Grupos para Sushi Master Kenji
-    const nivelPicanteGroup = await prisma.modifierGroup.create({
-      data: {
-        name: 'Nivel de Picante',
-        restaurantId: sushiRestaurant.id,
-        minSelection: 1,
-        maxSelection: 1
-      }
-    });
-    console.log('✅ Grupo Nivel de Picante creado');
-
-    const extrasSushiGroup = await prisma.modifierGroup.create({
-      data: {
-        name: 'Extras Sushi',
-        restaurantId: sushiRestaurant.id,
-        minSelection: 0,
-        maxSelection: 3
-      }
-    });
-    console.log('✅ Grupo Extras Sushi creado');
-
-    // 13. CREAR OPCIONES DE MODIFICADORES
-    console.log('⚙️ Creando opciones de modificadores...');
-    
-    // Opciones para Tamaño (Pizzería)
-    await prisma.modifierOption.createMany({
-      data: [
-        { name: 'Personal (6 pulgadas)', price: 0.00, modifierGroupId: tamanoGroup.id },
-        { name: 'Mediana (10 pulgadas)', price: 25.00, modifierGroupId: tamanoGroup.id },
-        { name: 'Grande (12 pulgadas)', price: 45.00, modifierGroupId: tamanoGroup.id },
-        { name: 'Familiar (16 pulgadas)', price: 70.00, modifierGroupId: tamanoGroup.id }
-      ]
-    });
-    console.log('✅ Opciones de Tamaño creadas');
-
-    // Opciones para Extras (Pizzería)
-    await prisma.modifierOption.createMany({
-      data: [
-        { name: 'Extra Queso', price: 15.00, modifierGroupId: extrasGroup.id },
-        { name: 'Extra Pepperoni', price: 20.00, modifierGroupId: extrasGroup.id },
-        { name: 'Extra Champiñones', price: 12.00, modifierGroupId: extrasGroup.id },
-        { name: 'Extra Aceitunas', price: 10.00, modifierGroupId: extrasGroup.id },
-        { name: 'Extra Jalapeños', price: 8.00, modifierGroupId: extrasGroup.id },
-        { name: 'Extra Cebolla', price: 8.00, modifierGroupId: extrasGroup.id }
-      ]
-    });
-    console.log('✅ Opciones de Extras creadas');
-
-    // Opciones para Sin Ingredientes (Pizzería)
-    await prisma.modifierOption.createMany({
-      data: [
-        { name: 'Sin Cebolla', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
-        { name: 'Sin Aceitunas', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
-        { name: 'Sin Jalapeños', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
-        { name: 'Sin Champiñones', price: 0.00, modifierGroupId: sinIngredientesGroup.id },
-        { name: 'Sin Queso', price: 0.00, modifierGroupId: sinIngredientesGroup.id }
-      ]
-    });
-    console.log('✅ Opciones Sin Ingredientes creadas');
-
-    // Opciones para Nivel de Picante (Sushi)
-    await prisma.modifierOption.createMany({
-      data: [
-        { name: 'Sin Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
-        { name: 'Poco Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
-        { name: 'Picante Medio', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
-        { name: 'Muy Picante', price: 0.00, modifierGroupId: nivelPicanteGroup.id },
-        { name: 'Extra Picante', price: 5.00, modifierGroupId: nivelPicanteGroup.id }
-      ]
-    });
-    console.log('✅ Opciones Nivel de Picante creadas');
-
-    // Opciones para Extras Sushi
-    await prisma.modifierOption.createMany({
-      data: [
-        { name: 'Extra Wasabi', price: 8.00, modifierGroupId: extrasSushiGroup.id },
-        { name: 'Extra Jengibre', price: 5.00, modifierGroupId: extrasSushiGroup.id },
-        { name: 'Salsa Teriyaki Extra', price: 10.00, modifierGroupId: extrasSushiGroup.id },
-        { name: 'Salsa de Soja Premium', price: 12.00, modifierGroupId: extrasSushiGroup.id },
-        { name: 'Aguacate Extra', price: 15.00, modifierGroupId: extrasSushiGroup.id }
-      ]
-    });
-    console.log('✅ Opciones Extras Sushi creadas');
-
-    // 14. CREAR ASOCIACIONES PRODUCTO-MODIFICADOR
-    console.log('🔗 Creando asociaciones producto-modificador...');
-    
-    // Pizzas con grupos de modificadores
-    await prisma.productModifier.createMany({
-      data: [
-        // Pizza Hawaiana
-        { productId: pizzaHawaiana.id, modifierGroupId: tamanoGroup.id },
-        { productId: pizzaHawaiana.id, modifierGroupId: extrasGroup.id },
-        { productId: pizzaHawaiana.id, modifierGroupId: sinIngredientesGroup.id },
-        
-        // Pizza Pepperoni
-        { productId: pizzaPepperoni.id, modifierGroupId: tamanoGroup.id },
-        { productId: pizzaPepperoni.id, modifierGroupId: extrasGroup.id },
-        { productId: pizzaPepperoni.id, modifierGroupId: sinIngredientesGroup.id },
-        
-        // Pizza Margherita
-        { productId: pizzaMargherita.id, modifierGroupId: tamanoGroup.id },
-        { productId: pizzaMargherita.id, modifierGroupId: extrasGroup.id },
-        { productId: pizzaMargherita.id, modifierGroupId: sinIngredientesGroup.id },
-        
-        // Pizza Quattro Stagioni
-        { productId: pizzaQuattro.id, modifierGroupId: tamanoGroup.id },
-        { productId: pizzaQuattro.id, modifierGroupId: extrasGroup.id },
-        { productId: pizzaQuattro.id, modifierGroupId: sinIngredientesGroup.id },
-        
-        // Pizza Vegetariana
-        { productId: pizzaVegetariana.id, modifierGroupId: tamanoGroup.id },
-        { productId: pizzaVegetariana.id, modifierGroupId: extrasGroup.id },
-        { productId: pizzaVegetariana.id, modifierGroupId: sinIngredientesGroup.id }
-      ]
-    });
-    console.log('✅ Asociaciones Pizzas-Modificadores creadas');
-
-    // Sushi con grupos de modificadores
-    await prisma.productModifier.createMany({
-      data: [
-        // Nigiri de Salmón
-        { productId: salmonNigiri.id, modifierGroupId: nivelPicanteGroup.id },
-        { productId: salmonNigiri.id, modifierGroupId: extrasSushiGroup.id },
-        
-        // Nigiri de Atún
-        { productId: tunaNigiri.id, modifierGroupId: nivelPicanteGroup.id },
-        { productId: tunaNigiri.id, modifierGroupId: extrasSushiGroup.id },
-        
-        // California Roll
-        { productId: californiaRoll.id, modifierGroupId: nivelPicanteGroup.id },
-        { productId: californiaRoll.id, modifierGroupId: extrasSushiGroup.id },
-        
-        // Dragon Roll
-        { productId: dragonRoll.id, modifierGroupId: nivelPicanteGroup.id },
-        { productId: dragonRoll.id, modifierGroupId: extrasSushiGroup.id },
-        
-        // Sashimi de Salmón
-        { productId: salmonSashimi.id, modifierGroupId: nivelPicanteGroup.id },
-        { productId: salmonSashimi.id, modifierGroupId: extrasSushiGroup.id }
-      ]
-    });
-    console.log('✅ Asociaciones Sushi-Modificadores creadas');
-
-    // 15. CREAR CARRITOS DE EJEMPLO CON MODIFICADORES
-    console.log('🛒 Creando carritos de ejemplo...');
-    
-    // Crear carrito para Sofía (cliente) en Pizzería de Ana
-    const cart1 = await prisma.cart.create({
-      data: {
-        userId: sofiaUser.id,
-        restaurantId: restaurant.id
-      }
-    });
-    console.log('✅ Carrito 1 creado');
-
-    // Crear carrito para Sofía en Sushi Master Kenji
-    const cart2 = await prisma.cart.create({
-      data: {
-        userId: sofiaUser.id,
-        restaurantId: sushiRestaurant.id
-      }
-    });
-    console.log('✅ Carrito 2 creado');
-
-    // Obtener algunos modificadores para usar en los ejemplos
-    const extraQuesoOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Extra Queso' }
-    });
-    const orillaRellenaOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Extra Queso' } // Usaremos este como ejemplo de orilla rellena
-    });
-    const grandeOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Grande (12 pulgadas)' }
-    });
-    const sinCebollaOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Sin Cebolla' }
-    });
-    const pocoPicanteOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Poco Picante' }
-    });
-    const extraWasabiOption = await prisma.modifierOption.findFirst({
-      where: { name: 'Extra Wasabi' }
-    });
-
-    // Crear items del carrito con modificadores
-    // Pizza Hawaiana con modificadores
-    const cartItem1 = await prisma.cartItem.create({
-      data: {
-        cartId: cart1.id,
-        productId: pizzaHawaiana.id,
-        quantity: 1,
-        priceAtAdd: 150.00 + 15.00 + 45.00 + 0.00 // precio base + extra queso + grande + sin cebolla
-      }
-    });
-
-    // Agregar modificadores al item
-    await prisma.cartItemModifier.createMany({
-      data: [
-        { cartItemId: cartItem1.id, modifierOptionId: extraQuesoOption.id },
-        { cartItemId: cartItem1.id, modifierOptionId: grandeOption.id },
-        { cartItemId: cartItem1.id, modifierOptionId: sinCebollaOption.id }
-      ]
-    });
-
-    // Pizza Margherita sin modificadores
-    await prisma.cartItem.create({
-      data: {
-        cartId: cart1.id,
-        productId: pizzaMargherita.id,
-        quantity: 2,
-        priceAtAdd: 135.00
-      }
-    });
-
-    // Nigiri de Salmón con modificadores
-    const cartItem3 = await prisma.cartItem.create({
-      data: {
-        cartId: cart2.id,
-        productId: salmonNigiri.id,
-        quantity: 1,
-        priceAtAdd: 85.00 + 0.00 + 8.00 // precio base + poco picante + extra wasabi
-      }
-    });
-
-    // Agregar modificadores al item de sushi
-    await prisma.cartItemModifier.createMany({
-      data: [
-        { cartItemId: cartItem3.id, modifierOptionId: pocoPicanteOption.id },
-        { cartItemId: cartItem3.id, modifierOptionId: extraWasabiOption.id }
-      ]
-    });
-
-    console.log('✅ Items del carrito con modificadores creados');
-
-    // 16. CREAR PEDIDOS DE EJEMPLO
-    console.log('📦 Creando pedidos de ejemplo...');
-    
-    // Pedido 1: Sofía hace un pedido en Pizzería de Ana
-    const order1 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: casaAddress.id,
-        status: 'confirmed',
-        subtotal: 480.00, // Pizza Hawaiana (150 + 15 + 45) + 2x Margherita (135 x 2) = 210 + 270 = 480
-        deliveryFee: anaPrimaryBranch.delivery_fee, // 25.00
-        total: 505.00, // 480 + 25
-        commissionRateSnapshot: restaurant.commissionRate, // 12.50
-        platformFee: 60.00, // (480 * 12.50 / 100)
-        restaurantPayout: 420.00, // 480 - 60
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        specialInstructions: 'Entregar en la puerta principal, tocar timbre',
-        orderPlacedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 horas atrás
-      }
-    });
-    console.log(`✅ Pedido 1 creado con ID: ${order1.id}`);
-
-    // Pedido 2: Sofía hace un pedido en Sushi Master Kenji
-    const order2 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: kenjiPrimaryBranch.id,
-        addressId: oficinaAddress.id,
-        status: 'preparing',
-        subtotal: 93.00, // Nigiri de Salmón (85 + 0 + 8) = 93
-        deliveryFee: kenjiPrimaryBranch.delivery_fee, // 30.00
-        total: 123.00,
-        commissionRateSnapshot: sushiRestaurant.commissionRate, // 15.00
-        platformFee: 13.95, // (93 * 15 / 100)
-        restaurantPayout: 79.05, // 93 - 13.95
-        paymentMethod: 'cash',
-        paymentStatus: 'pending',
-        specialInstructions: 'Llamar al llegar a la oficina',
-        orderPlacedAt: new Date(Date.now() - 30 * 60 * 1000) // 30 minutos atrás
-      }
-    });
-    console.log(`✅ Pedido 2 creado con ID: ${order2.id}`);
-
-    // 17. CREAR ITEMS DE LOS PEDIDOS
-    console.log('🛍️ Creando items de los pedidos...');
-    
-    // Items para Order 1 (Pizzería)
-    const orderItem1PizzaHaw = await prisma.orderItem.create({
-      data: {
-        orderId: order1.id,
-        productId: pizzaHawaiana.id,
-        quantity: 1,
-        pricePerUnit: 210.00 // 150 + 15 + 45 (base + extra queso + grande)
-      }
-    });
-    console.log(`✅ OrderItem Pizza Hawaiana creado con ID: ${orderItem1PizzaHaw.id}`);
-
-    const orderItem1PizzaMarg = await prisma.orderItem.create({
-      data: {
-        orderId: order1.id,
-        productId: pizzaMargherita.id,
-        quantity: 2,
-        pricePerUnit: 135.00
-      }
-    });
-    console.log(`✅ OrderItem Pizza Margherita creado con ID: ${orderItem1PizzaMarg.id}`);
-
-    // Items para Order 2 (Sushi)
-    const orderItem2Nigiri = await prisma.orderItem.create({
-      data: {
-        orderId: order2.id,
-        productId: salmonNigiri.id,
-        quantity: 1,
-        pricePerUnit: 93.00 // 85 + 0 + 8 (base + poco picante + extra wasabi)
-      }
-    });
-    console.log(`✅ OrderItem Nigiri de Salmón creado con ID: ${orderItem2Nigiri.id}`);
-
-    // 18. CREAR MODIFICADORES DE ITEMS DE PEDIDO
-    console.log('⚙️ Creando modificadores de items de pedido...');
-    
-    // Modificadores para Pizza Hawaiana en Order 1
-    await prisma.orderItemModifier.createMany({
-      data: [
-        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: grandeOption.id },
-        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: extraQuesoOption.id },
-        { orderItemId: orderItem1PizzaHaw.id, modifierOptionId: sinCebollaOption.id }
-      ]
-    });
-    console.log('✅ Modificadores para Pizza Hawaiana creados');
-
-    // Modificadores para Nigiri de Salmón en Order 2
-    await prisma.orderItemModifier.createMany({
-      data: [
-        { orderItemId: orderItem2Nigiri.id, modifierOptionId: pocoPicanteOption.id },
-        { orderItemId: orderItem2Nigiri.id, modifierOptionId: extraWasabiOption.id }
-      ]
-    });
-    console.log('✅ Modificadores para Nigiri de Salmón creados');
-
-    // 19. CREAR PAGOS PARA LOS PEDIDOS
-    console.log('💳 Creando pagos para los pedidos...');
-    
-    // Pago para Order 1 (Pizzería) - Completado
-    await prisma.payment.create({
-      data: {
-        orderId: order1.id,
-        amount: 505.00, // Total del order1
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'MP-123456789-PIZZA',
-        status: 'completed'
-      }
-    });
-    console.log('✅ Pago para Order 1 creado (completado)');
-
-    // Pago para Order 2 (Sushi) - Pendiente (efectivo)
-    await prisma.payment.create({
-      data: {
-        orderId: order2.id,
-        amount: order2.total,
-        currency: 'MXN',
-        provider: 'cash',
-        providerPaymentId: null,
-        status: 'pending'
-      }
-    });
-    console.log('✅ Pago para Order 2 creado (pendiente - efectivo)');
-
-    // 20. CREAR REPARTIDORES ADICIONALES PARA PRUEBAS
-    console.log('🚗 Creando repartidores adicionales...');
-    
-    // Crear más usuarios repartidores
-    const carlosDriverUser = await prisma.user.create({
-      data: {
-        name: 'Carlos',
-        lastname: 'Pérez',
-        email: 'carlos.perez@driver.com',
-        phone: '9876543210',
-        password: hashedPassword,
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-        status: 'active'
-      }
-    });
-
-    await prisma.userRoleAssignment.create({
-      data: { userId: carlosDriverUser.id, roleId: driverPlatformRole.id }
-    });
-
-    await prisma.driverProfile.create({
-      data: {
-        userId: carlosDriverUser.id,
-        vehicleType: 'car',
-        licensePlate: 'HGO-XYZ-789',
-        status: 'online',
-        currentLatitude: 20.490000,
-        currentLongitude: -99.235000,
-        lastSeenAt: new Date(),
-        kycStatus: 'approved'
-      }
-    });
-
-    console.log('✅ Repartidor adicional Carlos Pérez creado');
-
-    // 21. CREAR PEDIDOS EN DIFERENTES ESTADOS PARA PRUEBAS COMPLETAS
-    console.log('📦 Creando pedidos adicionales en diferentes estados...');
-    
-    // Pedido 3: PENDING - Pedido recién creado
-    const order3 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: casaAddress.id,
-        status: 'pending',
-        subtotal: 145.50,
-        deliveryFee: anaPrimaryBranch.delivery_fee,
-        total: 170.50,
-        commissionRateSnapshot: restaurant.commissionRate,
-        platformFee: 18.19,
-        restaurantPayout: 127.31,
-        paymentMethod: 'card',
-        paymentStatus: 'processing',
-        specialInstructions: 'Pedido urgente para prueba',
-        orderPlacedAt: new Date(Date.now() - 5 * 60 * 1000) // 5 minutos atrás
-      }
-    });
-
-    // Items para Order 3
-    await prisma.orderItem.create({
-      data: {
-        orderId: order3.id,
-        productId: pizzaPepperoni.id,
-        quantity: 1,
-        pricePerUnit: 145.50
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order3.id,
-        amount: 170.50,
-        currency: 'MXN',
-        provider: 'stripe',
-        providerPaymentId: 'STR-987654321',
-        status: 'processing'
-      }
-    });
-
-    console.log(`✅ Pedido 3 (PENDING) creado con ID: ${order3.id}`);
-
-    // Pedido 4: PLACED - Pedido confirmado pero no iniciado
-    const order4 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: oficinaAddress.id,
-        status: 'placed',
-        subtotal: 270.00,
-        deliveryFee: anaPrimaryBranch.delivery_fee,
-        total: 295.00,
-        commissionRateSnapshot: restaurant.commissionRate,
-        platformFee: 33.75,
-        restaurantPayout: 236.25,
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        specialInstructions: 'Para prueba de estado placed',
-        orderPlacedAt: new Date(Date.now() - 20 * 60 * 1000) // 20 minutos atrás
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order4.id,
-        productId: pizzaMargherita.id,
-        quantity: 2,
-        pricePerUnit: 135.00
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order4.id,
-        amount: 295.00,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'MP-111222333-PLACED',
-        status: 'completed'
-      }
-    });
-
-    console.log(`✅ Pedido 4 (PLACED) creado con ID: ${order4.id}`);
-
-    // Pedido 5: READY_FOR_PICKUP - Listo para que lo acepte un repartidor
-    const order5 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: casaAddress.id,
-        status: 'ready_for_pickup',
-        subtotal: 180.00,
-        deliveryFee: anaPrimaryBranch.delivery_fee,
-        total: 205.00,
-        commissionRateSnapshot: restaurant.commissionRate,
-        platformFee: 22.50,
-        restaurantPayout: 157.50,
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        specialInstructions: '¡Perfecto para probar acceptOrder!',
-        orderPlacedAt: new Date(Date.now() - 45 * 60 * 1000) // 45 minutos atrás
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order5.id,
-        productId: pizzaQuattro.id,
-        quantity: 1,
-        pricePerUnit: 180.00
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order5.id,
-        amount: 205.00,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'MP-444555666-READY',
-        status: 'completed'
-      }
-    });
-
-    console.log(`✅ Pedido 5 (READY_FOR_PICKUP) creado con ID: ${order5.id}`);
-
-    // Pedido 6: OUT_FOR_DELIVERY - Aceptado por repartidor
-    const order6 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: casaAddress.id,
-        deliveryDriverId: miguelUser.id, // Ya está asignado
-        status: 'out_for_delivery',
-        subtotal: 160.00,
-        deliveryFee: anaPrimaryBranch.delivery_fee,
-        total: 185.00,
-        commissionRateSnapshot: restaurant.commissionRate,
-        platformFee: 20.00,
-        restaurantPayout: 140.00,
-        paymentMethod: 'cash',
-        paymentStatus: 'completed',
-        specialInstructions: 'Pedido en entrega para pruebas',
-        orderPlacedAt: new Date(Date.now() - 60 * 60 * 1000) // 1 hora atrás
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order6.id,
-        productId: pizzaVegetariana.id,
-        quantity: 1,
-        pricePerUnit: 160.00
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order6.id,
-        amount: 185.00,
-        currency: 'MXN',
-        provider: 'cash',
-        providerPaymentId: null,
-        status: 'completed'
-      }
-    });
-
-    console.log(`✅ Pedido 6 (OUT_FOR_DELIVERY) creado con ID: ${order6.id}`);
-
-    // Pedido 7: DELIVERED - Pedido completado
-    const order7 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: anaPrimaryBranch.id,
-        addressId: casaAddress.id,
-        deliveryDriverId: miguelUser.id,
-        status: 'delivered',
-        subtotal: 350.00,
-        deliveryFee: anaPrimaryBranch.delivery_fee,
-        total: 375.00,
-        commissionRateSnapshot: restaurant.commissionRate,
-        platformFee: 43.75,
-        restaurantPayout: 306.25,
-        paymentMethod: 'card',
-        paymentStatus: 'completed',
-        specialInstructions: 'Pedido entregado exitosamente',
-        orderPlacedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 horas atrás
-        orderDeliveredAt: new Date(Date.now() - 2.5 * 60 * 60 * 1000) // 2.5 horas atrás
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order7.id,
-        productId: pizzaHawaiana.id,
-        quantity: 1,
-        pricePerUnit: 210.00
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order7.id,
-        productId: pizzaPepperoni.id,
-        quantity: 1,
-        pricePerUnit: 145.50
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order7.id,
-        amount: 375.00,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'MP-777888999-DELIVERED',
-        status: 'completed'
-      }
-    });
-
-    console.log(`✅ Pedido 7 (DELIVERED) creado con ID: ${order7.id}`);
-
-    // Pedido 8: CANCELLED - Pedido cancelado
-    const order8 = await prisma.order.create({
-      data: {
-        customerId: sofiaUser.id,
-        branchId: kenjiPrimaryBranch.id,
-        addressId: oficinaAddress.id,
-        status: 'cancelled',
-        subtotal: 95.00,
-        deliveryFee: kenjiPrimaryBranch.delivery_fee,
-        total: 125.00,
-        commissionRateSnapshot: sushiRestaurant.commissionRate,
-        platformFee: 14.25,
-        restaurantPayout: 80.75,
-        paymentMethod: 'card',
-        paymentStatus: 'refunded',
-        specialInstructions: 'Pedido cancelado por el cliente',
-        orderPlacedAt: new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 horas atrás
-      }
-    });
-
-    await prisma.orderItem.create({
-      data: {
-        orderId: order8.id,
-        productId: tunaNigiri.id,
-        quantity: 1,
-        pricePerUnit: 95.00
-      }
-    });
-
-    await prisma.payment.create({
-      data: {
-        orderId: order8.id,
-        amount: 125.00,
-        currency: 'MXN',
-        provider: 'mercadopago',
-        providerPaymentId: 'MP-000111222-CANCELLED',
-        status: 'refunded'
-      }
-    });
-
-    console.log(`✅ Pedido 8 (CANCELLED) creado con ID: ${order8.id}`);
-
-    console.log('🎉 ¡Seeding completado exitosamente!');
-    console.log('\n📊 Resumen de datos creados:');
-    console.log('- 10 roles');
-    console.log('- 19 permisos');
-    console.log('- 12 usuarios (incluye repartidor adicional + 5 clientes de Ixmiquilpan)');
-    console.log('- 12 restaurantes (Pizzería + Sushi + 10 restaurantes de Ixmiquilpan)');
-    console.log('- 12 sucursales principales (una por restaurante)');
-    console.log('- 84 horarios de sucursales (7 días x 12 sucursales)');
-    console.log('- 6 categorías');
-    console.log('- 14 subcategorías');
-    console.log('- 17 productos (10 pizza + 7 sushi)');
-    console.log('- 7 direcciones (Sofía + 5 clientes de Ixmiquilpan)');
-    console.log('- 11 asignaciones de roles');
-    console.log('- 2 perfiles de repartidor (Miguel + Carlos)');
-    console.log('- 5 grupos de modificadores');
-    console.log('- 25 opciones de modificadores');
-    console.log('- 20 asociaciones producto-modificador');
-    console.log('- 2 carritos de ejemplo');
-    console.log('- 3 items de carrito (2 con modificadores, 1 sin)');
-    console.log('- 5 modificadores aplicados a items del carrito');
-    console.log('- 8 pedidos de ejemplo (en todos los estados posibles)');
-    console.log('- 10 items de pedido (con modificadores incluidos)');
-    console.log('- 5 modificadores aplicados a items de pedido');
-    console.log('- 8 pagos (diferentes estados y proveedores)');
-
-    console.log('\n👥 Usuarios de prueba creados:');
-    console.log('- Admin (admin@delixmi.com) - Super Administrador');
-    console.log('- Ana (ana.garcia@pizzeria.com) - Owner Pizzería de Ana');
-    console.log('- Carlos (carlos.rodriguez@pizzeria.com) - Gerente de sucursal');
-    console.log('- Kenji (kenji.tanaka@sushi.com) - Owner Sushi Master Kenji');
-    console.log('- Miguel (miguel.hernandez@repartidor.com) - Repartidor de plataforma');
-    console.log('- Carlos Pérez (carlos.perez@driver.com) - Repartidor adicional');
-    console.log('- Sofía (sofia.lopez@email.com) - Cliente');
-    console.log('\n🏠 Clientes de Ixmiquilpan:');
-    console.log('- María (maria.hernandez@magueyblanco.com) - Maguey Blanco');
-    console.log('- Roberto (roberto.garcia@centro.com) - Centro');
-    console.log('- Carmen (carmen.martinez@elthepe.com) - El Tephé');
-    console.log('- Luis (luis.rodriguez@cantinela.com) - Cantinela');
-    console.log('- Patricia (patricia.lopez@panales.com) - Panales');
-    
-    console.log('\n📍 Ubicaciones actualizadas:');
-    console.log('- Restaurante Pizzería de Ana: Cerca del cliente Sofía');
-    console.log('- Repartidor Miguel: Posicionado cerca del restaurante');
-    console.log('- Repartidor Carlos: Posicionado cerca del restaurante');
-    console.log('\n🏪 Restaurantes de Ixmiquilpan:');
-    console.log('- Carnitas Oink: Centro de Ixmiquilpan');
-    console.log('- El Mexicano: Centro de Ixmiquilpan');
-    console.log('- Candelabros: Centro de Ixmiquilpan');
-    console.log('- Pueblito Pizza: Centro de Ixmiquilpan');
-    console.log('- Restaurant Cazadores: Centro de Ixmiquilpan');
-    console.log('- Taquería Jerusalén: Zona comercial');
-    console.log('- Carnitas OINK 3: El Tephé');
-    console.log('- Cocina "Doña Lala": El Tephé');
-    console.log('- Pollos Los Panchos: Panales');
-    console.log('- PIZZAS YAHIR: Maguey Blanco');
-    
-    console.log('\n📦 Estados de pedidos creados:');
-    console.log('- PENDING: Pedido recién creado (#3)');
-    console.log('- PLACED: Pedido confirmado (#4)');
-    console.log('- CONFIRMED: Pedido original (#1)');
-    console.log('- PREPARING: Pedido en preparación (#2)');
-    console.log('- READY_FOR_PICKUP: Listo para aceptar (#5) ¡PERFECTO PARA PRUEBAS!');
-    console.log('- OUT_FOR_DELIVERY: En camino (#6)');
-    console.log('- DELIVERED: Entregado (#7)');
-    console.log('- CANCELLED: Cancelado (#8)');
-    
-    console.log('\n🔑 Contraseña para todos los usuarios: supersecret');
-    
-    console.log('\n🧪 Para pruebas específicas:');
-    console.log('- Owner: Usa ana.garcia@pizzeria.com para gestionar pedidos');
-    console.log('- Driver: Usa miguel.hernandez@repartidor.com para aceptar pedidos');
-    console.log('- Customer: Usa sofia.lopez@email.com para ver pedidos');
-    console.log('- READY_FOR_PICKUP (Pedido #5): Perfecto para probar acceptOrder');
-
-  } catch (error) {
-    console.error('❌ Error durante el seeding:', error);
-    throw error;
-  }
 }
 
 main()
-  .catch((e) => {
-    console.error('💥 Error fatal en el seeding:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-    console.log('🔌 Conexión a la base de datos cerrada');
-  });
+    .catch((e) => {
+        console.error('💥 Error fatal en el seeding:', e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+        console.log('🔌 Conexión a la base de datos cerrada');
+    });

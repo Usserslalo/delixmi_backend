@@ -1,7 +1,38 @@
 const express = require('express');
 const { query, param, body } = require('express-validator');
-const { getRestaurants, updateRestaurantStatus, updateRestaurant, getUsers, createUser, updateUser, getRestaurantPayouts, getDriverPayouts } = require('../controllers/admin.controller');
+const { 
+  // Controladores existentes
+  getRestaurants, updateRestaurantStatus, updateRestaurant, getUsers, createUser, updateUser, getRestaurantPayouts, getDriverPayouts,
+  // Fase 1: Seguridad, Roles y Usuarios
+  updateUserStatus, updateUserSuspicious, resetUserPassword, updateRolePermissions, assignUserRole, deleteUserSessions, getRoles, createRole,
+  // Fase 2: Configuración Global y Geografía
+  updateGlobalConfig, getGlobalConfig, createServiceArea, updateServiceArea,
+  // Fase 3: Restaurantes y Catálogo
+  verifyRestaurant, updateRestaurantCommission, createCategory, updateCategory, approvePromotion, adjustProductStock, getFlaggedProducts, getInventoryLogs,
+  // Fase 4: Finanzas y Billeteras
+  updatePaymentStatus, processRestaurantPayouts, adjustRestaurantWallet, processDriverPayouts, adjustDriverWallet, getRestaurantWalletTransactions, getDriverWalletTransactions,
+  // Fase 5: Logística y Repartidores
+  updateDriverKyc, blockDriver, forceDriverAssignment, getDriversKycPending, getOrderRouteLogs, getOrderAssignments,
+  // Fase 6: Soporte, Auditoría y Comms
+  updateComplaintStatus, sendMessage, broadcastNotification, getAuditLogs, getComplaints, getReportedRatings
+} = require('../controllers/admin.controller');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
+const { 
+  // Fase 1
+  updateUserStatusSchema, updateUserSuspiciousSchema, resetUserPasswordSchema, updateRolePermissionsSchema, assignUserRoleSchema, createRoleSchema,
+  // Fase 2
+  updateGlobalConfigSchema, createServiceAreaSchema, updateServiceAreaSchema,
+  // Fase 3
+  verifyRestaurantSchema, updateRestaurantCommissionSchema, createCategorySchema, updateCategorySchema, adjustProductStockSchema,
+  // Fase 4
+  updatePaymentStatusSchema, adjustRestaurantWalletSchema, adjustDriverWalletSchema,
+  // Fase 5
+  updateDriverKycSchema, blockDriverSchema,
+  // Fase 6
+  updateComplaintStatusSchema, sendMessageSchema, broadcastNotificationSchema,
+  // Query schemas
+  auditLogsQuerySchema, complaintsQuerySchema, inventoryLogsQuerySchema, restaurantWalletTransactionsQuerySchema, driverWalletTransactionsQuerySchema
+} = require('../validations/admin.validation');
 
 const router = express.Router();
 
@@ -371,6 +402,654 @@ router.get('/payouts/drivers',
   requireRole(['super_admin', 'platform_manager']),
   driverPayoutsValidation,
   getDriverPayouts
+);
+
+// ========================================
+// FASE 1: SEGURIDAD, ROLES Y USUARIOS
+// ========================================
+
+// Actualizar estado de usuario
+router.patch('/users/:id/status',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateUserStatusSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateUserStatus
+);
+
+// Marcar usuario como sospechoso
+router.patch('/users/:id/suspicious',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateUserSuspiciousSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateUserSuspicious
+);
+
+// Resetear contraseña de usuario
+router.post('/users/:id/reset-password',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = resetUserPasswordSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  resetUserPassword
+);
+
+// Actualizar permisos de rol
+router.patch('/roles/:id/permissions',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateRolePermissionsSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateRolePermissions
+);
+
+// Asignar rol a usuario
+router.post('/users/:userId/role',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = assignUserRoleSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  assignUserRole
+);
+
+// Eliminar sesiones de usuario
+router.delete('/users/:id/sessions',
+  authenticateToken,
+  requireRole(['super_admin']),
+  deleteUserSessions
+);
+
+// Obtener lista de roles
+router.get('/roles',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getRoles
+);
+
+// Crear nuevo rol
+router.post('/roles',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = createRoleSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  createRole
+);
+
+// ========================================
+// FASE 2: CONFIGURACIÓN GLOBAL Y GEOGRAFÍA
+// ========================================
+
+// Actualizar configuración global
+router.patch('/settings/global',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateGlobalConfigSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateGlobalConfig
+);
+
+// Obtener configuración global
+router.get('/settings/global',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getGlobalConfig
+);
+
+// Crear área de servicio
+router.post('/service-areas',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = createServiceAreaSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  createServiceArea
+);
+
+// Actualizar área de servicio
+router.patch('/service-areas/:id',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateServiceAreaSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateServiceArea
+);
+
+// ========================================
+// FASE 3: RESTAURANTES Y CATÁLOGO
+// ========================================
+
+// Verificar restaurante manualmente
+router.patch('/restaurants/:id/verify',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = verifyRestaurantSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  verifyRestaurant
+);
+
+// Actualizar comisión de restaurante
+router.patch('/restaurants/:id/commission',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateRestaurantCommissionSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateRestaurantCommission
+);
+
+// Crear categoría
+router.post('/categories',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = createCategorySchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  createCategory
+);
+
+// Actualizar categoría
+router.patch('/categories/:id',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateCategorySchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateCategory
+);
+
+// Aprobar promoción
+router.post('/promotions/:id/approve',
+  authenticateToken,
+  requireRole(['super_admin']),
+  approvePromotion
+);
+
+// Ajustar stock de producto
+router.post('/products/:id/stock/adjust',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = adjustProductStockSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  adjustProductStock
+);
+
+// Obtener productos marcados
+router.get('/products/flagged',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getFlaggedProducts
+);
+
+// Obtener logs de inventario
+router.get('/inventory-logs',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = inventoryLogsQuerySchema.parse(req.query);
+      req.query = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  getInventoryLogs
+);
+
+// ========================================
+// FASE 4: FINANZAS Y BILLETERAS
+// ========================================
+
+// Actualizar estado de pago de orden
+router.patch('/orders/:id/payment/status',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updatePaymentStatusSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updatePaymentStatus
+);
+
+// Procesar pagos a restaurantes
+router.post('/wallets/restaurants/payouts/process',
+  authenticateToken,
+  requireRole(['super_admin']),
+  processRestaurantPayouts
+);
+
+// Ajustar billetera de restaurante
+router.post('/wallets/restaurants/:id/adjust',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = adjustRestaurantWalletSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  adjustRestaurantWallet
+);
+
+// Procesar pagos a repartidores
+router.post('/wallets/drivers/payouts/process',
+  authenticateToken,
+  requireRole(['super_admin']),
+  processDriverPayouts
+);
+
+// Ajustar billetera de repartidor
+router.post('/wallets/drivers/:id/adjust',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = adjustDriverWalletSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  adjustDriverWallet
+);
+
+// Obtener transacciones de billetera de restaurantes
+router.get('/wallets/restaurants/transactions',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = restaurantWalletTransactionsQuerySchema.parse(req.query);
+      req.query = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  getRestaurantWalletTransactions
+);
+
+// Obtener transacciones de billetera de repartidores
+router.get('/wallets/drivers/transactions',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = driverWalletTransactionsQuerySchema.parse(req.query);
+      req.query = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  getDriverWalletTransactions
+);
+
+// ========================================
+// FASE 5: LOGÍSTICA Y REPARTIDORES
+// ========================================
+
+// Actualizar KYC de repartidor
+router.patch('/drivers/:id/kyc',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateDriverKycSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateDriverKyc
+);
+
+// Bloquear/desbloquear repartidor
+router.patch('/drivers/:id/block',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = blockDriverSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  blockDriver
+);
+
+// Forzar asignación de repartidor
+router.post('/orders/:orderId/driver/:driverId',
+  authenticateToken,
+  requireRole(['super_admin']),
+  forceDriverAssignment
+);
+
+// Obtener repartidores con KYC pendiente
+router.get('/drivers/kyc/pending',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getDriversKycPending
+);
+
+// Obtener logs de ruta de orden
+router.get('/orders/:orderId/route-logs',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getOrderRouteLogs
+);
+
+// Obtener asignaciones de repartidor para orden
+router.get('/orders/:orderId/assignments',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getOrderAssignments
+);
+
+// ========================================
+// FASE 6: SOPORTE, AUDITORÍA Y COMMS
+// ========================================
+
+// Actualizar estado de queja
+router.patch('/complaints/:id/status',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = updateComplaintStatusSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  updateComplaintStatus
+);
+
+// Enviar mensaje
+router.post('/messages/send',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = sendMessageSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  sendMessage
+);
+
+// Crear notificación masiva
+router.post('/notifications/broadcast',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = broadcastNotificationSchema.parse(req.body);
+      req.body = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Datos de entrada inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  broadcastNotification
+);
+
+// Obtener logs de auditoría
+router.get('/audit-logs',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = auditLogsQuerySchema.parse(req.query);
+      req.query = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  getAuditLogs
+);
+
+// Obtener quejas
+router.get('/complaints',
+  authenticateToken,
+  requireRole(['super_admin']),
+  (req, res, next) => {
+    try {
+      const validatedData = complaintsQuerySchema.parse(req.query);
+      req.query = validatedData;
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Parámetros de consulta inválidos',
+        errors: error.errors
+      });
+    }
+  },
+  getComplaints
+);
+
+// Obtener calificaciones reportadas
+router.get('/ratings/reported',
+  authenticateToken,
+  requireRole(['super_admin']),
+  getReportedRatings
 );
 
 module.exports = router;

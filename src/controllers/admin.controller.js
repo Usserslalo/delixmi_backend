@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
+const AdminService = require('../services/admin.service');
 
 const prisma = new PrismaClient();
 
@@ -1570,7 +1571,2044 @@ const getDriverPayouts = async (req, res) => {
   }
 };
 
+// ========================================
+// FASE 1: SEGURIDAD, ROLES Y USUARIOS
+// ========================================
+
+/**
+ * @desc    Actualizar estado de usuario
+ * @route   PATCH /api/admin/users/:id/status
+ * @access  Private (super_admin)
+ */
+const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedUser = await AdminService.updateUserStatus(parseInt(id), status, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Estado de usuario actualizado exitosamente',
+      data: {
+        user: updatedUser,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateUserStatus:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Marcar usuario como sospechoso
+ * @route   PATCH /api/admin/users/:id/suspicious
+ * @access  Private (super_admin)
+ */
+const updateUserSuspicious = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isSuspicious } = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedUser = await AdminService.updateUserSuspicious(parseInt(id), isSuspicious, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Estado de sospecha del usuario actualizado exitosamente',
+      data: {
+        user: updatedUser,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateUserSuspicious:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Resetear contraseña de usuario
+ * @route   POST /api/admin/users/:id/reset-password
+ * @access  Private (super_admin)
+ */
+const resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.resetUserPassword(parseInt(id), newPassword, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Contraseña reseteada exitosamente',
+      data: {
+        user: result.user,
+        resetToken: result.resetToken,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en resetUserPassword:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Actualizar permisos de rol
+ * @route   PATCH /api/admin/roles/:id/permissions
+ * @access  Private (super_admin)
+ */
+const updateRolePermissions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permissions } = req.body;
+    const adminUserId = req.user.id;
+
+    const results = await AdminService.updateRolePermissions(parseInt(id), permissions, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Permisos de rol actualizados exitosamente',
+      data: {
+        changes: results,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateRolePermissions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Asignar rol a usuario
+ * @route   POST /api/admin/users/:userId/role
+ * @access  Private (super_admin)
+ */
+const assignUserRole = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { roleId, restaurantId, branchId } = req.body;
+    const adminUserId = req.user.id;
+
+    const assignment = await AdminService.assignUserRole(parseInt(userId), roleId, restaurantId, branchId, adminUserId);
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Rol asignado exitosamente',
+      data: {
+        assignment,
+        assignedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en assignUserRole:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Eliminar sesiones de usuario
+ * @route   DELETE /api/admin/users/:id/sessions
+ * @access  Private (super_admin)
+ */
+const deleteUserSessions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.deleteUserSessions(parseInt(id), adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Sesiones eliminadas exitosamente',
+      data: {
+        deletedCount: result.deletedCount,
+        deletedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en deleteUserSessions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener lista de roles con permisos
+ * @route   GET /api/admin/roles
+ * @access  Private (super_admin)
+ */
+const getRoles = async (req, res) => {
+  try {
+    const roles = await prisma.role.findMany({
+      include: {
+        roleHasPermissions: {
+          include: {
+            permission: {
+              select: {
+                id: true,
+                name: true,
+                displayName: true,
+                module: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    const formattedRoles = roles.map(role => ({
+      id: role.id,
+      name: role.name,
+      displayName: role.displayName,
+      description: role.description,
+      createdAt: role.createdAt,
+      updatedAt: role.updatedAt,
+      permissions: role.roleHasPermissions.map(rhp => ({
+        id: rhp.permission.id,
+        name: rhp.permission.name,
+        displayName: rhp.permission.displayName,
+        module: rhp.permission.module
+      }))
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Lista de roles obtenida exitosamente',
+      data: {
+        roles: formattedRoles
+      }
+    });
+  } catch (error) {
+    console.error('Error en getRoles:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener roles',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Crear nuevo rol
+ * @route   POST /api/admin/roles
+ * @access  Private (super_admin)
+ */
+const createRole = async (req, res) => {
+  try {
+    const { name, displayName, description } = req.body;
+    const adminUserId = req.user.id;
+
+    const newRole = await prisma.role.create({
+      data: {
+        name,
+        displayName,
+        description
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'CREATE_ROLE',
+        entity: 'USER',
+        entityId: BigInt(newRole.id),
+        details: {
+          role: {
+            id: newRole.id,
+            name: newRole.name,
+            displayName: newRole.displayName
+          }
+        }
+      }
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Rol creado exitosamente',
+      data: {
+        role: newRole,
+        createdBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en createRole:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ========================================
+// FASE 2: CONFIGURACIÓN GLOBAL Y GEOGRAFÍA
+// ========================================
+
+/**
+ * @desc    Actualizar configuración global
+ * @route   PATCH /api/admin/settings/global
+ * @access  Private (super_admin)
+ */
+const updateGlobalConfig = async (req, res) => {
+  try {
+    const configData = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedConfig = await AdminService.updateGlobalConfig(configData, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Configuración global actualizada exitosamente',
+      data: {
+        config: updatedConfig,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateGlobalConfig:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener configuración global
+ * @route   GET /api/admin/settings/global
+ * @access  Private (super_admin)
+ */
+const getGlobalConfig = async (req, res) => {
+  try {
+    const config = await prisma.globalConfig.findUnique({
+      where: { id: 1 }
+    });
+
+    if (!config) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Configuración global no encontrada',
+        code: 'CONFIG_NOT_FOUND'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Configuración global obtenida exitosamente',
+      data: {
+        config
+      }
+    });
+  } catch (error) {
+    console.error('Error en getGlobalConfig:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener configuración',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Crear área de servicio
+ * @route   POST /api/admin/service-areas
+ * @access  Private (super_admin)
+ */
+const createServiceArea = async (req, res) => {
+  try {
+    const areaData = req.body;
+    const adminUserId = req.user.id;
+
+    const serviceArea = await AdminService.createServiceArea(areaData, adminUserId);
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Área de servicio creada exitosamente',
+      data: {
+        serviceArea,
+        createdBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en createServiceArea:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Actualizar área de servicio
+ * @route   PATCH /api/admin/service-areas/:id
+ * @access  Private (super_admin)
+ */
+const updateServiceArea = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const adminUserId = req.user.id;
+
+    const currentArea = await prisma.serviceArea.findUnique({
+      where: { id: parseInt(id) },
+      select: { id: true, name: true, type: true }
+    });
+
+    if (!currentArea) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Área de servicio no encontrada',
+        code: 'SERVICE_AREA_NOT_FOUND'
+      });
+    }
+
+    const updatedArea = await prisma.serviceArea.update({
+      where: { id: parseInt(id) },
+      data: updateData
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'UPDATE_SERVICE_AREA',
+        entity: 'SERVICE_AREA',
+        entityId: BigInt(id),
+        details: {
+          serviceArea: {
+            id: currentArea.id,
+            name: currentArea.name,
+            type: currentArea.type
+          },
+          changes: updateData
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Área de servicio actualizada exitosamente',
+      data: {
+        serviceArea: updatedArea,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateServiceArea:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ========================================
+// FASE 3: RESTAURANTES Y CATÁLOGO
+// ========================================
+
+/**
+ * @desc    Verificar restaurante manualmente
+ * @route   PATCH /api/admin/restaurants/:id/verify
+ * @access  Private (super_admin)
+ */
+const verifyRestaurant = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isManuallyVerified } = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedRestaurant = await AdminService.verifyRestaurant(parseInt(id), isManuallyVerified, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Estado de verificación del restaurante actualizado exitosamente',
+      data: {
+        restaurant: updatedRestaurant,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en verifyRestaurant:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Actualizar comisión de restaurante
+ * @route   PATCH /api/admin/restaurants/:id/commission
+ * @access  Private (super_admin)
+ */
+const updateRestaurantCommission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { commissionRate } = req.body;
+    const adminUserId = req.user.id;
+
+    const currentRestaurant = await prisma.restaurant.findUnique({
+      where: { id: parseInt(id) },
+      select: { id: true, name: true, commissionRate: true }
+    });
+
+    if (!currentRestaurant) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Restaurante no encontrado',
+        code: 'RESTAURANT_NOT_FOUND'
+      });
+    }
+
+    const updatedRestaurant = await prisma.restaurant.update({
+      where: { id: parseInt(id) },
+      data: { commissionRate },
+      select: {
+        id: true,
+        name: true,
+        commissionRate: true,
+        updatedAt: true
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'UPDATE_RESTAURANT_COMMISSION',
+        entity: 'RESTAURANT',
+        entityId: BigInt(id),
+        details: {
+          restaurant: {
+            id: currentRestaurant.id,
+            name: currentRestaurant.name
+          },
+          previousCommission: currentRestaurant.commissionRate,
+          newCommission: commissionRate
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Comisión del restaurante actualizada exitosamente',
+      data: {
+        restaurant: updatedRestaurant,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateRestaurantCommission:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Crear categoría
+ * @route   POST /api/admin/categories
+ * @access  Private (super_admin)
+ */
+const createCategory = async (req, res) => {
+  try {
+    const { name, imageUrl } = req.body;
+    const adminUserId = req.user.id;
+
+    const newCategory = await prisma.category.create({
+      data: {
+        name,
+        imageUrl
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'CREATE_CATEGORY',
+        entity: 'CONFIG',
+        entityId: BigInt(newCategory.id),
+        details: {
+          category: {
+            id: newCategory.id,
+            name: newCategory.name
+          }
+        }
+      }
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Categoría creada exitosamente',
+      data: {
+        category: newCategory,
+        createdBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en createCategory:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Actualizar categoría
+ * @route   PATCH /api/admin/categories/:id
+ * @access  Private (super_admin)
+ */
+const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const adminUserId = req.user.id;
+
+    const currentCategory = await prisma.category.findUnique({
+      where: { id: parseInt(id) },
+      select: { id: true, name: true, imageUrl: true }
+    });
+
+    if (!currentCategory) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Categoría no encontrada',
+        code: 'CATEGORY_NOT_FOUND'
+      });
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: parseInt(id) },
+      data: updateData
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'UPDATE_CATEGORY',
+        entity: 'CONFIG',
+        entityId: BigInt(id),
+        details: {
+          category: {
+            id: currentCategory.id,
+            name: currentCategory.name
+          },
+          changes: updateData
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Categoría actualizada exitosamente',
+      data: {
+        category: updatedCategory,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateCategory:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Aprobar promoción
+ * @route   POST /api/admin/promotions/:id/approve
+ * @access  Private (super_admin)
+ */
+const approvePromotion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminUserId = req.user.id;
+
+    const currentPromotion = await prisma.restaurantPromotion.findUnique({
+      where: { id: parseInt(id) },
+      select: { id: true, restaurantId: true, isActive: true }
+    });
+
+    if (!currentPromotion) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Promoción no encontrada',
+        code: 'PROMOTION_NOT_FOUND'
+      });
+    }
+
+    const updatedPromotion = await prisma.restaurantPromotion.update({
+      where: { id: parseInt(id) },
+      data: {
+        approvedBy: adminUserId,
+        approvedAt: new Date(),
+        isActive: true
+      },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'APPROVE_PROMOTION',
+        entity: 'PROMOTION',
+        entityId: BigInt(id),
+        details: {
+          promotion: {
+            id: currentPromotion.id,
+            restaurantId: currentPromotion.restaurantId
+          },
+          restaurant: {
+            id: updatedPromotion.restaurant.id,
+            name: updatedPromotion.restaurant.name
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Promoción aprobada exitosamente',
+      data: {
+        promotion: updatedPromotion,
+        approvedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en approvePromotion:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Ajustar stock de producto
+ * @route   POST /api/admin/products/:id/stock/adjust
+ * @access  Private (super_admin)
+ */
+const adjustProductStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { change, reason } = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedProduct = await AdminService.adjustProductStock(parseInt(id), change, reason, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Stock del producto ajustado exitosamente',
+      data: {
+        product: updatedProduct,
+        adjustedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en adjustProductStock:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener productos marcados
+ * @route   GET /api/admin/products/flagged
+ * @access  Private (super_admin)
+ */
+const getFlaggedProducts = async (req, res) => {
+  try {
+    const { page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where: { isFlagged: true },
+        include: {
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              status: true
+            }
+          },
+          subcategory: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.product.count({ where: { isFlagged: true } })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Productos marcados obtenidos exitosamente',
+      data: {
+        products,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getFlaggedProducts:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener productos marcados',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener logs de inventario
+ * @route   GET /api/admin/inventory-logs
+ * @access  Private (super_admin)
+ */
+const getInventoryLogs = async (req, res) => {
+  try {
+    const { productId, reason, page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (productId) where.productId = parseInt(productId);
+    if (reason) where.reason = reason;
+
+    const [logs, totalCount] = await Promise.all([
+      prisma.productInventoryLog.findMany({
+        where,
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.productInventoryLog.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Logs de inventario obtenidos exitosamente',
+      data: {
+        logs,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        },
+        filters: {
+          productId: productId || null,
+          reason: reason || null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getInventoryLogs:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener logs de inventario',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ========================================
+// FASE 4: FINANZAS Y BILLETERAS
+// ========================================
+
+/**
+ * @desc    Actualizar estado de pago de orden
+ * @route   PATCH /api/admin/orders/:id/payment/status
+ * @access  Private (super_admin)
+ */
+const updatePaymentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paymentStatus } = req.body;
+    const adminUserId = req.user.id;
+
+    const currentOrder = await prisma.order.findUnique({
+      where: { id: BigInt(id) },
+      select: { id: true, paymentStatus: true, total: true }
+    });
+
+    if (!currentOrder) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Orden no encontrada',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: BigInt(id) },
+      data: { paymentStatus },
+      select: {
+        id: true,
+        paymentStatus: true,
+        total: true,
+        updatedAt: true
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'UPDATE_PAYMENT_STATUS',
+        entity: 'ORDER',
+        entityId: BigInt(id),
+        details: {
+          orderId: id,
+          previousStatus: currentOrder.paymentStatus,
+          newStatus: paymentStatus,
+          total: parseFloat(currentOrder.total)
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Estado de pago actualizado exitosamente',
+      data: {
+        order: updatedOrder,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updatePaymentStatus:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Procesar pagos a restaurantes
+ * @route   POST /api/admin/wallets/restaurants/payouts/process
+ * @access  Private (super_admin)
+ */
+const processRestaurantPayouts = async (req, res) => {
+  try {
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.processRestaurantPayouts(adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Pagos a restaurantes procesados exitosamente',
+      data: {
+        processedCount: result.processedCount,
+        transactions: result.transactions,
+        processedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en processRestaurantPayouts:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Ajustar billetera de restaurante
+ * @route   POST /api/admin/wallets/restaurants/:id/adjust
+ * @access  Private (super_admin)
+ */
+const adjustRestaurantWallet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, description } = req.body;
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.adjustRestaurantWallet(parseInt(id), amount, description, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Billetera de restaurante ajustada exitosamente',
+      data: {
+        wallet: result.wallet,
+        transaction: result.transaction,
+        adjustedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en adjustRestaurantWallet:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Procesar pagos a repartidores
+ * @route   POST /api/admin/wallets/drivers/payouts/process
+ * @access  Private (super_admin)
+ */
+const processDriverPayouts = async (req, res) => {
+  try {
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.processDriverPayouts(adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Pagos a repartidores procesados exitosamente',
+      data: {
+        processedCount: result.processedCount,
+        transactions: result.transactions,
+        processedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en processDriverPayouts:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Ajustar billetera de repartidor
+ * @route   POST /api/admin/wallets/drivers/:id/adjust
+ * @access  Private (super_admin)
+ */
+const adjustDriverWallet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, description } = req.body;
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.adjustDriverWallet(parseInt(id), amount, description, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Billetera de repartidor ajustada exitosamente',
+      data: {
+        wallet: result.wallet,
+        transaction: result.transaction,
+        adjustedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en adjustDriverWallet:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener transacciones de billetera de restaurantes
+ * @route   GET /api/admin/wallets/restaurants/transactions
+ * @access  Private (super_admin)
+ */
+const getRestaurantWalletTransactions = async (req, res) => {
+  try {
+    const { restaurantId, isPaidOut, type, page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (restaurantId) {
+      where.wallet = { restaurantId: parseInt(restaurantId) };
+    }
+    if (isPaidOut !== undefined) {
+      where.isPaidOut = isPaidOut === 'true';
+    }
+    if (type) {
+      where.type = type;
+    }
+
+    const [transactions, totalCount] = await Promise.all([
+      prisma.restaurantWalletTransaction.findMany({
+        where,
+        include: {
+          wallet: {
+            include: {
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          },
+          order: {
+            select: {
+              id: true,
+              total: true,
+              status: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.restaurantWalletTransaction.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Transacciones de billetera de restaurantes obtenidas exitosamente',
+      data: {
+        transactions,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        },
+        filters: {
+          restaurantId: restaurantId || null,
+          isPaidOut: isPaidOut || null,
+          type: type || null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getRestaurantWalletTransactions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener transacciones',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener transacciones de billetera de repartidores
+ * @route   GET /api/admin/wallets/drivers/transactions
+ * @access  Private (super_admin)
+ */
+const getDriverWalletTransactions = async (req, res) => {
+  try {
+    const { driverId, isPaidOut, type, page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (driverId) {
+      where.wallet = { driverId: parseInt(driverId) };
+    }
+    if (isPaidOut !== undefined) {
+      where.isPaidOut = isPaidOut === 'true';
+    }
+    if (type) {
+      where.type = type;
+    }
+
+    const [transactions, totalCount] = await Promise.all([
+      prisma.driverWalletTransaction.findMany({
+        where,
+        include: {
+          wallet: {
+            include: {
+              driver: {
+                select: {
+                  id: true,
+                  name: true,
+                  lastname: true
+                }
+              }
+            }
+          },
+          order: {
+            select: {
+              id: true,
+              total: true,
+              status: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.driverWalletTransaction.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Transacciones de billetera de repartidores obtenidas exitosamente',
+      data: {
+        transactions,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        },
+        filters: {
+          driverId: driverId || null,
+          isPaidOut: isPaidOut || null,
+          type: type || null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getDriverWalletTransactions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener transacciones',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ========================================
+// FASE 5: LOGÍSTICA Y REPARTIDORES
+// ========================================
+
+/**
+ * @desc    Actualizar KYC de repartidor
+ * @route   PATCH /api/admin/drivers/:id/kyc
+ * @access  Private (super_admin)
+ */
+const updateDriverKyc = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const kycData = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedProfile = await AdminService.updateDriverKyc(parseInt(id), kycData, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'KYC del repartidor actualizado exitosamente',
+      data: {
+        profile: updatedProfile,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateDriverKyc:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Bloquear/desbloquear repartidor
+ * @route   PATCH /api/admin/drivers/:id/block
+ * @access  Private (super_admin)
+ */
+const blockDriver = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isBlocked } = req.body;
+    const adminUserId = req.user.id;
+
+    const updatedProfile = await AdminService.blockDriver(parseInt(id), isBlocked, adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Repartidor ${isBlocked ? 'bloqueado' : 'desbloqueado'} exitosamente`,
+      data: {
+        profile: updatedProfile,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en blockDriver:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Forzar asignación de repartidor
+ * @route   POST /api/admin/orders/:orderId/driver/:driverId
+ * @access  Private (super_admin)
+ */
+const forceDriverAssignment = async (req, res) => {
+  try {
+    const { orderId, driverId } = req.params;
+    const adminUserId = req.user.id;
+
+    const updatedOrder = await AdminService.forceDriverAssignment(BigInt(orderId), parseInt(driverId), adminUserId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Repartidor asignado forzosamente a la orden',
+      data: {
+        order: updatedOrder,
+        assignedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en forceDriverAssignment:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener repartidores con KYC pendiente
+ * @route   GET /api/admin/drivers/kyc/pending
+ * @access  Private (super_admin)
+ */
+const getDriversKycPending = async (req, res) => {
+  try {
+    const { page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const [drivers, totalCount] = await Promise.all([
+      prisma.driverProfile.findMany({
+        where: { kycStatus: 'pending' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true,
+              phone: true,
+              createdAt: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.driverProfile.count({ where: { kycStatus: 'pending' } })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Repartidores con KYC pendiente obtenidos exitosamente',
+      data: {
+        drivers,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getDriversKycPending:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener repartidores',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener logs de ruta de orden
+ * @route   GET /api/admin/orders/:orderId/route-logs
+ * @access  Private (super_admin)
+ */
+const getOrderRouteLogs = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: BigInt(orderId) },
+      select: { id: true, status: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Orden no encontrada',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    const routeLogs = await prisma.routeLog.findMany({
+      where: { orderId: BigInt(orderId) },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true
+          }
+        }
+      },
+      orderBy: { timestamp: 'asc' }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Logs de ruta obtenidos exitosamente',
+      data: {
+        order: {
+          id: order.id,
+          status: order.status
+        },
+        routeLogs
+      }
+    });
+  } catch (error) {
+    console.error('Error en getOrderRouteLogs:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener logs de ruta',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener asignaciones de repartidor para orden
+ * @route   GET /api/admin/orders/:orderId/assignments
+ * @access  Private (super_admin)
+ */
+const getOrderAssignments = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: BigInt(orderId) },
+      select: { id: true, status: true, deliveryDriverId: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Orden no encontrada',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    const assignments = await prisma.driverAssignmentLog.findMany({
+      where: { orderId: BigInt(orderId) },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: { assignedAt: 'desc' }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Asignaciones de repartidor obtenidas exitosamente',
+      data: {
+        order: {
+          id: order.id,
+          status: order.status,
+          currentDriverId: order.deliveryDriverId
+        },
+        assignments
+      }
+    });
+  } catch (error) {
+    console.error('Error en getOrderAssignments:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener asignaciones',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// ========================================
+// FASE 6: SOPORTE, AUDITORÍA Y COMMS
+// ========================================
+
+/**
+ * @desc    Actualizar estado de queja
+ * @route   PATCH /api/admin/complaints/:id/status
+ * @access  Private (super_admin)
+ */
+const updateComplaintStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const adminUserId = req.user.id;
+
+    const currentComplaint = await prisma.complaint.findUnique({
+      where: { id: parseInt(id) },
+      select: { id: true, status: true, subject: true }
+    });
+
+    if (!currentComplaint) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Queja no encontrada',
+        code: 'COMPLAINT_NOT_FOUND'
+      });
+    }
+
+    const updatedComplaint = await prisma.complaint.update({
+      where: { id: parseInt(id) },
+      data: { status },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            lastname: true,
+            email: true
+          }
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: adminUserId,
+        action: 'UPDATE_COMPLAINT_STATUS',
+        entity: 'COMPLAINT',
+        entityId: BigInt(id),
+        details: {
+          complaint: {
+            id: currentComplaint.id,
+            subject: currentComplaint.subject
+          },
+          previousStatus: currentComplaint.status,
+          newStatus: status
+        }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Estado de queja actualizado exitosamente',
+      data: {
+        complaint: updatedComplaint,
+        updatedBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en updateComplaintStatus:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Enviar mensaje
+ * @route   POST /api/admin/messages/send
+ * @access  Private (super_admin)
+ */
+const sendMessage = async (req, res) => {
+  try {
+    const messageData = req.body;
+    const adminUserId = req.user.id;
+
+    const message = await AdminService.sendMessage(messageData, adminUserId);
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Mensaje enviado exitosamente',
+      data: {
+        message,
+        sentBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en sendMessage:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Crear notificación masiva
+ * @route   POST /api/admin/notifications/broadcast
+ * @access  Private (super_admin)
+ */
+const broadcastNotification = async (req, res) => {
+  try {
+    const notificationData = req.body;
+    const adminUserId = req.user.id;
+
+    const result = await AdminService.broadcastNotification(notificationData, adminUserId);
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Notificación masiva enviada exitosamente',
+      data: {
+        sentCount: result.sentCount,
+        notifications: result.notifications,
+        sentBy: {
+          userId: adminUserId,
+          userName: `${req.user.name} ${req.user.lastname}`,
+          userEmail: req.user.email
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en broadcastNotification:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener logs de auditoría
+ * @route   GET /api/admin/audit-logs
+ * @access  Private (super_admin)
+ */
+const getAuditLogs = async (req, res) => {
+  try {
+    const { entity, userId, page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (entity) where.entity = entity;
+    if (userId) where.userId = parseInt(userId);
+
+    const [logs, totalCount] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.auditLog.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Logs de auditoría obtenidos exitosamente',
+      data: {
+        logs,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        },
+        filters: {
+          entity: entity || null,
+          userId: userId || null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getAuditLogs:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener logs de auditoría',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener quejas
+ * @route   GET /api/admin/complaints
+ * @access  Private (super_admin)
+ */
+const getComplaints = async (req, res) => {
+  try {
+    const { status, page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (status) where.status = status;
+
+    const [complaints, totalCount] = await Promise.all([
+      prisma.complaint.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          driverProfile: {
+            select: {
+              userId: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  lastname: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.complaint.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Quejas obtenidas exitosamente',
+      data: {
+        complaints,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        },
+        filters: {
+          status: status || null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getComplaints:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener quejas',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * @desc    Obtener calificaciones reportadas
+ * @route   GET /api/admin/ratings/reported
+ * @access  Private (super_admin)
+ */
+const getReportedRatings = async (req, res) => {
+  try {
+    const { page = 1, pageSize = 10 } = req.query;
+    const skip = (page - 1) * pageSize;
+
+    const [ratings, totalCount] = await Promise.all([
+      prisma.rating.findMany({
+        where: { isReported: true },
+        include: {
+          order: {
+            select: {
+              id: true,
+              total: true,
+              status: true
+            }
+          },
+          restaurant: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true,
+              email: true
+            }
+          },
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              lastname: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize
+      }),
+      prisma.rating.count({ where: { isReported: true } })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Calificaciones reportadas obtenidas exitosamente',
+      data: {
+        ratings,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en getReportedRatings:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor al obtener calificaciones reportadas',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
+  // Controladores existentes
   getRestaurants,
   updateRestaurantStatus,
   updateRestaurant,
@@ -1578,5 +3616,56 @@ module.exports = {
   createUser,
   updateUser,
   getRestaurantPayouts,
-  getDriverPayouts
+  getDriverPayouts,
+  
+  // Fase 1: Seguridad, Roles y Usuarios
+  updateUserStatus,
+  updateUserSuspicious,
+  resetUserPassword,
+  updateRolePermissions,
+  assignUserRole,
+  deleteUserSessions,
+  getRoles,
+  createRole,
+  
+  // Fase 2: Configuración Global y Geografía
+  updateGlobalConfig,
+  getGlobalConfig,
+  createServiceArea,
+  updateServiceArea,
+  
+  // Fase 3: Restaurantes y Catálogo
+  verifyRestaurant,
+  updateRestaurantCommission,
+  createCategory,
+  updateCategory,
+  approvePromotion,
+  adjustProductStock,
+  getFlaggedProducts,
+  getInventoryLogs,
+  
+  // Fase 4: Finanzas y Billeteras
+  updatePaymentStatus,
+  processRestaurantPayouts,
+  adjustRestaurantWallet,
+  processDriverPayouts,
+  adjustDriverWallet,
+  getRestaurantWalletTransactions,
+  getDriverWalletTransactions,
+  
+  // Fase 5: Logística y Repartidores
+  updateDriverKyc,
+  blockDriver,
+  forceDriverAssignment,
+  getDriversKycPending,
+  getOrderRouteLogs,
+  getOrderAssignments,
+  
+  // Fase 6: Soporte, Auditoría y Comms
+  updateComplaintStatus,
+  sendMessage,
+  broadcastNotification,
+  getAuditLogs,
+  getComplaints,
+  getReportedRatings
 };
