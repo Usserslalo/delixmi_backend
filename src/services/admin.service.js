@@ -336,8 +336,7 @@ class AdminService {
               name: role.name,
               displayName: role.displayName
             },
-            restaurantId: restaurantId,
-            branchId: branchId
+            restaurantId: restaurantId
           }
         }
       });

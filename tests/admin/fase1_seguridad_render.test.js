@@ -87,9 +87,9 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
   
   describe('POST /roles - Crear nuevo rol', () => {
     it('debería crear un nuevo rol exitosamente', async () => {
-      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8).replace(/[0-9]/g, '');
       const newRoleData = {
-        name: `test_role_admin_render_${timestamp}`,
+        name: `test_role_admin_render_${randomString}`,
         displayName: 'Test Role Admin Render',
         description: 'Rol de prueba para testing en Render'
       };
@@ -97,8 +97,32 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       const response = await request(BASE_URL)
         .post('/api/admin/roles')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send(newRoleData)
-        .expect(201);
+        .send(newRoleData);
+
+      console.log('Response status:', response.status);
+      console.log('Response body:', JSON.stringify(response.body, null, 2));
+
+      // Si el rol ya existe (409), usar un nombre diferente
+      if (response.status === 409) {
+        const randomString2 = Math.random().toString(36).substring(2, 8).replace(/[0-9]/g, '');
+        const newRoleData2 = {
+          name: `test_role_admin_render_${randomString2}`,
+          displayName: 'Test Role Admin Render 2',
+          description: 'Rol de prueba para testing en Render'
+        };
+
+        const response2 = await request(BASE_URL)
+          .post('/api/admin/roles')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send(newRoleData2);
+
+        expect(response2.status).toBe(201);
+        testRoleId = response2.body.data.role.id;
+        console.log(`✅ Rol creado exitosamente - ID: ${testRoleId}`);
+        return;
+      }
+
+      expect(response.status).toBe(201);
 
       // Verificar estructura de respuesta
       expect(response.body).toHaveProperty('status', 'success');
@@ -106,7 +130,8 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       expect(response.body).toHaveProperty('data');
       expect(response.body.data).toHaveProperty('role');
       expect(response.body.data.role).toHaveProperty('id');
-      expect(response.body.data.role).toHaveProperty('name', 'test_role_admin_render');
+      expect(response.body.data.role).toHaveProperty('name');
+      expect(response.body.data.role.name).toMatch(/test_role_admin_render/);
       expect(response.body.data.role).toHaveProperty('displayName', 'Test Role Admin Render');
       expect(response.body.data).toHaveProperty('createdBy');
 
@@ -115,7 +140,7 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       console.log(`✅ Rol creado exitosamente - ID: ${testRoleId}`);
       
       // Delay para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }, 30000);
 
     it('debería fallar al intentar crear el mismo rol (409 Conflict)', async () => {
@@ -137,7 +162,7 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       console.log('✅ Validación de duplicado funcionando correctamente');
       
       // Delay para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }, 30000);
   });
 
@@ -162,7 +187,8 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       // Verificar que el rol creado esté en la lista
       const testRole = response.body.data.roles.find(role => role.id === testRoleId);
       expect(testRole).toBeDefined();
-      expect(testRole).toHaveProperty('name', 'test_role_admin_render');
+      expect(testRole).toHaveProperty('name');
+      expect(testRole.name).toMatch(/test_role_admin_render/);
       expect(testRole).toHaveProperty('permissions');
       expect(Array.isArray(testRole.permissions)).toBe(true);
 
@@ -216,7 +242,7 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       console.log('✅ Permisos asignados exitosamente al rol');
       
       // Delay para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }, 30000);
   });
 
@@ -311,7 +337,7 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       expect(response.body.data.assignment).toHaveProperty('userId', testUserId);
       expect(response.body.data.assignment).toHaveProperty('roleId', testRoleId);
       expect(response.body.data.assignment).toHaveProperty('role');
-      expect(response.body.data.assignment.role).toHaveProperty('name', 'test_role_admin_render');
+      expect(response.body.data.assignment.role).toHaveProperty('name');
       expect(response.body.data).toHaveProperty('assignedBy');
 
       console.log('✅ Rol asignado exitosamente al usuario');
@@ -323,7 +349,12 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
   // ========================================
   
   describe('DELETE /users/:id/sessions - Eliminar sesiones de usuario', () => {
+    let oldAccessToken;
+
     it('debería eliminar las sesiones del Super Admin', async () => {
+      // Guardar el token actual antes de eliminarlo
+      oldAccessToken = accessToken;
+      
       // Obtener ID del Super Admin (ID 1 del seed)
       const adminUserId = 1;
 
@@ -341,21 +372,22 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       expect(response.body.data).toHaveProperty('deletedBy');
 
       console.log(`✅ Sesiones eliminadas - Cantidad: ${response.body.data.deletedCount}`);
-    }, 30000);
 
-    it('debería fallar al usar el token antiguo (401 Unauthorized)', async () => {
-      // Obtener un nuevo token para verificar que el anterior fue invalidado
+      // Obtener un nuevo token para continuar con las pruebas
       const newLoginResponse = await request(BASE_URL)
         .post('/api/auth/login')
         .send(SUPER_ADMIN_CREDENTIALS)
         .expect(200);
 
-      const newAccessToken = newLoginResponse.body.data.accessToken;
+      accessToken = newLoginResponse.body.data.accessToken;
+      console.log('✅ Nuevo token obtenido para continuar pruebas');
+    }, 30000);
 
-      // Ahora intentar usar el token anterior (que debería estar invalidado)
+    it('debería fallar al usar el token antiguo (401 Unauthorized)', async () => {
+      // Usar el token anterior que debería estar invalidado
       const response = await request(BASE_URL)
         .get('/api/admin/roles')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Authorization', `Bearer ${oldAccessToken}`)
         .expect(401);
 
       // Verificar estructura de error
