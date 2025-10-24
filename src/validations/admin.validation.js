@@ -40,8 +40,7 @@ const updateRolePermissionsSchema = z.object({
 // POST /users/:userId/role
 const assignUserRoleSchema = z.object({
   roleId: z.number().int().positive('El ID del rol debe ser un número entero positivo'),
-  restaurantId: z.number().int().positive('El ID del restaurante debe ser un número entero positivo').optional(),
-  branchId: z.number().int().positive('El ID de la sucursal debe ser un número entero positivo').optional()
+  restaurantId: z.number().int().positive('El ID del restaurante debe ser un número entero positivo').optional()
 });
 
 // POST /roles

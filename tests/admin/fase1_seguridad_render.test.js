@@ -76,6 +76,9 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
     } catch (error) {
       console.error('⚠️ Error en limpieza:', error.message);
     }
+    
+    // Delay para evitar rate limiting
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }, 30000);
 
   // ========================================
@@ -84,8 +87,9 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
   
   describe('POST /roles - Crear nuevo rol', () => {
     it('debería crear un nuevo rol exitosamente', async () => {
+      const timestamp = Date.now();
       const newRoleData = {
-        name: 'test_role_admin_render',
+        name: `test_role_admin_render_${timestamp}`,
         displayName: 'Test Role Admin Render',
         description: 'Rol de prueba para testing en Render'
       };
@@ -109,11 +113,14 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       // Almacenar ID del rol para pruebas posteriores
       testRoleId = response.body.data.role.id;
       console.log(`✅ Rol creado exitosamente - ID: ${testRoleId}`);
+      
+      // Delay para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }, 30000);
 
     it('debería fallar al intentar crear el mismo rol (409 Conflict)', async () => {
       const duplicateRoleData = {
-        name: 'test_role_admin_render',
+        name: 'super_admin', // Usar un rol que sabemos que existe
         displayName: 'Test Role Admin Duplicate',
         description: 'Intento de duplicar rol'
       };
@@ -128,6 +135,9 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       expect(response.body).toHaveProperty('status', 'error');
       expect(response.body).toHaveProperty('message');
       console.log('✅ Validación de duplicado funcionando correctamente');
+      
+      // Delay para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }, 30000);
   });
 
@@ -166,6 +176,11 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
   
   describe('PATCH /roles/:id/permissions - Actualizar permisos de rol', () => {
     it('debería asignar permisos al rol exitosamente', async () => {
+      // Verificar que testRoleId esté definido
+      if (!testRoleId) {
+        throw new Error('testRoleId no está definido. El test de crear rol debe ejecutarse primero.');
+      }
+
       const permissionsData = {
         permissions: [
           {
@@ -199,6 +214,9 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
       expect(response.body.data.changes[1]).toHaveProperty('action', 'added');
 
       console.log('✅ Permisos asignados exitosamente al rol');
+      
+      // Delay para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }, 30000);
   });
 
@@ -270,6 +288,11 @@ describe('FASE 1: SEGURIDAD, ROLES Y USUARIOS - Endpoints del Super Admin (Rende
   
   describe('POST /users/:userId/role - Asignar rol a usuario', () => {
     it('debería asignar el rol de prueba al usuario', async () => {
+      // Verificar que testRoleId esté definido
+      if (!testRoleId) {
+        throw new Error('testRoleId no está definido. El test de crear rol debe ejecutarse primero.');
+      }
+
       const roleAssignmentData = {
         roleId: testRoleId
       };
