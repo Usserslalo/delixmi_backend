@@ -535,7 +535,7 @@ router.post('/roles',
       return res.status(400).json({
         status: 'error',
         message: 'Datos de entrada inválidos',
-        errors: error.errors
+        errors: error.errors || error.issues || []
       });
     }
   },

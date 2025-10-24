@@ -32,8 +32,8 @@ module.exports = {
   // Configuración de verbose
   verbose: true,
   
-  // Configuración de colores
-  colors: true,
+  // Configuración de colores (usar --colors en CLI)
+  // colors: true, // Removido - usar --colors en CLI
   
   // Configuración de detección de archivos abiertos
   detectOpenHandles: true,

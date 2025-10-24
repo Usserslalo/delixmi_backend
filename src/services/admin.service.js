@@ -4,6 +4,23 @@ const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
+// Clases de error personalizadas
+class NotFoundError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'NotFoundError';
+    this.statusCode = 404;
+  }
+}
+
+class ConflictError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ConflictError';
+    this.statusCode = 409;
+  }
+}
+
 /**
  * Servicio para operaciones complejas del Super Admin
  * Maneja lógica de negocio, transacciones y operaciones críticas
@@ -27,7 +44,7 @@ class AdminService {
       });
 
       if (!currentUser) {
-        throw new Error('Usuario no encontrado');
+        throw new NotFoundError('Usuario no encontrado');
       }
 
       // Actualizar estado
@@ -245,7 +262,7 @@ class AdminService {
   /**
    * Asignar rol a usuario
    */
-  static async assignUserRole(userId, roleId, restaurantId, branchId, adminUserId) {
+  static async assignUserRole(userId, roleId, restaurantId, adminUserId) {
     return await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
@@ -270,8 +287,7 @@ class AdminService {
         where: {
           userId: userId,
           roleId: roleId,
-          restaurantId: restaurantId || null,
-          branchId: branchId || null
+          restaurantId: restaurantId || null
         }
       });
 
@@ -283,8 +299,7 @@ class AdminService {
         data: {
           userId: userId,
           roleId: roleId,
-          restaurantId: restaurantId || null,
-          branchId: branchId || null
+          restaurantId: restaurantId || null
         },
         include: {
           role: {

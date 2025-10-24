@@ -1602,6 +1602,15 @@ const updateUserStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en updateUserStatus:', error);
+    
+    // Manejar errores específicos
+    if (error.name === 'NotFoundError') {
+      return res.status(404).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+    
     res.status(500).json({
       status: 'error',
       message: error.message || 'Error interno del servidor',
@@ -1724,10 +1733,10 @@ const updateRolePermissions = async (req, res) => {
 const assignUserRole = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { roleId, restaurantId, branchId } = req.body;
+    const { roleId, restaurantId } = req.body;
     const adminUserId = req.user.id;
 
-    const assignment = await AdminService.assignUserRole(parseInt(userId), roleId, restaurantId, branchId, adminUserId);
+    const assignment = await AdminService.assignUserRole(parseInt(userId), roleId, restaurantId, adminUserId);
 
     res.status(201).json({
       status: 'success',
@@ -1851,6 +1860,27 @@ const createRole = async (req, res) => {
   try {
     const { name, displayName, description } = req.body;
     const adminUserId = req.user.id;
+
+    // Verificar si el rol ya existe
+    const existingRole = await prisma.role.findFirst({
+      where: {
+        name: name
+      }
+    });
+
+    if (existingRole) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Ya existe un rol con ese nombre',
+        data: {
+          existingRole: {
+            id: existingRole.id,
+            name: existingRole.name,
+            displayName: existingRole.displayName
+          }
+        }
+      });
+    }
 
     const newRole = await prisma.role.create({
       data: {

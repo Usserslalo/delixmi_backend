@@ -1930,3 +1930,1677 @@
   "level": "info",
   "message": "🔌 Socket.io disponible en: http://localhost:54112"
 }
+{
+  "timestamp": "2025-10-24 11:22:37.467",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.612",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.614",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.615",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.620",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:22:38.621",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.622",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.622",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:22:38.623",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:26:49.948",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.083",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.085",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.086",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.089",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:26:51.089",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.089",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.090",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:26:51.090",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:27:30.214",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.268",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.270",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.270",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.274",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:27:31.274",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.275",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.275",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:27:31.275",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:14.765",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.828",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.829",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.830",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.833",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:28:15.834",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.834",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.834",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:28:15.834",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:55.426",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.577",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.578",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.578",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.582",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:28:56.582",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.582",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.582",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:28:56.583",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:46.828",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.776",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.777",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.778",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.781",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:29:47.782",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.782",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.782",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:29:47.782",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:58.505",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.496",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.498",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.498",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.506",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:29:59.506",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.506",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.507",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:29:59.507",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:30:09.464",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.476",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.478",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.478",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.485",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:30:10.486",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.486",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.486",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:30:10.487",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:31:14.681",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.012",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.013",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.014",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.018",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:31:16.019",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.019",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.020",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:31:16.021",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:53.232",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.616",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.618",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.618",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.622",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:55:54.623",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.623",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.623",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:55:54.623",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:58.614",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.587",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.589",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.590",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.594",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:55:59.595",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.595",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.595",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:55:59.596",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:03.647",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.681",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.683",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.683",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.687",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:04.687",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.687",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.688",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:04.688",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:06.105",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.057",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.058",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.059",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.063",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:07.063",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.064",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.064",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:07.064",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:08.815",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.844",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.846",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.846",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.851",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:09.851",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.851",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.852",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:09.852",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:11.330",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.320",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.321",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.322",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.325",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:12.325",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.326",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.326",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:12.326",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:14.442",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.753",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.755",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.755",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.759",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:15.760",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.760",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.760",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:15.760",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:17.061",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.012",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.014",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.014",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.018",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:18.019",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.019",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.019",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:18.019",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:22.038",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.035",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.037",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.037",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.040",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:23.041",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.041",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.041",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:23.042",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:24.561",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.599",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.601",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.602",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.606",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:25.607",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.607",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.607",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:25.607",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:26.938",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.915",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.918",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.919",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.925",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:27.926",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.926",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.926",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:27.927",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:29.563",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.584",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.586",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.586",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.590",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:30.590",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.590",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.590",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:30.591",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:32.370",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.336",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.337",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.338",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.341",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:33.341",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.341",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.342",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:33.342",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:35.705",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.716",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.717",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.718",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.721",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:56:36.722",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.722",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.722",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:56:36.722",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:58:50.164",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.323",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.325",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.325",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.328",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:58:51.329",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.329",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.329",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:58:51.329",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:58:59.139",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.390",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.392",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.393",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.397",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:00.398",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.398",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.398",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:00.398",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:13.976",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:14.994",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:14.996",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:14.996",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:15.002",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:15.003",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:15.003",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:15.004",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:15.005",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:23.529",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.665",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.668",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.668",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.674",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:24.675",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.676",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.676",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:24.677",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:30.016",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.214",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.216",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.216",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.220",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:31.220",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.221",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.221",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:31.221",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:35.255",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.930",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.933",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.933",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.937",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:36.938",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.938",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.938",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:36.938",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:44.176",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.310",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.312",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.313",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.316",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 11:59:45.317",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.317",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.317",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 11:59:45.318",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 12:00:11.516",
+  "level": "info",
+  "message": "Configurando archivos estáticos",
+  "publicPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public",
+  "uploadsPath": "C:\\Users\\usser\\Documents\\Delixmi\\delixmi-backend\\public\\uploads"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.518",
+  "level": "info",
+  "message": "🔌 Socket.io inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.519",
+  "level": "info",
+  "message": "Inicializando handler de WebSockets para Dashboard del Owner"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.520",
+  "level": "info",
+  "message": "Handler de WebSockets para Dashboard del Owner inicializado correctamente"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.523",
+  "level": "info",
+  "message": "Servidor iniciado exitosamente",
+  "meta": {
+    "port": "54112",
+    "url": "http://localhost:54112",
+    "healthCheck": "http://localhost:54112/health",
+    "socketIo": "http://localhost:54112",
+    "environment": "production"
+  }
+}
+{
+  "timestamp": "2025-10-24 12:00:12.524",
+  "level": "info",
+  "message": "🚀 Servidor iniciado en puerto 54112"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.524",
+  "level": "info",
+  "message": "📍 URL: http://localhost:54112"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.524",
+  "level": "info",
+  "message": "🔍 Health check: http://localhost:54112/health"
+}
+{
+  "timestamp": "2025-10-24 12:00:12.524",
+  "level": "info",
+  "message": "🔌 Socket.io disponible en: http://localhost:54112"
+}
